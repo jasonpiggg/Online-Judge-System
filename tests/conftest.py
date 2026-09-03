@@ -18,12 +18,15 @@ async def app(tmp_path: Path) -> AsyncIterator[FastAPI]:
         database_path=tmp_path / "oj.db",
         problem_dir=tmp_path / "problems",
         seed_problem_dir=tmp_path / "seeds",
+        ai_encryption_key="test-encryption-key",
+        allow_private_ai_endpoints=True,
     )
     application = create_app(settings)
     await application.state.db.initialize()
     await bootstrap_database(application.state.db)
     await application.state.problems.initialize()
     yield application
+    await application.state.ai_authoring.close()
     await application.state.submissions.close()
 
 
