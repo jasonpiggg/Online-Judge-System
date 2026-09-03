@@ -73,9 +73,7 @@ async def test_stream_parser_uses_provider_usage(app: FastAPI, monkeypatch: Any)
     assert (prompt_tokens, completion_tokens, source) == (7, 3, "provider")
 
 
-async def test_config_is_encrypted_and_not_returned(
-    client: AsyncClient, app: FastAPI
-) -> None:
+async def test_config_is_encrypted_and_not_returned(client: AsyncClient, app: FastAPI) -> None:
     await login_admin(client)
     config = {
         "provider_url": "http://127.0.0.1:9999/v1",
@@ -103,7 +101,9 @@ async def test_task_cancel_is_real(client: AsyncClient, app: FastAPI) -> None:
         },
     )
 
-    async def slow_stream(_config: object, _prompt: str) -> tuple[str, int, int, str]:
+    async def slow_stream(
+        _config: object, _prompt: str, _usage: object = None
+    ) -> tuple[str, int, int, str]:
         await asyncio.sleep(30)
         return "{}", 0, 0, "estimated"
 
@@ -172,9 +172,23 @@ async def test_generated_problem_is_locally_verified(
         },
         "reference_solution": "a,b=map(int,input().split())\nprint(a+b)",
         "review": "覆盖零、正负数和整数边界，参考解法为 O(1)。",
+        "coverage": {
+            "basic": "正数基本求和",
+            "boundary": "包含零与负数",
+            "scale": "最大整数输入 O(1)",
+        },
+        "wrong_solutions": [
+            {"code": "a,b=map(int,input().split());print(a-b)", "reason": "将求和误写为求差"},
+            {
+                "code": "a,b=map(int,input().split());print(abs(a)+abs(b))",
+                "reason": "错误地忽略了负数符号",
+            },
+        ],
     }
 
-    async def mock_stream(_config: object, _prompt: str) -> tuple[str, int, int, str]:
+    async def mock_stream(
+        _config: object, _prompt: str, _usage: object = None
+    ) -> tuple[str, int, int, str]:
         await asyncio.sleep(0)
         return json.dumps(generated, ensure_ascii=False), 100, 200, "provider"
 
@@ -184,7 +198,7 @@ async def test_generated_problem_is_locally_verified(
         json={"requirement": "创建一道覆盖正数、负数与边界值的两数求和题"},
     )
     task_id = created.json()["data"]["task_id"]
-    for _ in range(100):
+    for _ in range(300):
         detail = await client.get(f"/api/ai/problem-tasks/{task_id}")
         if detail.json()["data"]["status"] != "running":
             if detail.json()["data"]["status"] != "pending":
@@ -194,10 +208,10 @@ async def test_generated_problem_is_locally_verified(
     assert data["status"] == "completed"
     assert data["result"]["problem"]["id"] == "ai_sum"
     assert data["usage"] == {
-        "input_tokens": 100,
-        "output_tokens": 200,
-        "total_tokens": 300,
-        "cost": 0.5,
+        "input_tokens": 200,
+        "output_tokens": 400,
+        "total_tokens": 600,
+        "cost": 1.0,
         "currency": "USD",
         "source": "provider",
     }

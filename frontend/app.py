@@ -6,9 +6,9 @@ import streamlit as st
 
 from frontend.account import auth_screen, profile_page
 from frontend.admin import admin_page
+from frontend.ai import ai_page
 from frontend.client import ApiClient
 from frontend.editor import editor_page
-from frontend.legacy import ai_page
 from frontend.library import breakpoint, library_page, workspace_page
 from frontend.records import records_page
 from frontend.ui import apply_theme, call
@@ -17,7 +17,9 @@ st.set_page_config(page_title="Atelier OJ · 在线评测", page_icon="◈", lay
 apply_theme()
 mobile = breakpoint(
     data={"mobile": st.session_state.get("mobile")},
-    on_mobile_change=lambda: None, key="viewport-breakpoint", height=0,
+    on_mobile_change=lambda: None,
+    key="viewport-breakpoint",
+    height=0,
 ).mobile
 st.session_state.mobile = bool(mobile)
 st.set_page_config(
