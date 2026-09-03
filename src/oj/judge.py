@@ -48,12 +48,13 @@ def _preexec(memory_mb: int) -> Any:
         import resource
 
         memory_bytes = memory_mb * 1024 * 1024
-        resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))  # type: ignore[attr-defined]
-        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))  # type: ignore[attr-defined]
-        resource.setrlimit(  # type: ignore[attr-defined]
-            resource.RLIMIT_FSIZE, (MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES)  # type: ignore[attr-defined]
+        set_limit = getattr(resource, "setrlimit")  # noqa: B009 - portable type checking
+        set_limit(getattr(resource, "RLIMIT_AS"), (memory_bytes, memory_bytes))  # noqa: B009
+        set_limit(getattr(resource, "RLIMIT_CORE"), (0, 0))  # noqa: B009
+        set_limit(  # noqa: B009
+            getattr(resource, "RLIMIT_FSIZE"), (MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES)
         )
-        resource.setrlimit(resource.RLIMIT_NPROC, (32, 32))  # type: ignore[attr-defined]
+        set_limit(getattr(resource, "RLIMIT_NPROC"), (32, 32))  # noqa: B009
 
     return limit
 
@@ -63,7 +64,9 @@ async def _kill_process(proc: asyncio.subprocess.Process) -> None:
         return
     with contextlib.suppress(ProcessLookupError):
         if os.name == "posix":
-            os.killpg(proc.pid, signal.SIGKILL)  # type: ignore[attr-defined]
+            getattr(os, "killpg")(  # noqa: B009 - unavailable in Windows type stubs
+                proc.pid, getattr(signal, "SIGKILL")  # noqa: B009
+            )
         else:
             proc.kill()
     with contextlib.suppress(Exception):
@@ -96,7 +99,7 @@ def _process_options(memory_mb: int) -> dict[str, Any]:
         options["preexec_fn"] = _preexec(memory_mb)
     else:
         options.pop("start_new_session")
-        options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        options["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200)
     return options
 
 
