@@ -7,6 +7,12 @@ import requests
 import streamlit as st
 
 
+class ApiError(RuntimeError):
+    def __init__(self, status: int, message: str) -> None:
+        self.status = status
+        super().__init__(message)
+
+
 class ApiClient:
     def __init__(self) -> None:
         self.base_url = os.getenv("OJ_API_URL", "http://127.0.0.1:8000").rstrip("/")
@@ -21,7 +27,9 @@ class ApiClient:
             )
             payload = result.json()
             if result.status_code >= 400:
-                raise RuntimeError(payload.get("msg", f"HTTP {result.status_code}"))
+                messages = {403: "没有执行此操作的权限。", 429: "一分钟最多提交 3 次，请稍后重试。"}
+                raise ApiError(result.status_code, messages.get(
+                    result.status_code, payload.get("msg", f"HTTP {result.status_code}")))
             return payload
         except requests.RequestException as exc:
             raise RuntimeError("后端服务暂时不可用，请确认 FastAPI 已启动。") from exc
