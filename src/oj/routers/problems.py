@@ -37,7 +37,15 @@ async def get_problem(
     problem = await request.app.state.problems.get(problem_id)
     if problem is None:
         raise APIError(404, "problem not found")
-    return response(data=problem.model_dump())
+    data = problem.model_dump()
+    # Preserve course defaults on the wire; explicitly expose inheritance for the editor.
+    data["limit_inheritance"] = {
+        "time_limit": problem.time_limit is None,
+        "memory_limit": problem.memory_limit is None,
+    }
+    data["time_limit"] = problem.time_limit if problem.time_limit is not None else 3.0
+    data["memory_limit"] = problem.memory_limit if problem.memory_limit is not None else 128
+    return response(data=data)
 
 
 @router.put("/{problem_id}")

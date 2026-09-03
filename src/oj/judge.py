@@ -60,18 +60,70 @@ def _preexec(memory_mb: int) -> Any:
     return limit
 
 
-async def _kill_process(proc: asyncio.subprocess.Process) -> None:
-    if proc.returncode is not None:
-        return
+def _terminate_group(proc: asyncio.subprocess.Process) -> None:
+    # Kill the group even when its leader exited, otherwise inherited pipes may stay open.
     with contextlib.suppress(ProcessLookupError):
         if os.name == "posix":
             getattr(os, "killpg")(  # noqa: B009 - unavailable in Windows type stubs
                 proc.pid, getattr(signal, "SIGKILL")  # noqa: B009
             )
         else:
-            proc.kill()
+            with contextlib.suppress(psutil.Error):
+                for child in psutil.Process(proc.pid).children(recursive=True):
+                    with contextlib.suppress(psutil.Error):
+                        child.kill()
+            if proc.returncode is None:
+                proc.kill()
+
+
+async def _kill_process(proc: asyncio.subprocess.Process) -> None:
+    _terminate_group(proc)
     with contextlib.suppress(Exception):
         await proc.wait()
+
+
+async def _communicate_bounded(
+    proc: asyncio.subprocess.Process, input_data: bytes = b""
+) -> tuple[bytes, bytes, bool]:
+    exceeded = False
+
+    async def read(stream: asyncio.StreamReader | None) -> bytes:
+        nonlocal exceeded
+        data = bytearray()
+        if stream is None:
+            return b""
+        while chunk := await stream.read(65536):
+            room = MAX_OUTPUT_BYTES - len(data)
+            data.extend(chunk[:room])
+            if len(chunk) > room:
+                exceeded = True
+                _terminate_group(proc)
+                # Keep draining after SIGKILL so transport.wait_closed cannot deadlock.
+        return bytes(data)
+
+    async def write() -> None:
+        if proc.stdin:
+            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+                proc.stdin.write(input_data)
+                await proc.stdin.drain()
+                proc.stdin.close()
+                await proc.stdin.wait_closed()
+
+    stdout_task = asyncio.create_task(read(proc.stdout))
+    stderr_task = asyncio.create_task(read(proc.stderr))
+    stdin_task = asyncio.create_task(write())
+    group = asyncio.gather(stdout_task, stderr_task, stdin_task)
+    try:
+        await asyncio.shield(group)
+        await proc.wait()
+    except asyncio.CancelledError:
+        _terminate_group(proc)
+        await group
+        await proc.wait()
+        raise
+    finally:
+        _terminate_group(proc)
+    return stdout_task.result(), stderr_task.result(), exceeded
 
 
 async def _peak_memory(
@@ -127,8 +179,8 @@ async def _run_case(
     monitor = asyncio.create_task(_peak_memory(proc, memory_limit))
     timed_out = False
     try:
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(testcase.input.encode()), timeout=time_limit
+        stdout, stderr, output_exceeded = await asyncio.wait_for(
+            _communicate_bounded(proc, testcase.input.encode()), timeout=time_limit
         )
     except asyncio.CancelledError:
         await _kill_process(proc)
@@ -138,19 +190,20 @@ async def _run_case(
         timed_out = True
         await _kill_process(proc)
         stdout, stderr = b"", b""
+        output_exceeded = False
     peak, memory_exceeded, process_exceeded = await monitor
     elapsed = time.perf_counter() - started
     message = stderr.decode(errors="replace")[:4000]
     if timed_out:
         result = "TLE"
+    elif output_exceeded:
+        result, message = "UNK", "output limit exceeded"
     elif memory_exceeded or "MemoryError" in message or "bad_alloc" in message:
         result = "MLE"
     elif process_exceeded:
         result, message = "RE", "process limit exceeded"
     elif proc.returncode != 0:
         result = "RE"
-    elif len(stdout) > MAX_OUTPUT_BYTES:
-        result, message = "UNK", "output limit exceeded"
     elif normalize_output(stdout.decode(errors="replace")) == normalize_output(testcase.output):
         result = "AC"
     else:
@@ -174,8 +227,8 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
                     stderr=asyncio.subprocess.PIPE,
                     **_process_options(512),
                 )
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=COMPILE_TIMEOUT_SECONDS
+                stdout, stderr, output_exceeded = await asyncio.wait_for(
+                    _communicate_bounded(process), timeout=COMPILE_TIMEOUT_SECONDS
                 )
             except TimeoutError:
                 await _kill_process(process)
@@ -189,7 +242,9 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
                     "",
                 )
             compiler_message = (stderr or stdout).decode(errors="replace")[:8000]
-            if process.returncode != 0:
+            if output_exceeded:
+                compiler_message = "compiler output limit exceeded"
+            if process.returncode != 0 or output_exceeded:
                 return JudgeOutcome(
                     [CaseResult(1, "CE", 0, 0, compiler_message)],
                     0,

@@ -40,3 +40,27 @@ async def test_linux_cpp_accept_and_compile_error(
     assert failed.compile_info["result"] == "error"
     assert failed.cases[0].result == "CE"
 
+
+@pytest.mark.parametrize(
+    ("language_name", "code", "expected"),
+    [
+        ("python", "print(0)", "WA"),
+        ("python", "raise RuntimeError('test')", "RE"),
+        ("python", "x=bytearray(512*1024*1024)", "MLE"),
+        ("python", "while True: print('x'*65536)", "UNK"),
+        ("cpp", "#include <iostream>\nint main(){std::cout<<0;}", "WA"),
+        ("cpp", "int main(){return 1;}", "RE"),
+        ("cpp", "int main(){while(true){}}", "TLE"),
+        ("cpp", "#include <vector>\nint main(){std::vector<char> x(512*1024*1024);}", "MLE"),
+    ],
+)
+async def test_linux_verdict_matrix(
+    app: FastAPI, problem_payload: dict[str, object],
+    language_name: str, code: str, expected: str,
+) -> None:
+    problem = Problem.model_validate({**problem_payload, "time_limit": 0.5, "memory_limit": 64})
+    language = await get_language(app.state.db, language_name)
+    assert language is not None
+    result = await judge_code(problem, language, code)
+    assert {case.result for case in result.cases} == {expected}
+

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -30,6 +31,10 @@ class ProblemStore:
             Problem.model_validate_json(path.read_text(encoding="utf-8"))
 
     def _path(self, problem_id: str) -> Path:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", problem_id):
+            from oj.errors import APIError
+
+            raise APIError(400, "invalid problem id")
         return self.directory / f"{problem_id}.json"
 
     async def list(self) -> list[dict[str, str]]:
@@ -44,7 +49,7 @@ class ProblemStore:
 
     async def get(self, problem_id: str) -> Problem | None:
         path = self._path(problem_id)
-        if not path.is_file():
+        if not await asyncio.to_thread(path.is_file):
             return None
         return await asyncio.to_thread(self._read_problem, path)
 
@@ -85,7 +90,7 @@ class ProblemStore:
         self._initialize_sync()
 
     def _atomic_write(self, problem: Problem) -> None:
-        data = json.dumps(problem.model_dump(), ensure_ascii=False, indent=2)
+        data = json.dumps(problem.model_dump(exclude_none=True), ensure_ascii=False, indent=2)
         fd, temporary = tempfile.mkstemp(prefix=".problem-", dir=self.directory, text=True)
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as stream:
