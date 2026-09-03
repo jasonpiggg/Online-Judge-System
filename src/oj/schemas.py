@@ -6,7 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    # Code, passwords and test data are opaque: whitespace can be meaningful.
+    model_config = ConfigDict(extra="forbid")
 
 
 class Credentials(StrictModel):
@@ -35,8 +36,8 @@ class Problem(StrictModel):
     hint: str = Field(default="", max_length=20_000)
     source: str = Field(default="", max_length=200)
     tags: list[str] = Field(default_factory=list, max_length=30)
-    time_limit: float = Field(default=3.0, gt=0, le=30)
-    memory_limit: int = Field(default=128, ge=16, le=2048)
+    time_limit: float | None = Field(default=None, gt=0, le=30)
+    memory_limit: int | None = Field(default=None, ge=16, le=2048)
     author: str = Field(default="", max_length=100)
     difficulty: str = Field(default="", max_length=40)
     public_cases: bool = False
