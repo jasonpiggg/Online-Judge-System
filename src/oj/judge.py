@@ -57,6 +57,7 @@ def _preexec(memory_mb: int) -> Any:
             getattr(resource, "RLIMIT_FSIZE"),  # noqa: B009
             (MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES),
         )
+
     return limit
 
 
@@ -65,7 +66,8 @@ def _terminate_group(proc: asyncio.subprocess.Process) -> None:
     with contextlib.suppress(ProcessLookupError):
         if os.name == "posix":
             getattr(os, "killpg")(  # noqa: B009 - unavailable in Windows type stubs
-                proc.pid, getattr(signal, "SIGKILL")  # noqa: B009
+                proc.pid,
+                getattr(signal, "SIGKILL"),  # noqa: B009
             )
         else:
             with contextlib.suppress(psutil.Error):
@@ -126,9 +128,7 @@ async def _communicate_bounded(
     return stdout_task.result(), stderr_task.result(), exceeded
 
 
-async def _peak_memory(
-    proc: asyncio.subprocess.Process, limit_mb: int
-) -> tuple[float, bool, bool]:
+async def _peak_memory(proc: asyncio.subprocess.Process, limit_mb: int) -> tuple[float, bool, bool]:
     peak = 0.0
     memory_exceeded = False
     process_exceeded = False
@@ -165,7 +165,12 @@ def _process_options(memory_mb: int) -> dict[str, Any]:
 
 
 async def _run_case(
-    argv: list[str], testcase: TestCase, time_limit: float, memory_limit: int, case_id: int
+    argv: list[str],
+    testcase: TestCase,
+    time_limit: float,
+    memory_limit: int,
+    case_id: int,
+    directory: Path | None = None,
 ) -> CaseResult:
     started = time.perf_counter()
     proc = await asyncio.create_subprocess_exec(
@@ -174,6 +179,7 @@ async def _run_case(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env={"PATH": os.environ.get("PATH", ""), "LANG": "C.UTF-8"},
+        cwd=directory,
         **_process_options(memory_limit),
     )
     monitor = asyncio.create_task(_peak_memory(proc, memory_limit))
@@ -194,6 +200,8 @@ async def _run_case(
     peak, memory_exceeded, process_exceeded = await monitor
     elapsed = time.perf_counter() - started
     message = stderr.decode(errors="replace")[:4000]
+    if directory:
+        message = message.replace(str(directory), "<workspace>")
     if timed_out:
         result = "TLE"
     elif output_exceeded:
@@ -225,6 +233,8 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
                     *argv,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    env={"PATH": os.environ.get("PATH", ""), "LANG": "C.UTF-8"},
+                    cwd=directory,
                     **_process_options(512),
                 )
                 stdout, stderr, output_exceeded = await asyncio.wait_for(
@@ -242,6 +252,7 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
                     "",
                 )
             compiler_message = (stderr or stdout).decode(errors="replace")[:8000]
+            compiler_message = compiler_message.replace(str(directory), "<workspace>")
             if output_exceeded:
                 compiler_message = "compiler output limit exceeded"
             if process.returncode != 0 or output_exceeded:
@@ -259,7 +270,7 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
         time_limit = problem.time_limit or language.time_limit or 3.0
         memory_limit = problem.memory_limit or language.memory_limit or 128
         cases = [
-            await _run_case(argv, testcase, time_limit, memory_limit, index)
+            await _run_case(argv, testcase, time_limit, memory_limit, index, directory)
             for index, testcase in enumerate(problem.testcases, start=1)
         ]
         score = sum(10 for case in cases if case.result == "AC")

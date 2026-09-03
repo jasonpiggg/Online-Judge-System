@@ -19,6 +19,7 @@ class SubmissionManager:
         self.db = db
         self.problems = problems
         self.tasks: dict[int, asyncio.Task[None]] = {}
+        self.intake_lock = asyncio.Lock()
 
     async def create(self, user_id: int, problem_id: str, language: str, code: str) -> int:
         now = now_iso()
@@ -66,6 +67,12 @@ class SubmissionManager:
             task.cancel()
         if running:
             await asyncio.gather(*running, return_exceptions=True)
+
+    async def cancel_one(self, submission_id: int) -> None:
+        task = self.tasks.get(submission_id)
+        if task and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     async def _evaluate(self, submission_id: int) -> None:
         try:
@@ -141,3 +148,11 @@ def detail_from_row(row: object, include_metadata: bool = False) -> dict[str, ob
     elif status == "error":
         data["error_info"] = row["error_info"] or "judge infrastructure error"  # type: ignore[index]
     return data
+
+
+def summary_from_row(row: object, include_metadata: bool = False) -> dict[str, object]:
+    detail = detail_from_row(row, include_metadata)
+    keys = {"submission_id", "status", "score", "counts"}
+    if include_metadata:
+        keys.update({"user_id", "problem_id", "language", "created_at"})
+    return {key: value for key, value in detail.items() if key in keys}

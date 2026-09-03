@@ -1,0 +1,21 @@
+{
+  "id": "brackets",
+  "title": "括号的秩序",
+  "description": "给定只包含圆括号与方括号的字符串，判断括号是否正确配对且嵌套合法。空字符串也合法。",
+  "input_description": "一行字符串 s，只包含 (、)、[、]，可能为空。",
+  "output_description": "合法输出 YES，否则输出 NO。",
+  "samples": [{"input": "([])[]\n", "output": "YES\n"}, {"input": "([)]\n", "output": "NO\n"}],
+  "constraints": "0 ≤ |s| ≤ 100000。",
+  "testcases": [
+    {"input": "\n", "output": "YES\n"},
+    {"input": "([])[]\n", "output": "YES\n"},
+    {"input": "([)]\n", "output": "NO\n"},
+    {"input": ")([])\n", "output": "NO\n"},
+    {"input": "(([]\n", "output": "NO\n"}
+  ],
+  "hint": "栈顶应该始终对应当前期望闭合的括号。",
+  "difficulty": "进阶",
+  "tags": ["栈", "字符串"],
+  "source": "Atelier OJ 演示题",
+  "author": "jasonpiggg"
+}

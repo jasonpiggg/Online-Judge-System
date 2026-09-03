@@ -12,8 +12,7 @@ router = APIRouter(prefix="/api/problems")
 
 @router.get("/")
 async def list_problems(
-    request: Request, include_metadata: bool = False,
-    _user: CurrentUser = Depends(get_current_user)
+    request: Request, include_metadata: bool = False, _user: CurrentUser = Depends(get_current_user)
 ) -> JSONResponse:
     return response(data=await request.app.state.problems.list(include_metadata))
 
@@ -24,6 +23,8 @@ async def add_problem(
     body: Problem,
     _user: CurrentUser = Depends(get_current_user),
 ) -> JSONResponse:
+    if body.public_cases and _user.role != "admin":
+        raise APIError(403, "only administrators may publish logs")
     if not await request.app.state.problems.create(body):
         raise APIError(409, "problem id already exists")
     return response(200, "add success", {"id": body.id})
@@ -58,6 +59,15 @@ async def update_problem(
 ) -> JSONResponse:
     if body.id != problem_id:
         raise APIError(400, "problem id does not match path")
+    if _user.role != "admin":
+        current = await request.app.state.problems.get(problem_id)
+        if current:
+            if (
+                "public_cases" in body.model_fields_set
+                and body.public_cases != current.public_cases
+            ):
+                raise APIError(403, "only administrators may change log visibility")
+            body = body.model_copy(update={"public_cases": current.public_cases})
     if not await request.app.state.problems.update(body):
         raise APIError(404, "problem not found")
     return response(200, "update success", {"id": body.id})
@@ -91,5 +101,3 @@ async def update_log_visibility(
         "log visibility updated",
         {"problem_id": problem_id, "public_cases": body.public_cases},
     )
-
-

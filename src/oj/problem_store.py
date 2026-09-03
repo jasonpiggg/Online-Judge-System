@@ -62,14 +62,14 @@ class ProblemStore:
 
     async def create(self, problem: Problem) -> bool:
         async with self._lock:
-            if self._path(problem.id).exists():
+            if await asyncio.to_thread(self._path(problem.id).exists):
                 return False
             await asyncio.to_thread(self._atomic_write, problem)
             return True
 
     async def update(self, problem: Problem) -> bool:
         async with self._lock:
-            if not self._path(problem.id).exists():
+            if not await asyncio.to_thread(self._path(problem.id).exists):
                 return False
             await asyncio.to_thread(self._atomic_write, problem)
             return True
@@ -77,7 +77,7 @@ class ProblemStore:
     async def delete(self, problem_id: str) -> bool:
         async with self._lock:
             path = self._path(problem_id)
-            if not path.exists():
+            if not await asyncio.to_thread(path.exists):
                 return False
             await asyncio.to_thread(path.unlink)
             return True

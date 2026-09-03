@@ -5,6 +5,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .coverage
+coverage.json
 htmlcov/
 .env
 var/
@@ -14,4 +15,3 @@ tmp/
 *.exe
 *.out
 .DS_Store
-

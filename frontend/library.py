@@ -10,8 +10,18 @@ from frontend.ui import call, heading, navigate, pager, pills
 
 BREAKPOINT_JS = """export default function(c) {
       const media = window.matchMedia('(max-width: 760px)');
+      let previous = c.data.mobile;
       const update = () => {
-        if (c.data.mobile !== media.matches) c.setStateValue('mobile', media.matches);
+        if (previous !== media.matches) {
+          // Use the native sidebar toggle once on entering the narrow layout.
+          // Do not force it closed on reruns: users can still open the menu.
+          if (media.matches) {
+            document.querySelector('[data-testid="stSidebar"][aria-expanded="true"] '
+              + '[data-testid="stSidebarCollapseButton"] button')?.click();
+          }
+          previous = media.matches;
+          c.setStateValue('mobile', media.matches);
+        }
       };
       update(); media.addEventListener('change', update);
       return () => media.removeEventListener('change', update);
@@ -25,21 +35,29 @@ def breakpoint(**kwargs: Any) -> Any:
 
 def library_page(api: ApiClient) -> None:
     heading("题库", note="找到下一道值得解决的问题。阅读、编写、验证，在一个工作区完成。")
-    st.markdown(
-        '<div class="oj-hero"><h2>让每一次提交，都有清晰的反馈。</h2>'
-        "<p>Python 与 C++14 · 逐测试点评测 · 可追溯的运行记录</p></div>",
-        unsafe_allow_html=True,
-    )
+    if not st.session_state.get("mobile"):
+        st.markdown(
+            '<div class="oj-hero"><h2>让每一次提交，都有清晰的反馈。</h2>'
+            "<p>Python 与 C++14 · 逐测试点评测 · 可追溯的运行记录</p></div>",
+            unsafe_allow_html=True,
+        )
     result = call(lambda: api.get("/api/problems/", params={"include_metadata": True}))
     if not result:
         return
     problems = result["data"]
-    a, b, c = st.columns([3, 1.2, 1.2], vertical_alignment="bottom")
-    query = a.text_input("搜索题目", placeholder="题号、标题或标签", key="library-search")
     levels = sorted({p.get("difficulty", "") for p in problems} - {""})
-    level = b.selectbox("难度", ["全部难度", *levels])
-    if c.button("新建题目", icon=":material/add:", type="primary", width="stretch"):
-        navigate("editor", editing_problem=None)
+    if st.session_state.get("mobile"):
+        query = st.text_input("搜索题目", placeholder="题号、标题或标签", key="library-search")
+        with st.expander("筛选与题目管理"):
+            level = st.selectbox("难度", ["全部难度", *levels])
+            if st.button("新建题目", icon=":material/add:", width="stretch"):
+                navigate("editor", editing_problem=None)
+    else:
+        a, b, c = st.columns([3, 1.2, 1.2], vertical_alignment="bottom")
+        query = a.text_input("搜索题目", placeholder="题号、标题或标签", key="library-search")
+        level = b.selectbox("难度", ["全部难度", *levels])
+        if c.button("新建题目", icon=":material/add:", type="primary", width="stretch"):
+            navigate("editor", editing_problem=None)
     items = [
         p
         for p in problems
@@ -86,7 +104,17 @@ def code_panel(api: ApiClient, problem: dict[str, Any]) -> None:
     result = call(lambda: api.get("/api/languages/"))
     if not result:
         return
-    language = st.selectbox("编程语言", result["data"]["name"], key="workspace-language")
+    names = result["data"]["name"]
+    preferred = st.session_state.get("preferred-language", "python")
+    language = st.selectbox(
+        "编程语言",
+        names,
+        index=names.index(preferred) if preferred in names else 0,
+        key="workspace-language",
+        on_change=lambda: st.session_state.update(
+            {"preferred-language": st.session_state["workspace-language"]}
+        ),
+    )
     draft_key = f"draft-{problem['id']}-{language}"
     starter = "# 在这里编写解法\n" if language.startswith("py") else "// 在这里编写解法\n"
     code = st_ace(
@@ -136,7 +164,7 @@ def workspace_page(api: ApiClient) -> None:
     problem = result["data"]
     top, actions = st.columns([3, 1], vertical_alignment="center")
     with top:
-        heading(problem["title"], note=f"{problem['id']} · 在右侧编写并提交你的解法")
+        heading(problem["title"], note=f"{problem['id']} · 阅读题目，编写并提交你的解法")
     if actions.button("编辑题目", icon=":material/edit:", width="stretch"):
         navigate("editor", editing_problem=problem)
     if st.session_state.user["role"] == "admin":
@@ -166,7 +194,11 @@ def workspace_page(api: ApiClient) -> None:
     mobile = st.session_state.get("mobile", False)
     last_id = st.session_state.get(f"last-{problem['id']}")
     if mobile:
-        description, editor, results = st.tabs(["题目", "代码", "结果"])
+        description, editor, results = st.tabs(
+            ["题目", "代码", "结果"],
+            default="结果" if last_id else "题目",
+            key=f"work-tabs-{problem['id']}-{last_id or 'new'}",
+        )
         with description:
             statement(problem)
         with editor:
