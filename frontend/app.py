@@ -13,7 +13,12 @@ from frontend.library import breakpoint, library_page, workspace_page
 from frontend.records import records_page
 from frontend.ui import apply_theme, call
 
-st.set_page_config(page_title="Atelier OJ · 在线评测", page_icon="◈", layout="wide")
+st.set_page_config(
+    page_title="Atelier OJ · 在线评测",
+    page_icon="◈",
+    layout="wide",
+    initial_sidebar_state="auto",
+)
 apply_theme()
 mobile = breakpoint(
     data={"mobile": st.session_state.get("mobile")},
@@ -21,12 +26,10 @@ mobile = breakpoint(
     key="viewport-breakpoint",
     height=0,
 ).mobile
-st.session_state.mobile = bool(mobile)
-st.set_page_config(
-    initial_sidebar_state=(
-        "expanded" if st.session_state.get("user") and not mobile else "collapsed"
-    )
-)
+if mobile is not None:
+    st.session_state.mobile = bool(mobile)
+else:
+    st.session_state.setdefault("mobile", False)
 api = ApiClient()
 
 

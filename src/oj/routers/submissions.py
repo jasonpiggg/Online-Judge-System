@@ -9,7 +9,7 @@ from oj.auth import CurrentUser, get_current_user, require_admin
 from oj.errors import APIError, response
 from oj.languages import get_language
 from oj.schemas import SubmissionCreate
-from oj.submissions import detail_from_row, now_iso
+from oj.submissions import detail_from_row, now_iso, summary_from_row
 
 router = APIRouter(prefix="/api/submissions")
 
@@ -19,6 +19,13 @@ async def submit(
     request: Request,
     body: SubmissionCreate,
     user: CurrentUser = Depends(get_current_user),
+) -> JSONResponse:
+    async with request.app.state.submissions.intake_lock:
+        return await _submit_locked(request, body, user)
+
+
+async def _submit_locked(
+    request: Request, body: SubmissionCreate, user: CurrentUser
 ) -> JSONResponse:
     one_minute_ago = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
     recent = await request.app.state.db.fetchone(
@@ -37,6 +44,25 @@ async def submit(
     return response(data={"submission_id": str(submission_id), "status": "pending"})
 
 
+async def submission_reader(request: Request) -> CurrentUser:
+    user = await get_current_user(request)
+    if user.role != "admin":
+        # Check identifiable scope violations before FastAPI validates pagination.
+        query_id = request.query_params.get("user_id")
+        try:
+            other_user = query_id is not None and int(query_id) != user.id
+        except ValueError:
+            other_user = False
+        if other_user or request.query_params.get("all_users", "").lower() in {
+            "true",
+            "1",
+            "yes",
+            "on",
+        }:
+            raise APIError(403, "permission denied")
+    return user
+
+
 @router.get("/")
 async def list_submissions(
     request: Request,
@@ -47,7 +73,7 @@ async def list_submissions(
     page_size: int | None = Query(default=None, ge=1, le=100),
     all_users: bool = False,
     include_metadata: bool = False,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(submission_reader),
 ) -> JSONResponse:
     if all_users and user.role != "admin":
         raise APIError(403, "permission denied")
@@ -85,7 +111,7 @@ async def list_submissions(
     return response(
         data={
             "total": total["n"],
-            "submissions": [detail_from_row(row, include_metadata) for row in rows],
+            "submissions": [summary_from_row(row, include_metadata) for row in rows],
         }
     )
 
@@ -118,6 +144,7 @@ async def rejudge(
     )
     if row is None:
         raise APIError(404, "submission not found")
+    await request.app.state.submissions.cancel_one(submission_id)
     async with request.app.state.db.connect() as db:
         await db.execute("DELETE FROM submission_cases WHERE submission_id=?", (submission_id,))
         await db.execute(

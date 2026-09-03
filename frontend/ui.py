@@ -12,9 +12,10 @@ CSS = """
 <style>
 body,.stApp {font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;}
 [data-testid="stHeader"] {background:#f5f7fbea;}
-[data-testid="stMainBlockContainer"] {max-width:1440px;padding:5rem 2.5rem 4rem!important;}
+[data-testid="stMainBlockContainer"] {max-width:1440px;padding:3.5rem 2.5rem 4rem!important;}
 h1,h2,h3 {letter-spacing:-.025em;}
-[data-testid="stSidebar"][aria-expanded="true"] {width:256px;min-width:256px;}
+[data-testid="stSidebar"][aria-expanded="true"] {width:256px!important;min-width:256px!important;}
+[data-testid="stAppDeployButton"] {display:none;}
 [data-testid="stSidebar"] [data-testid="stPageLink"] a {
  min-height:48px;border-radius:10px;padding:10px 12px;}
 [data-testid="stSidebar"] [data-testid="stPageLink"] p {font-size:17px;font-weight:600;}
@@ -43,8 +44,9 @@ h1,h2,h3 {letter-spacing:-.025em;}
 .st-key-editor-panel,.st-key-statement-panel {
  background:white;border:1px solid #e2e8f2;border-radius:12px;padding:20px;}
 [data-testid="stVerticalBlockBorderWrapper"]>div {background:white;}
+[data-testid="stForm"] {background:white;}
 @media(max-width:760px){
- [data-testid="stMainBlockContainer"]{padding:4.5rem 1rem 3rem!important;}
+ [data-testid="stMainBlockContainer"]{padding:3rem 1rem 3rem!important;}
  .oj-header h1{font-size:26px;}
  .oj-hero{padding:20px;}.oj-hero h2{font-size:21px;}
  [data-testid="stSidebar"][aria-expanded="true"]{min-width:256px;width:256px;}
@@ -95,17 +97,12 @@ def pager(key: str, count: int | None = None, size: int = 10, has_next: bool = F
     if last and page > last:
         page = last
         st.session_state[key] = page
-    left, center, right = st.columns([1, 2, 1])
-    if left.button("上一页", key=f"{key}-prev", disabled=page == 1, width="stretch"):
-        st.session_state[key] = page - 1
-        st.rerun()
-    center.markdown(f"第 **{page}** 页" + (f" / 共 {last} 页 · {count} 条" if last else ""))
-    if right.button(
-        "下一页",
-        key=f"{key}-next",
-        width="stretch",
-        disabled=page >= last if last else not has_next,
-    ):
-        st.session_state[key] = page + 1
-        st.rerun()
+    with st.container(horizontal=True, vertical_alignment="center"):
+        if st.button("上一页", key=f"{key}-prev", disabled=page == 1):
+            st.session_state[key] = page - 1
+            st.rerun()
+        st.caption(f"{page} / {last} 页" if last else f"第 {page} 页")
+        if st.button("下一页", key=f"{key}-next", disabled=page >= last if last else not has_next):
+            st.session_state[key] = page + 1
+            st.rerun()
     return page

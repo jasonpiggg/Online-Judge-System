@@ -22,6 +22,7 @@ jobs:
       - run: echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
       - run: ruff check .
       - run: mypy src/oj
-      - run: pytest --cov=oj --cov-report=term-missing --cov-fail-under=85
+      - run: pytest --cov=oj --cov-branch --cov-report=term-missing --cov-report=json:coverage.json
+      - run: python scripts/check_coverage.py
       - run: pip-audit --local --skip-editable
 

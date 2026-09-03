@@ -6,6 +6,22 @@ from frontend.client import ApiClient
 from frontend.ui import call, heading
 
 
+def activate_user(user: dict[str, object]) -> None:
+    """Bind UI state to an identity without leaking drafts across account switches."""
+    user_id = str(user["user_id"])
+    previous = st.session_state.get("workspace_user_id")
+    if previous is not None and str(previous) != user_id:
+        preserved = {
+            key: st.session_state[key]
+            for key in ("http_session", "mobile")
+            if key in st.session_state
+        }
+        st.session_state.clear()
+        st.session_state.update(preserved)
+    st.session_state.workspace_user_id = user_id
+    st.session_state.user = user
+
+
 def auth_screen(api: ApiClient) -> None:
     st.markdown(
         '<div class="oj-brand"><span class="oj-mark">{ }</span>Atelier OJ</div>',
@@ -45,7 +61,7 @@ def auth_screen(api: ApiClient) -> None:
                     )
                 )
                 if result:
-                    st.session_state.user = result["data"]
+                    activate_user(result["data"])
                     st.rerun()
         with register, st.form("register"):
             username = st.text_input("新用户名", help="3–40 个字符")

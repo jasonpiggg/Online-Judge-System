@@ -36,8 +36,8 @@ Streamlit UI ── requests.Session / HttpOnly Cookie ── FastAPI
                                           Linux subprocess / rlimit / psutil
 ```
 
-- `src/oj/api/`：API 路由、权限与统一错误处理。
-- `src/oj/services/`：认证、题目存储、评测、提交、审计和 AI 工作流。
+- `src/oj/routers/`：课程 API 路由、依赖鉴权与统一错误处理。
+- `src/oj/*.py`：认证、数据库、题目存储、评测、提交和 AI 工作流。
 - `frontend/`：仅通过 REST API 操作后端的 Streamlit 客户端。
 - `data/problem_seeds/`：版本化的初始题目；运行数据保存在已忽略的 `var/`。
 - `tests/`：模型、API、权限矩阵、runner、AI mock 与界面 smoke tests。
@@ -47,22 +47,23 @@ Streamlit UI ── requests.Session / HttpOnly Cookie ── FastAPI
 完整评测环境为 Ubuntu/WSL2，要求 Python 3.12 与 `g++`。
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync --frozen --extra dev --extra report
 cp .env.example .env
-bash scripts/run.sh
+uv run -- bash scripts/run.sh
 ```
 
 Windows 可用于界面开发；原生 Windows 的资源限制不宣称与 Linux 等价。
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements-dev.txt
+winget install --id=astral-sh.uv -e
+uv sync --frozen --extra dev --extra report
 Copy-Item .env.example .env
-.\scripts\run.ps1
+uv run -- powershell -ExecutionPolicy Bypass -File .\scripts\run.ps1
 ```
+
+没有 `uv` 时仍可使用 `python -m venv .venv` 后执行
+`pip install -r requirements-dev.txt`；正式验收与 CI 使用已提交的 `uv.lock`。
 
 打开 <http://127.0.0.1:8501>。后端 API 和交互文档分别位于
 <http://127.0.0.1:8000> 与 <http://127.0.0.1:8000/docs>。
@@ -89,24 +90,30 @@ Copy-Item .env.example .env
 | `OJ_API_URL` | Streamlit 访问后端的地址 |
 
 AI 配置保存在数据库中，API key 使用 Fernet 加密，接口只返回
-`api_key_configured`。本地开发若未提供主密钥会生成运行期密钥，重启后旧密文不可用。
+`api_key_configured`。本地开发若未提供主密钥，会在运行数据目录生成持久化
+`.ai-key`；迁移或备份数据库时应一并保留。生产环境必须显式设置环境主密钥。
 
 ## 测试与质量门禁
 
 ```bash
-ruff check src frontend tests
-mypy src
-pytest --cov=src/oj --cov-report=term-missing --cov-fail-under=85
+uv run ruff check src frontend tests scripts
+uv run mypy src
+uv run pytest --cov=oj --cov-branch --cov-report=json:coverage.json
+uv run python scripts/check_coverage.py coverage.json
+uv run pip-audit --local --skip-editable
 ```
 
 GitHub Actions 在 Ubuntu、Python 3.12 和系统 `g++` 下执行上述检查，并额外覆盖
-Python TLE、C++ AC/CE、异步状态、权限与 AI 流式 mock。覆盖率门槛为 85%。
+Python/C++ 的完整 verdict 矩阵、异步状态、权限与 AI 流式 mock。当前基线为
+98 个测试通过，后端行覆盖率 97.67%、分支覆盖率 93.07%；门槛分别为 90% 和 85%。
 
 ## API 与报告
 
 - [API 参考](docs/API.md)
 - [实验报告（Markdown）](docs/experiment-report.md)
 - [实验报告（PDF）](output/pdf/atelier-oj-experiment-report.pdf)
+- [评分点核对表](docs/scoring-checklist.md)
+- [v1.1 测试记录](docs/test-record.md)
 - [OpenAPI 交互文档](http://127.0.0.1:8000/docs)
 
 ## 安全边界

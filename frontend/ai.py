@@ -45,7 +45,8 @@ def model_settings(api: ApiClient, config: dict[str, Any]) -> None:
             if secret:
                 body["api_key"] = secret
             if call(lambda: api.put("/api/ai/model-config", json=body)):
-                st.success("配置已保存，密钥不会回显。")
+                st.toast("配置已保存，密钥不会回显。")
+                st.rerun()
 
 
 def ai_result(api: ApiClient, result: dict[str, Any], ready: bool) -> None:
