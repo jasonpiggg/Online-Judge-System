@@ -1,0 +1,25 @@
+{
+  "id": "sum_2",
+  "title": "两数之和",
+  "description": "输入两个整数 a 和 b，输出它们的和。",
+  "input_description": "一行包含两个整数 a 和 b，以空格分隔。",
+  "output_description": "输出一个整数 a+b。",
+  "samples": [
+    {"input": "1 2\n", "output": "3\n"}
+  ],
+  "constraints": "-1000000000 <= a, b <= 1000000000",
+  "testcases": [
+    {"input": "1 2\n", "output": "3\n"},
+    {"input": "-5 8\n", "output": "3\n"},
+    {"input": "1000000000 -1000000000\n", "output": "0\n"}
+  ],
+  "hint": "注意负数和边界值。",
+  "source": "Atelier OJ",
+  "tags": ["基础", "输入输出"],
+  "time_limit": 1.0,
+  "memory_limit": 128,
+  "author": "Atelier OJ",
+  "difficulty": "入门",
+  "public_cases": false
+}
+
