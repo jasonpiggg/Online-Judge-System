@@ -8,17 +8,19 @@ from streamlit_ace import st_ace
 from frontend.client import ApiClient
 from frontend.ui import call, heading, navigate, pager, pills
 
-breakpoint = st.components.v2.component(
-    "oj_breakpoint",
-    js="""export default function(c) {
+BREAKPOINT_JS = """export default function(c) {
       const media = window.matchMedia('(max-width: 760px)');
       const update = () => {
         if (c.data.mobile !== media.matches) c.setStateValue('mobile', media.matches);
       };
       update(); media.addEventListener('change', update);
       return () => media.removeEventListener('change', update);
-    }""",
-)
+    }"""
+
+
+def breakpoint(**kwargs: Any) -> Any:
+    # Register inside the active Streamlit runtime, not during module import/pytest collection.
+    return st.components.v2.component("oj_breakpoint", js=BREAKPOINT_JS)(**kwargs)
 
 
 def library_page(api: ApiClient) -> None:
