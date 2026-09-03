@@ -21,7 +21,25 @@ async def app(tmp_path: Path) -> AsyncIterator[FastAPI]:
     application = create_app(settings)
     await application.state.db.initialize()
     await bootstrap(application.state.db)
+    await application.state.problems.initialize()
     yield application
+
+
+@pytest.fixture
+def problem_payload() -> dict[str, object]:
+    return {
+        "id": "sum_2",
+        "title": "两数之和",
+        "description": "输入两个整数，输出它们的和。",
+        "input_description": "一行两个整数 a 和 b。",
+        "output_description": "输出 a+b。",
+        "samples": [{"input": "1 2\n", "output": "3\n"}],
+        "constraints": "|a|, |b| <= 10^9",
+        "testcases": [
+            {"input": "1 2\n", "output": "3\n"},
+            {"input": "-5 8\n", "output": "3\n"},
+        ],
+    }
 
 
 @pytest.fixture

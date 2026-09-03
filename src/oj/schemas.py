@@ -17,3 +17,28 @@ class Credentials(StrictModel):
 class RoleUpdate(StrictModel):
     role: Literal["user", "admin", "banned"]
 
+
+class TestCase(StrictModel):
+    input: str = Field(max_length=1_000_000)
+    output: str = Field(max_length=1_000_000)
+
+
+class Problem(StrictModel):
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1, max_length=100_000)
+    input_description: str = Field(min_length=1, max_length=20_000)
+    output_description: str = Field(min_length=1, max_length=20_000)
+    samples: list[TestCase] = Field(min_length=1, max_length=20)
+    constraints: str = Field(min_length=1, max_length=20_000)
+    testcases: list[TestCase] = Field(min_length=1, max_length=100)
+    hint: str = Field(default="", max_length=20_000)
+    source: str = Field(default="", max_length=200)
+    tags: list[str] = Field(default_factory=list, max_length=30)
+    time_limit: float = Field(default=3.0, gt=0, le=30)
+    memory_limit: int = Field(default=128, ge=16, le=2048)
+    author: str = Field(default="", max_length=100)
+    difficulty: str = Field(default="", max_length=40)
+    public_cases: bool = False
+
+
