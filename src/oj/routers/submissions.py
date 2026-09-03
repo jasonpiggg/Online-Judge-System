@@ -1,0 +1,128 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import JSONResponse
+
+from oj.auth import CurrentUser, get_current_user, require_admin
+from oj.errors import APIError, response
+from oj.languages import get_language
+from oj.schemas import SubmissionCreate
+from oj.submissions import detail_from_row, now_iso
+
+router = APIRouter(prefix="/api/submissions")
+
+
+@router.post("/")
+async def submit(
+    request: Request,
+    body: SubmissionCreate,
+    user: CurrentUser = Depends(get_current_user),
+) -> JSONResponse:
+    one_minute_ago = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
+    recent = await request.app.state.db.fetchone(
+        "SELECT COUNT(*) AS n FROM submissions WHERE user_id=? AND created_at>=?",
+        (user.id, one_minute_ago),
+    )
+    if recent["n"] >= 3:
+        raise APIError(429, "submission rate limit exceeded")
+    problem = await request.app.state.problems.get(body.problem_id)
+    language = await get_language(request.app.state.db, body.language)
+    if problem is None or language is None:
+        raise APIError(404, "problem or language not found")
+    submission_id = await request.app.state.submissions.create(
+        user.id, body.problem_id, body.language, body.code
+    )
+    return response(
+        data={"submission_id": str(submission_id), "status": "pending"}
+    )
+
+
+@router.get("/")
+async def list_submissions(
+    request: Request,
+    user_id: int | None = None,
+    problem_id: str | None = None,
+    status: str | None = Query(default=None, pattern="^(pending|success|error)$"),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int | None = Query(default=None, ge=1, le=100),
+    user: CurrentUser = Depends(get_current_user),
+) -> JSONResponse:
+    if user_id is None and problem_id is None:
+        raise APIError(400, "user_id or problem_id is required")
+    if page is not None and page_size is None:
+        raise APIError(400, "page_size is required when page is provided")
+    if user.role != "admin":
+        if user_id is not None and user_id != user.id:
+            raise APIError(403, "permission denied")
+        user_id = user.id
+
+    clauses: list[str] = []
+    params: list[object] = []
+    if user_id is not None:
+        clauses.append("user_id=?")
+        params.append(user_id)
+    if problem_id is not None:
+        clauses.append("problem_id=?")
+        params.append(problem_id)
+    if status is not None:
+        clauses.append("status=?")
+        params.append(status)
+    where = " AND ".join(clauses)
+    total = await request.app.state.db.fetchone(
+        f"SELECT COUNT(*) AS n FROM submissions WHERE {where}", params  # noqa: S608
+    )
+    sql = f"SELECT * FROM submissions WHERE {where} ORDER BY id DESC"  # noqa: S608
+    if page_size is not None:
+        page = page or 1
+        sql += " LIMIT ? OFFSET ?"
+        params.extend((page_size, (page - 1) * page_size))
+    rows = await request.app.state.db.fetchall(sql, params)
+    return response(
+        data={"total": total["n"], "submissions": [detail_from_row(row) for row in rows]}
+    )
+
+
+@router.get("/{submission_id}")
+async def get_submission(
+    request: Request,
+    submission_id: int,
+    user: CurrentUser = Depends(get_current_user),
+) -> JSONResponse:
+    row = await request.app.state.db.fetchone(
+        "SELECT * FROM submissions WHERE id=?", (submission_id,)
+    )
+    if row is None:
+        raise APIError(404, "submission not found")
+    if user.role != "admin" and row["user_id"] != user.id:
+        raise APIError(403, "permission denied")
+    return response(data=detail_from_row(row))
+
+
+@router.put("/{submission_id}/rejudge")
+async def rejudge(
+    request: Request,
+    submission_id: int,
+    _admin: CurrentUser = Depends(require_admin),
+) -> JSONResponse:
+    row = await request.app.state.db.fetchone(
+        "SELECT id FROM submissions WHERE id=?", (submission_id,)
+    )
+    if row is None:
+        raise APIError(404, "submission not found")
+    async with request.app.state.db.connect() as db:
+        await db.execute("DELETE FROM submission_cases WHERE submission_id=?", (submission_id,))
+        await db.execute(
+            """UPDATE submissions SET status='pending',score=NULL,counts=NULL,
+               compile_info=NULL,run_info=NULL,error_info=NULL,updated_at=? WHERE id=?""",
+            (now_iso(), submission_id),
+        )
+        await db.commit()
+    request.app.state.submissions.schedule(submission_id)
+    return response(
+        200,
+        "rejudge started",
+        {"submission_id": str(submission_id), "status": "pending"},
+    )
+
