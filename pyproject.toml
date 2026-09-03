@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "atelier-oj"
+version = "0.1.0"
+description = "A complete asynchronous Online Judge for the DBG Python course"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+  "aiosqlite>=0.20,<1",
+  "bcrypt>=4.2,<5",
+  "cryptography>=44,<46",
+  "fastapi>=0.115,<1",
+  "httpx>=0.28,<1",
+  "psutil>=6.1,<8",
+  "pydantic-settings>=2.7,<3",
+  "requests>=2.32,<3",
+  "streamlit>=1.42,<2",
+  "streamlit-ace>=0.1.1,<1",
+  "uvicorn[standard]>=0.34,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.14,<2",
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.25,<1",
+  "pytest-cov>=6,<7",
+  "ruff>=0.9,<1",
+]
+report = [
+  "pypdf>=5.2,<7",
+  "reportlab>=4.2,<5",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/oj"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = ["integration: requires a Linux judge environment"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC", "S"]
+ignore = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["oj"]
+exclude = ["frontend", "scripts"]
+
