@@ -17,6 +17,7 @@ from oj.languages import command_argv
 from oj.schemas import Language, Problem, TestCase
 
 MAX_OUTPUT_BYTES = 1_000_000
+COMPILE_TIMEOUT_SECONDS = 30
 
 
 @dataclass(frozen=True)
@@ -164,14 +165,17 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
                     stderr=asyncio.subprocess.PIPE,
                     **_process_options(512),
                 )
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=15)
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=COMPILE_TIMEOUT_SECONDS
+                )
             except TimeoutError:
                 await _kill_process(process)
+                message = f"compilation timed out after {COMPILE_TIMEOUT_SECONDS} seconds"
                 return JudgeOutcome(
-                    [CaseResult(1, "CE", 15, 0, "compilation timed out")],
+                    [CaseResult(1, "CE", COMPILE_TIMEOUT_SECONDS, 0, message)],
                     0,
                     len(problem.testcases) * 10,
-                    {"result": "error", "message": "compilation timed out"},
+                    {"result": "error", "message": message},
                     {"result": "not_started", "message": ""},
                     "",
                 )
