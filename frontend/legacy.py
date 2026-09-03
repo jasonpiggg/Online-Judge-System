@@ -76,9 +76,11 @@ def problem_form(api: ApiClient, existing: dict[str, object] | None = None) -> N
                 st.error("样例和测试点必须是有效的 JSON 数组。")
                 return
             result = call(
-                lambda: api.put(f"/api/problems/{problem_id}", json=body)
-                if existing
-                else api.post("/api/problems/", json=body)
+                lambda: (
+                    api.put(f"/api/problems/{problem_id}", json=body)
+                    if existing
+                    else api.post("/api/problems/", json=body)
+                )
             )
             if result:
                 st.success("题目已经保存。")
@@ -97,7 +99,7 @@ def profile_page(api: ApiClient) -> None:
     c3.metric("权限角色", str(data["role"]).upper())
     st.markdown(
         f'<div class="plate"><span class="eyebrow">MEMBER SINCE</span><h3>{data["username"]}</h3>'
-        f'<code>{data["join_time"]} · UID {data["user_id"]}</code></div>',
+        f"<code>{data['join_time']} · UID {data['user_id']}</code></div>",
         unsafe_allow_html=True,
     )
 
@@ -123,8 +125,7 @@ def problems_page(api: ApiClient) -> None:
     problem = detail["data"]
     st.markdown(f"## {problem['title']}")
     st.caption(
-        f"{problem['id']} · {problem['difficulty'] or '未分级'}"
-        f" · {problem['source'] or '原创'}"
+        f"{problem['id']} · {problem['difficulty'] or '未分级'} · {problem['source'] or '原创'}"
     )
     description, io_tab, samples_tab, edit_tab = st.tabs(["题面", "输入与输出", "样例", "编辑"])
     with description:
@@ -447,5 +448,3 @@ def dashboard(api: ApiClient) -> None:
         "AI 智能命题": ai_page,
     }
     pages[page](api)
-
-

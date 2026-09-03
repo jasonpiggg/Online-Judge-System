@@ -38,9 +38,11 @@ class SubmissionManager:
         task = asyncio.create_task(self._evaluate(submission_id))
         self.tasks[submission_id] = task
         task.add_done_callback(
-            lambda finished: self.tasks.pop(submission_id, None)
-            if self.tasks.get(submission_id) is finished
-            else None
+            lambda finished: (
+                self.tasks.pop(submission_id, None)
+                if self.tasks.get(submission_id) is finished
+                else None
+            )
         )
 
     async def recover(self) -> None:
@@ -112,12 +114,15 @@ class SubmissionManager:
             await db.commit()
 
 
-def detail_from_row(row: object) -> dict[str, object]:
+def detail_from_row(row: object, include_metadata: bool = False) -> dict[str, object]:
     status = row["status"]  # type: ignore[index]
     data: dict[str, object] = {
         "submission_id": str(row["id"]),  # type: ignore[index]
         "status": status,
     }
+    if include_metadata:
+        for name in ("user_id", "problem_id", "language", "created_at", "code"):
+            data[name] = row[name]  # type: ignore[index]
     if status == "success":
         data.update(
             score=row["score"],  # type: ignore[index]

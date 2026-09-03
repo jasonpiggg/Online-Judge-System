@@ -12,9 +12,12 @@ router = APIRouter(prefix="/api/languages")
 
 
 @router.get("/")
-async def list_languages(request: Request) -> JSONResponse:
-    rows = await request.app.state.db.fetchall("SELECT name FROM languages ORDER BY name")
-    return response(data={"name": [row["name"] for row in rows]})
+async def list_languages(request: Request, include_metadata: bool = False) -> JSONResponse:
+    rows = await request.app.state.db.fetchall("SELECT * FROM languages ORDER BY name")
+    data: dict[str, object] = {"name": [row["name"] for row in rows]}
+    if include_metadata:
+        data["languages"] = [dict(row) for row in rows]
+    return response(data=data)
 
 
 @router.post("/")
@@ -25,4 +28,3 @@ async def register_language(
 ) -> JSONResponse:
     await add_language(request.app.state.db, body)
     return response(200, "language registered", {"name": body.name})
-

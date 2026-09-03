@@ -1,2 +1,1 @@
 """Streamlit client package."""
-
