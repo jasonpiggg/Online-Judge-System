@@ -209,6 +209,10 @@ def styles() -> dict[str, ParagraphStyle]:
             "Cell", parent=base["BodyText"], fontName="OJText", fontSize=7.6,
             leading=11.2, textColor=INK, wordWrap="CJK",
         ),
+        "cell_header": ParagraphStyle(
+            "CellHeader", parent=base["BodyText"], fontName="OJText", fontSize=7.6,
+            leading=11.2, textColor=colors.white, wordWrap="CJK",
+        ),
     }
 
 
@@ -218,10 +222,20 @@ def make_table(rows: list[list[str]], style_map: dict[str, ParagraphStyle]) -> T
     if columns == 2:
         widths = [45 * mm, width - 45 * mm]
     elif columns == 3:
-        widths = [40 * mm, 18 * mm, width - 58 * mm]
+        widths = (
+            [45 * mm, 60 * mm, width - 105 * mm]
+            if rows[0][1] == "结果"
+            else [40 * mm, 18 * mm, width - 58 * mm]
+        )
     else:
         widths = [width / columns] * columns
-    data = [[Paragraph(rich_text(cell), style_map["cell"]) for cell in row] for row in rows]
+    data = [
+        [
+            Paragraph(rich_text(cell), style_map["cell_header" if index == 0 else "cell"])
+            for cell in row
+        ]
+        for index, row in enumerate(rows)
+    ]
     table = Table(data, colWidths=widths, repeatRows=1, hAlign="LEFT")
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), INK),

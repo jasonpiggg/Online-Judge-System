@@ -102,6 +102,11 @@ mypy src
 pytest --cov=src/oj --cov-report=term-missing --cov-fail-under=85
 ```
 
+| 验收环境 | 结果 | 覆盖率 |
+| --- | --- | ---: |
+| Windows / Python 3.14（界面开发） | 22 passed，2 Linux-only skipped | 85.65% |
+| GitHub Actions Ubuntu / Python 3.12 | 24 passed | 87.63% |
+
 GitHub Actions 固定 Ubuntu 与 Python 3.12，使用系统 g++，所有 Pull Request 必须在 lint、类型检查和覆盖率测试通过后合并。端到端验收链路为：注册 → 登录 → 浏览题目 → 提交 Python/C++ → 轮询 → 查看日志 → 管理员公开日志/重测/修改角色 → AI 生成 → 审阅并保存题目。
 
 ## 5. Edge Cases、安全与性能
