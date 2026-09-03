@@ -7,7 +7,7 @@ name = "atelier-oj"
 version = "0.1.0"
 description = "A complete asynchronous Online Judge for the DBG Python course"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.10,<3.15"
 dependencies = [
   "aiosqlite>=0.20,<1",
   "bcrypt>=4.2,<5",
@@ -49,11 +49,10 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "ASYNC", "S"]
-ignore = ["S101"]
+ignore = ["B008", "S101"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 packages = ["oj"]
 exclude = ["frontend", "scripts"]
-
