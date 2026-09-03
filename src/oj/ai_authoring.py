@@ -20,6 +20,7 @@ import httpx
 from cryptography.fernet import Fernet
 from pydantic import ValidationError
 
+from oj.ai_transport import PinnedTransport, bounded_sse_lines
 from oj.config import Settings
 from oj.database import Database
 from oj.judge import judge_code
@@ -92,6 +93,8 @@ async def validate_provider_url(url: str, allow_private: bool) -> str:
         raise ValueError("provider URL must use HTTPS")
     if parsed.username or parsed.password or not parsed.hostname:
         raise ValueError("provider URL may not contain credentials")
+    if parsed.scheme not in {"https", "http"} or parsed.query or parsed.fragment:
+        raise ValueError("provider URL must be HTTP(S), without query or fragment")
     if not allow_private and await asyncio.to_thread(_is_private_host, parsed.hostname):
         raise ValueError("private or reserved provider address is not allowed")
     return url.rstrip("/")
@@ -399,8 +402,11 @@ class AIAuthoringManager:
 
         timeout = httpx.Timeout(90, connect=10)
         try:
+            transport = await asyncio.to_thread(
+                PinnedTransport, allow_private=self.settings.allow_private_ai_endpoints
+            )
             async with httpx.AsyncClient(
-                timeout=timeout, follow_redirects=False, trust_env=False
+                timeout=timeout, follow_redirects=False, trust_env=False, transport=transport
             ) as client:
                 async with client.stream(
                     "POST",
@@ -409,7 +415,7 @@ class AIAuthoringManager:
                     json=body,
                 ) as response:
                     response.raise_for_status()
-                    async for line in response.aiter_lines():
+                    async for line in bounded_sse_lines(response):
                         if not line.startswith("data:"):
                             continue
                         data = line[5:].strip()

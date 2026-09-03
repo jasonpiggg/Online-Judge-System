@@ -106,12 +106,12 @@ class Database:
             cursor = await db.execute("PRAGMA user_version")
             version = (await cursor.fetchone())[0]  # type: ignore[index]
             await cursor.close()
-            if version > 1:
+            if version > 2:
                 raise RuntimeError("Database schema is newer than this application")
             existing = await db.execute("SELECT name FROM sqlite_master WHERE type='table'")
             has_tables = bool(await existing.fetchone())
             await existing.close()
-            if version < 1 and has_tables:
+            if version < 2 and has_tables:
                 stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
                 backup_path = self.path.with_name(f"{self.path.stem}.pre-v{version}-{stamp}.db")
                 async with aiosqlite.connect(backup_path) as backup:
@@ -125,6 +125,15 @@ class Database:
                 )
                 await db.execute("ALTER TABLE ai_tasks ADD COLUMN usage_details TEXT")
                 await db.execute("PRAGMA user_version = 1")
+                await db.commit()
+            if version < 2:
+                await db.execute("BEGIN IMMEDIATE")
+                await db.execute("""CREATE TABLE role_change_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    actor_id INTEGER NOT NULL, target_id INTEGER NOT NULL,
+                    old_role TEXT NOT NULL, new_role TEXT NOT NULL, time TEXT NOT NULL
+                )""")
+                await db.execute("PRAGMA user_version = 2")
                 await db.commit()
             await db.execute("PRAGMA journal_mode = WAL")
             await db.execute("PRAGMA optimize")

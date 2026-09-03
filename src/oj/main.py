@@ -39,7 +39,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await ai_authoring.close()
         await submissions.close()
 
-    app = FastAPI(title="Atelier OJ API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Atelier OJ API", version="1.1.0", lifespan=lifespan)
     app.state.settings = app_settings
     app.state.db = db
     app.state.problems = problems

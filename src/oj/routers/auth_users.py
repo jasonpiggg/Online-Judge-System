@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import aiosqlite
 from fastapi import APIRouter, Depends, Query, Request
@@ -82,9 +82,7 @@ async def login(request: Request, body: Credentials) -> JSONResponse:
 
 
 @router.post("/auth/logout")
-async def logout(
-    request: Request, _user: CurrentUser = Depends(get_current_user)
-) -> JSONResponse:
+async def logout(request: Request, _user: CurrentUser = Depends(get_current_user)) -> JSONResponse:
     session_id = request.cookies.get(request.app.state.settings.session_cookie)
     await request.app.state.db.execute("DELETE FROM sessions WHERE id=?", (session_id,))
     result = response(200, "logout success")
@@ -130,10 +128,19 @@ async def update_role(
     body: RoleUpdate,
     _admin: CurrentUser = Depends(require_admin),
 ) -> JSONResponse:
-    existing = await request.app.state.db.fetchone("SELECT id FROM users WHERE id=?", (user_id,))
-    if existing is None:
-        raise APIError(404, "user not found")
-    await request.app.state.db.execute("UPDATE users SET role=? WHERE id=?", (body.role, user_id))
+    async with request.app.state.db.connect() as db:
+        await db.execute("BEGIN IMMEDIATE")
+        cursor = await db.execute("SELECT role FROM users WHERE id=?", (user_id,))
+        existing = await cursor.fetchone()
+        if existing is None:
+            raise APIError(404, "user not found")
+        await db.execute("UPDATE users SET role=? WHERE id=?", (body.role, user_id))
+        await db.execute(
+            "INSERT INTO role_change_logs(actor_id,target_id,old_role,new_role,time) "
+            "VALUES(?,?,?,?,?)",
+            (_admin.id, user_id, existing["role"], body.role, datetime.now(UTC).isoformat()),
+        )
+        await db.commit()
     return response(200, "role updated", {"user_id": str(user_id), "role": body.role})
 
 
@@ -156,4 +163,3 @@ async def list_users(
     rows = await request.app.state.db.fetchall(sql, params)
     users = [await _user_data(request.app.state.db, row["id"]) for row in rows]
     return response(data={"total": total_row["n"], "users": users})
-

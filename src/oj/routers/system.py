@@ -14,11 +14,15 @@ router = APIRouter(prefix="/api")
 async def reset_system(
     request: Request, _admin: CurrentUser = Depends(require_admin)
 ) -> JSONResponse:
+    # Finish cancelling workers before IDs/data are reset; no stale worker can overwrite a new row.
+    await request.app.state.ai_authoring.close()
+    await request.app.state.submissions.cancel_all()
     async with request.app.state.db.connect() as db:
         for table in (
             "sessions",
             "submission_cases",
             "access_logs",
+            "role_change_logs",
             "ai_tasks",
             "ai_configs",
             "submissions",
