@@ -57,5 +57,10 @@ class SubmissionCreate(StrictModel):
     code: str = Field(min_length=1, max_length=200_000)
 
 
+class LogVisibility(StrictModel):
+    public_cases: bool = False
+
+
+
 
 

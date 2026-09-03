@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 
 from oj.auth import CurrentUser, get_current_user, require_admin
 from oj.errors import APIError, response
-from oj.schemas import Problem
+from oj.schemas import LogVisibility, Problem
 
 router = APIRouter(prefix="/api/problems")
 
@@ -63,4 +63,24 @@ async def delete_problem(
     if not await request.app.state.problems.delete(problem_id):
         raise APIError(404, "problem not found")
     return response(200, "delete success", {"id": problem_id})
+
+
+@router.put("/{problem_id}/log_visibility")
+async def update_log_visibility(
+    request: Request,
+    problem_id: str,
+    body: LogVisibility,
+    _admin: CurrentUser = Depends(require_admin),
+) -> JSONResponse:
+    problem = await request.app.state.problems.get(problem_id)
+    if problem is None:
+        raise APIError(404, "problem not found")
+    updated = problem.model_copy(update={"public_cases": body.public_cases})
+    await request.app.state.problems.update(updated)
+    return response(
+        200,
+        "log visibility updated",
+        {"problem_id": problem_id, "public_cases": body.public_cases},
+    )
+
 

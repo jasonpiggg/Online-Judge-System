@@ -122,6 +122,10 @@ async def _run_case(
         stdout, stderr = await asyncio.wait_for(
             proc.communicate(testcase.input.encode()), timeout=time_limit
         )
+    except asyncio.CancelledError:
+        await _kill_process(proc)
+        await monitor
+        raise
     except TimeoutError:
         timed_out = True
         await _kill_process(proc)
