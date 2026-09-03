@@ -37,12 +37,15 @@ class ProblemStore:
             raise APIError(400, "invalid problem id")
         return self.directory / f"{problem_id}.json"
 
-    async def list(self) -> list[dict[str, str]]:
-        def read_all() -> list[dict[str, str]]:
+    async def list(self, include_metadata: bool = False) -> list[dict[str, object]]:
+        def read_all() -> list[dict[str, object]]:
             result = []
             for path in sorted(self.directory.glob("*.json")):
                 problem = Problem.model_validate_json(path.read_text(encoding="utf-8"))
-                result.append({"id": problem.id, "title": problem.title})
+                item: dict[str, object] = {"id": problem.id, "title": problem.title}
+                if include_metadata:
+                    item.update(difficulty=problem.difficulty, tags=problem.tags)
+                result.append(item)
             return result
 
         return await asyncio.to_thread(read_all)

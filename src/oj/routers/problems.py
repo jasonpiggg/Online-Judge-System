@@ -12,9 +12,10 @@ router = APIRouter(prefix="/api/problems")
 
 @router.get("/")
 async def list_problems(
-    request: Request, _user: CurrentUser = Depends(get_current_user)
+    request: Request, include_metadata: bool = False,
+    _user: CurrentUser = Depends(get_current_user)
 ) -> JSONResponse:
-    return response(data=await request.app.state.problems.list())
+    return response(data=await request.app.state.problems.list(include_metadata))
 
 
 @router.post("/")
