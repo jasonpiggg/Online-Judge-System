@@ -5,24 +5,27 @@ from functools import partial
 import streamlit as st
 
 from frontend.account import auth_screen, profile_page
+from frontend.admin import admin_page
 from frontend.client import ApiClient
-from frontend.legacy import admin_page, ai_page, problem_form
+from frontend.editor import editor_page
+from frontend.legacy import ai_page
 from frontend.library import breakpoint, library_page, workspace_page
 from frontend.records import records_page
-from frontend.ui import apply_theme, call, heading
+from frontend.ui import apply_theme, call
 
-st.set_page_config(page_title="Atelier OJ · 在线评测", page_icon="◈", layout="wide",
-                   initial_sidebar_state="expanded")
+st.set_page_config(page_title="Atelier OJ · 在线评测", page_icon="◈", layout="wide")
 apply_theme()
-mobile = breakpoint(on_mobile_change=lambda: None, key="viewport-breakpoint", height=0).mobile
+mobile = breakpoint(
+    data={"mobile": st.session_state.get("mobile")},
+    on_mobile_change=lambda: None, key="viewport-breakpoint", height=0,
+).mobile
 st.session_state.mobile = bool(mobile)
-st.set_page_config(initial_sidebar_state="collapsed" if mobile else "expanded")
+st.set_page_config(
+    initial_sidebar_state=(
+        "expanded" if st.session_state.get("user") and not mobile else "collapsed"
+    )
+)
 api = ApiClient()
-
-
-def editor_page() -> None:
-    heading("题目编辑", note="完善题面、样例与测试点。保存前请检查预期输出。")
-    problem_form(api, st.session_state.get("editing_problem"))
 
 
 if not st.session_state.get("user"):
@@ -41,15 +44,19 @@ else:
     definitions += [
         ("profile", "个人账户", ":material/account_circle:", partial(profile_page, api)),
         ("workspace", "做题工作区", ":material/code:", partial(workspace_page, api)),
-        ("editor", "题目编辑", ":material/edit_note:", editor_page),
+        ("editor", "题目编辑", ":material/edit_note:", partial(editor_page, api)),
     ]
-    pages = {key: st.Page(fn, title=title, icon=icon, url_path=key, default=key == "library")
-             for key, title, icon, fn in definitions}
+    pages = {
+        key: st.Page(fn, title=title, icon=icon, url_path=key, default=key == "library")
+        for key, title, icon, fn in definitions
+    }
     st.session_state.pages = pages
     nav = st.navigation(list(pages.values()), position="hidden")
     with st.sidebar:
-        st.markdown('<div class="oj-brand"><span class="oj-mark">{ }</span>Atelier OJ</div>',
-                    unsafe_allow_html=True)
+        st.markdown(
+            '<div class="oj-brand"><span class="oj-mark">{ }</span>Atelier OJ</div>',
+            unsafe_allow_html=True,
+        )
         st.caption("在线评测 · 编程实验室")
         for key, title, icon, _ in definitions:
             if key not in {"workspace", "editor"}:

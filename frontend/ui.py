@@ -12,7 +12,7 @@ CSS = """
 <style>
 body,.stApp {font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;}
 [data-testid="stHeader"] {background:#f5f7fbea;}
-.block-container {max-width:1440px;padding:5rem 2.5rem 4rem;}
+[data-testid="stMainBlockContainer"] {max-width:1440px;padding:5rem 2.5rem 4rem!important;}
 h1,h2,h3 {letter-spacing:-.025em;}
 [data-testid="stSidebar"][aria-expanded="true"] {width:256px;min-width:256px;}
 [data-testid="stSidebar"] [data-testid="stPageLink"] a {
@@ -44,7 +44,8 @@ h1,h2,h3 {letter-spacing:-.025em;}
  background:white;border:1px solid #e2e8f2;border-radius:12px;padding:20px;}
 [data-testid="stVerticalBlockBorderWrapper"]>div {background:white;}
 @media(max-width:760px){
- .block-container{padding:4.5rem 1rem 3rem;}.oj-header h1{font-size:26px;}
+ [data-testid="stMainBlockContainer"]{padding:4.5rem 1rem 3rem!important;}
+ .oj-header h1{font-size:26px;}
  .oj-hero{padding:20px;}.oj-hero h2{font-size:21px;}
  [data-testid="stSidebar"][aria-expanded="true"]{min-width:256px;width:256px;}
 }
@@ -58,8 +59,8 @@ def apply_theme() -> None:
 
 def heading(kicker: str, title: str = "", note: str = "") -> None:
     st.markdown(
-        f'<div class="oj-header"><h1>{escape(title or kicker)}</h1>'
-        f'<p>{escape(note)}</p></div>', unsafe_allow_html=True,
+        f'<div class="oj-header"><h1>{escape(title or kicker)}</h1><p>{escape(note)}</p></div>',
+        unsafe_allow_html=True,
     )
 
 
@@ -83,8 +84,9 @@ def navigate(page: str, **state: Any) -> None:
 
 
 def pills(values: list[str]) -> None:
-    st.markdown("".join(f'<span class="oj-pill">{escape(v)}</span>' for v in values),
-                unsafe_allow_html=True)
+    st.markdown(
+        "".join(f'<span class="oj-pill">{escape(v)}</span>' for v in values), unsafe_allow_html=True
+    )
 
 
 def pager(key: str, count: int | None = None, size: int = 10, has_next: bool = False) -> int:
@@ -98,8 +100,12 @@ def pager(key: str, count: int | None = None, size: int = 10, has_next: bool = F
         st.session_state[key] = page - 1
         st.rerun()
     center.markdown(f"第 **{page}** 页" + (f" / 共 {last} 页 · {count} 条" if last else ""))
-    if right.button("下一页", key=f"{key}-next", width="stretch",
-                    disabled=page >= last if last else not has_next):
+    if right.button(
+        "下一页",
+        key=f"{key}-next",
+        width="stretch",
+        disabled=page >= last if last else not has_next,
+    ):
         st.session_state[key] = page + 1
         st.rerun()
     return page

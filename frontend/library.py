@@ -8,22 +8,28 @@ from streamlit_ace import st_ace
 from frontend.client import ApiClient
 from frontend.ui import call, heading, navigate, pager, pills
 
-breakpoint = st.components.v2.component(
-    "oj_breakpoint",
-    js="""export default function(c) {
+BREAKPOINT_JS = """export default function(c) {
       const media = window.matchMedia('(max-width: 760px)');
-      const update = () => c.setStateValue('mobile', media.matches);
+      const update = () => {
+        if (c.data.mobile !== media.matches) c.setStateValue('mobile', media.matches);
+      };
       update(); media.addEventListener('change', update);
       return () => media.removeEventListener('change', update);
-    }""",
-)
+    }"""
+
+
+def breakpoint(**kwargs: Any) -> Any:
+    # Register inside the active Streamlit runtime, not during module import/pytest collection.
+    return st.components.v2.component("oj_breakpoint", js=BREAKPOINT_JS)(**kwargs)
 
 
 def library_page(api: ApiClient) -> None:
     heading("题库", note="找到下一道值得解决的问题。阅读、编写、验证，在一个工作区完成。")
-    st.markdown('<div class="oj-hero"><h2>让每一次提交，都有清晰的反馈。</h2>'
-                '<p>Python 与 C++14 · 逐测试点评测 · 可追溯的运行记录</p></div>',
-                unsafe_allow_html=True)
+    st.markdown(
+        '<div class="oj-hero"><h2>让每一次提交，都有清晰的反馈。</h2>'
+        "<p>Python 与 C++14 · 逐测试点评测 · 可追溯的运行记录</p></div>",
+        unsafe_allow_html=True,
+    )
     result = call(lambda: api.get("/api/problems/", params={"include_metadata": True}))
     if not result:
         return
@@ -34,14 +40,17 @@ def library_page(api: ApiClient) -> None:
     level = b.selectbox("难度", ["全部难度", *levels])
     if c.button("新建题目", icon=":material/add:", type="primary", width="stretch"):
         navigate("editor", editing_problem=None)
-    items = [p for p in problems if query.casefold() in
-             (p["id"] + p["title"] + " ".join(p.get("tags", []))).casefold()
-             and (level == "全部难度" or p.get("difficulty") == level)]
+    items = [
+        p
+        for p in problems
+        if query.casefold() in (p["id"] + p["title"] + " ".join(p.get("tags", []))).casefold()
+        and (level == "全部难度" or p.get("difficulty") == level)
+    ]
     st.caption(f"共 {len(items)} 道题目")
     page = pager("library-page", len(items))
     if not items:
         st.info("没有找到匹配的题目。试试其他关键词，或创建第一道题。")
-    for item in items[(page - 1) * 10:page * 10]:
+    for item in items[(page - 1) * 10 : page * 10]:
         with st.container(border=True):
             text, action = st.columns([4, 1], vertical_alignment="center")
             with text:
@@ -80,10 +89,16 @@ def code_panel(api: ApiClient, problem: dict[str, Any]) -> None:
     language = st.selectbox("编程语言", result["data"]["name"], key="workspace-language")
     draft_key = f"draft-{problem['id']}-{language}"
     starter = "# 在这里编写解法\n" if language.startswith("py") else "// 在这里编写解法\n"
-    code = st_ace(value=st.session_state.get(draft_key, starter),
-                  language="python" if language.startswith("py") else "c_cpp",
-                  theme="tomorrow", height=380, font_size=15, tab_size=4,
-                  auto_update=True, key=f"ace-{problem['id']}-{language}")
+    code = st_ace(
+        value=st.session_state.get(draft_key, starter),
+        language="python" if language.startswith("py") else "c_cpp",
+        theme="tomorrow",
+        height=380,
+        font_size=15,
+        tab_size=4,
+        auto_update=True,
+        key=f"ace-{problem['id']}-{language}",
+    )
     if code is not None:
         st.session_state[draft_key] = code
     st.caption("草稿自动保留在当前会话 · 每分钟最多提交 3 次")
@@ -91,16 +106,23 @@ def code_panel(api: ApiClient, problem: dict[str, Any]) -> None:
         if not st.session_state.get(draft_key, "").strip():
             st.warning("请先编写代码。")
             return
-        submitted = call(lambda: api.post("/api/submissions/", json={
-            "problem_id": problem["id"], "language": language,
-            "code": st.session_state[draft_key],
-        }))
+        submitted = call(
+            lambda: api.post(
+                "/api/submissions/",
+                json={
+                    "problem_id": problem["id"],
+                    "language": language,
+                    "code": st.session_state[draft_key],
+                },
+            )
+        )
         if submitted:
             st.session_state[f"last-{problem['id']}"] = submitted["data"]["submission_id"]
             st.rerun()
 
 
 def workspace_page(api: ApiClient) -> None:
+    from frontend.editor import delete_dialog
     from frontend.records import submission_result
 
     if not st.session_state.get("current_problem"):
@@ -117,10 +139,30 @@ def workspace_page(api: ApiClient) -> None:
         heading(problem["title"], note=f"{problem['id']} · 在右侧编写并提交你的解法")
     if actions.button("编辑题目", icon=":material/edit:", width="stretch"):
         navigate("editor", editing_problem=problem)
+    if st.session_state.user["role"] == "admin":
+        with st.popover("题目管理", icon=":material/settings:"):
+            public = st.toggle(
+                "公开测试点日志", value=problem["public_cases"], key=f"public-{problem['id']}"
+            )
+            if st.button("保存日志可见性"):
+                if call(
+                    lambda: api.put(
+                        f"/api/problems/{problem['id']}/log_visibility",
+                        json={"public_cases": public},
+                    )
+                ):
+                    st.success("日志可见性已更新")
+            if st.button("删除题目", icon=":material/delete:"):
+                delete_dialog(api, problem)
     inherited = problem.get("limit_inheritance", {})
-    pills(["时间：继承语言" if inherited.get("time_limit") else f"{problem['time_limit']} 秒",
-           "内存：继承语言" if inherited.get("memory_limit") else f"{problem['memory_limit']} MB",
-           problem.get("difficulty") or "未分级", *problem.get("tags", [])])
+    pills(
+        [
+            "时间：继承语言" if inherited.get("time_limit") else f"{problem['time_limit']} 秒",
+            "内存：继承语言" if inherited.get("memory_limit") else f"{problem['memory_limit']} MB",
+            problem.get("difficulty") or "未分级",
+            *problem.get("tags", []),
+        ]
+    )
     mobile = st.session_state.get("mobile", False)
     last_id = st.session_state.get(f"last-{problem['id']}")
     if mobile:

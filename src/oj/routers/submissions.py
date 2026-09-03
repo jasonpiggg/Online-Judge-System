@@ -34,9 +34,7 @@ async def submit(
     submission_id = await request.app.state.submissions.create(
         user.id, body.problem_id, body.language, body.code
     )
-    return response(
-        data={"submission_id": str(submission_id), "status": "pending"}
-    )
+    return response(data={"submission_id": str(submission_id), "status": "pending"})
 
 
 @router.get("/")
@@ -47,9 +45,13 @@ async def list_submissions(
     status: str | None = Query(default=None, pattern="^(pending|success|error)$"),
     page: int | None = Query(default=None, ge=1),
     page_size: int | None = Query(default=None, ge=1, le=100),
+    all_users: bool = False,
+    include_metadata: bool = False,
     user: CurrentUser = Depends(get_current_user),
 ) -> JSONResponse:
-    if user_id is None and problem_id is None:
+    if all_users and user.role != "admin":
+        raise APIError(403, "permission denied")
+    if user_id is None and problem_id is None and not all_users:
         raise APIError(400, "user_id or problem_id is required")
     if page is not None and page_size is None:
         raise APIError(400, "page_size is required when page is provided")
@@ -69,9 +71,10 @@ async def list_submissions(
     if status is not None:
         clauses.append("status=?")
         params.append(status)
-    where = " AND ".join(clauses)
+    where = " AND ".join(clauses) or "1=1"
     total = await request.app.state.db.fetchone(
-        f"SELECT COUNT(*) AS n FROM submissions WHERE {where}", params  # noqa: S608
+        f"SELECT COUNT(*) AS n FROM submissions WHERE {where}",  # noqa: S608
+        params,
     )
     sql = f"SELECT * FROM submissions WHERE {where} ORDER BY id DESC"  # noqa: S608
     if page_size is not None:
@@ -80,7 +83,10 @@ async def list_submissions(
         params.extend((page_size, (page - 1) * page_size))
     rows = await request.app.state.db.fetchall(sql, params)
     return response(
-        data={"total": total["n"], "submissions": [detail_from_row(row) for row in rows]}
+        data={
+            "total": total["n"],
+            "submissions": [detail_from_row(row, include_metadata) for row in rows],
+        }
     )
 
 
@@ -88,6 +94,7 @@ async def list_submissions(
 async def get_submission(
     request: Request,
     submission_id: int,
+    include_metadata: bool = False,
     user: CurrentUser = Depends(get_current_user),
 ) -> JSONResponse:
     row = await request.app.state.db.fetchone(
@@ -97,7 +104,7 @@ async def get_submission(
         raise APIError(404, "submission not found")
     if user.role != "admin" and row["user_id"] != user.id:
         raise APIError(403, "permission denied")
-    return response(data=detail_from_row(row))
+    return response(data=detail_from_row(row, include_metadata))
 
 
 @router.put("/{submission_id}/rejudge")
@@ -125,4 +132,3 @@ async def rejudge(
         "rejudge started",
         {"submission_id": str(submission_id), "status": "pending"},
     )
-
