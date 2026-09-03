@@ -29,6 +29,7 @@ dev = [
   "pytest-asyncio>=0.25,<1",
   "pytest-cov>=6,<7",
   "ruff>=0.9,<1",
+  "types-psutil>=7.0,<8",
 ]
 report = [
   "pypdf>=5.2,<7",
