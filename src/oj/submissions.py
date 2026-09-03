@@ -50,10 +50,13 @@ class SubmissionManager:
 
     async def close(self) -> None:
         running = list(self.tasks.values())
-        for task in running:
+        if not running:
+            return
+        _done, pending = await asyncio.wait(running, timeout=5)
+        for task in pending:
             task.cancel()
-        if running:
-            await asyncio.gather(*running, return_exceptions=True)
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
     async def _evaluate(self, submission_id: int) -> None:
         try:

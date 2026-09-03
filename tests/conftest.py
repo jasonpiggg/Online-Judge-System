@@ -8,7 +8,8 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from oj.config import Settings
-from oj.main import bootstrap, create_app
+from oj.main import create_app
+from oj.main_support import bootstrap_database
 
 
 @pytest.fixture
@@ -20,9 +21,10 @@ async def app(tmp_path: Path) -> AsyncIterator[FastAPI]:
     )
     application = create_app(settings)
     await application.state.db.initialize()
-    await bootstrap(application.state.db)
+    await bootstrap_database(application.state.db)
     await application.state.problems.initialize()
     yield application
+    await application.state.submissions.close()
 
 
 @pytest.fixture

@@ -2,36 +2,21 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime
 
 from fastapi import FastAPI
 
 from oj.config import Settings
 from oj.database import Database
 from oj.errors import install_error_handlers
-from oj.languages import seed_languages
+from oj.main_support import bootstrap_database
 from oj.problem_store import ProblemStore
 from oj.routers.auth_users import router as auth_users_router
 from oj.routers.languages import router as languages_router
+from oj.routers.logs import router as logs_router
 from oj.routers.problems import router as problems_router
 from oj.routers.submissions import router as submissions_router
-from oj.security import hash_password
+from oj.routers.system import router as system_router
 from oj.submissions import SubmissionManager
-
-
-async def bootstrap(db: Database) -> None:
-    admin = await db.fetchone("SELECT id FROM users WHERE username='admin'")
-    if admin is None:
-        await db.execute(
-            "INSERT INTO users(username,password_hash,role,join_time) VALUES(?,?,?,?)",
-            (
-                "admin",
-                await hash_password("admintestpassword"),
-                "admin",
-                datetime.now().strftime("%Y-%m-%d"),
-            ),
-        )
-    await seed_languages(db)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -43,7 +28,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         await db.initialize()
-        await bootstrap(db)
+        await bootstrap_database(db)
         await problems.initialize()
         await submissions.recover()
         yield
@@ -59,6 +44,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(languages_router)
     app.include_router(problems_router)
     app.include_router(submissions_router)
+    app.include_router(logs_router)
+    app.include_router(system_router)
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -68,4 +55,3 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 app = create_app()
-
