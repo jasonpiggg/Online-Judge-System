@@ -51,4 +51,11 @@ class Language(StrictModel):
     memory_limit: int = Field(default=128, ge=16, le=2048)
 
 
+class SubmissionCreate(StrictModel):
+    problem_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    language: str = Field(pattern=r"^[a-z][a-z0-9_+-]{0,31}$")
+    code: str = Field(min_length=1, max_length=200_000)
+
+
+
 
