@@ -52,7 +52,8 @@ def _preexec(memory_mb: int) -> Any:
         set_limit(getattr(resource, "RLIMIT_AS"), (memory_bytes, memory_bytes))  # noqa: B009
         set_limit(getattr(resource, "RLIMIT_CORE"), (0, 0))  # noqa: B009
         set_limit(  # noqa: B009
-            getattr(resource, "RLIMIT_FSIZE"), (MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES)
+            getattr(resource, "RLIMIT_FSIZE"),  # noqa: B009
+            (MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES),
         )
         set_limit(getattr(resource, "RLIMIT_NPROC"), (32, 32))  # noqa: B009
 
