@@ -17,6 +17,7 @@ from oj.languages import command_argv
 from oj.schemas import Language, Problem, TestCase
 
 MAX_OUTPUT_BYTES = 1_000_000
+MAX_PROCESS_COUNT = 32
 COMPILE_TIMEOUT_SECONDS = 30
 
 
@@ -56,8 +57,6 @@ def _preexec(memory_mb: int) -> Any:
             getattr(resource, "RLIMIT_FSIZE"),  # noqa: B009
             (MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES),
         )
-        set_limit(getattr(resource, "RLIMIT_NPROC"), (32, 32))  # noqa: B009
-
     return limit
 
 
@@ -75,24 +74,32 @@ async def _kill_process(proc: asyncio.subprocess.Process) -> None:
         await proc.wait()
 
 
-async def _peak_memory(proc: asyncio.subprocess.Process, limit_mb: int) -> tuple[float, bool]:
+async def _peak_memory(
+    proc: asyncio.subprocess.Process, limit_mb: int
+) -> tuple[float, bool, bool]:
     peak = 0.0
-    exceeded = False
+    memory_exceeded = False
+    process_exceeded = False
     try:
         process = psutil.Process(proc.pid)
         while proc.returncode is None:
             with contextlib.suppress(psutil.Error):
+                children = process.children(recursive=True)
                 rss = process.memory_info().rss
-                rss += sum(child.memory_info().rss for child in process.children(recursive=True))
+                rss += sum(child.memory_info().rss for child in children)
                 peak = max(peak, rss / 1024 / 1024)
                 if peak > limit_mb:
-                    exceeded = True
+                    memory_exceeded = True
+                    await _kill_process(proc)
+                    break
+                if len(children) + 1 > MAX_PROCESS_COUNT:
+                    process_exceeded = True
                     await _kill_process(proc)
                     break
             await asyncio.sleep(0.02)
     except psutil.Error:
         pass
-    return peak, exceeded
+    return peak, memory_exceeded, process_exceeded
 
 
 def _process_options(memory_mb: int) -> dict[str, Any]:
@@ -131,13 +138,15 @@ async def _run_case(
         timed_out = True
         await _kill_process(proc)
         stdout, stderr = b"", b""
-    peak, memory_exceeded = await monitor
+    peak, memory_exceeded, process_exceeded = await monitor
     elapsed = time.perf_counter() - started
     message = stderr.decode(errors="replace")[:4000]
     if timed_out:
         result = "TLE"
     elif memory_exceeded or "MemoryError" in message or "bad_alloc" in message:
         result = "MLE"
+    elif process_exceeded:
+        result, message = "RE", "process limit exceeded"
     elif proc.returncode != 0:
         result = "RE"
     elif len(stdout) > MAX_OUTPUT_BYTES:
