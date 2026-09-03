@@ -60,6 +60,13 @@ class SubmissionManager:
         if pending:
             await asyncio.gather(*pending, return_exceptions=True)
 
+    async def cancel_all(self) -> None:
+        running = list(self.tasks.values())
+        for task in running:
+            task.cancel()
+        if running:
+            await asyncio.gather(*running, return_exceptions=True)
+
     async def _evaluate(self, submission_id: int) -> None:
         try:
             row = await self.db.fetchone("SELECT * FROM submissions WHERE id=?", (submission_id,))

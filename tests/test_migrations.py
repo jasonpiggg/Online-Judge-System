@@ -17,7 +17,7 @@ async def test_legacy_database_backup_and_idempotent_migration(tmp_path: Path) -
     await db.initialize()
     row = await db.fetchone("SELECT username FROM users WHERE id=1")
     assert row["username"] == "preserved"
-    assert (await db.fetchone("PRAGMA user_version"))[0] == 1
+    assert (await db.fetchone("PRAGMA user_version"))[0] == 2
     backups = await asyncio.to_thread(lambda: list(tmp_path.glob("oj.pre-v0-*.db")))
     assert len(backups) == 1
     backup = Database(backups[0])

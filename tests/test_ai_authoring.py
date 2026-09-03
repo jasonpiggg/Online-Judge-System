@@ -49,6 +49,10 @@ async def test_stream_parser_uses_provider_usage(app: FastAPI, monkeypatch: Any)
             )
             yield "data: [DONE]"
 
+        async def aiter_bytes(self, **_kwargs: Any) -> Any:
+            async for line in self.aiter_lines():
+                yield (line + "\n").encode()
+
     class FakeClient:
         def __init__(self, **_kwargs: object) -> None:
             pass
