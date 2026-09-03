@@ -9,8 +9,10 @@ from fastapi import FastAPI
 from oj.config import Settings
 from oj.database import Database
 from oj.errors import install_error_handlers
+from oj.languages import seed_languages
 from oj.problem_store import ProblemStore
 from oj.routers.auth_users import router as auth_users_router
+from oj.routers.languages import router as languages_router
 from oj.routers.problems import router as problems_router
 from oj.security import hash_password
 
@@ -27,6 +29,7 @@ async def bootstrap(db: Database) -> None:
                 datetime.now().strftime("%Y-%m-%d"),
             ),
         )
+    await seed_languages(db)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -47,6 +50,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.problems = problems
     install_error_handlers(app)
     app.include_router(auth_users_router)
+    app.include_router(languages_router)
     app.include_router(problems_router)
 
     @app.get("/health")

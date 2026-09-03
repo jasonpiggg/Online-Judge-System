@@ -42,3 +42,13 @@ class Problem(StrictModel):
     public_cases: bool = False
 
 
+class Language(StrictModel):
+    name: str = Field(pattern=r"^[a-z][a-z0-9_+-]{0,31}$")
+    file_ext: str = Field(pattern=r"^\.[A-Za-z0-9]{1,10}$")
+    compile_cmd: str | None = Field(default=None, max_length=500)
+    run_cmd: str = Field(min_length=1, max_length=500)
+    time_limit: float = Field(default=3.0, gt=0, le=30)
+    memory_limit: int = Field(default=128, ge=16, le=2048)
+
+
+
