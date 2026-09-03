@@ -33,6 +33,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await db.initialize()
         await bootstrap_database(db)
         await problems.initialize()
+        await ai_authoring.recover()
         await submissions.recover()
         yield
         await ai_authoring.close()

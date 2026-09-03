@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 
 class StrictModel(BaseModel):
@@ -65,9 +65,9 @@ class LogVisibility(StrictModel):
 class AIModelConfig(StrictModel):
     provider_url: HttpUrl
     model: str = Field(min_length=1, max_length=200)
-    api_key: str = Field(min_length=1, max_length=1000)
-    input_price: float = Field(default=0, ge=0)
-    output_price: float = Field(default=0, ge=0)
+    api_key: str | None = Field(default=None, min_length=1, max_length=1000)
+    input_price: float = Field(default=0, ge=0, allow_inf_nan=False)
+    output_price: float = Field(default=0, ge=0, allow_inf_nan=False)
     price_unit: int = Field(default=1_000_000, gt=0)
 
 
@@ -76,12 +76,29 @@ class AIProblemTaskCreate(StrictModel):
     problem_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
 
 
+class Coverage(StrictModel):
+    basic: str = Field(min_length=5, max_length=5000)
+    boundary: str = Field(min_length=5, max_length=5000)
+    scale: str = Field(min_length=5, max_length=5000)
+
+
+class WrongSolution(StrictModel):
+    code: str = Field(min_length=1, max_length=200_000)
+    reason: str = Field(min_length=5, max_length=5000)
+
+
 class GeneratedProblem(StrictModel):
     problem: Problem
     reference_solution: str = Field(min_length=1, max_length=200_000)
     review: str = Field(min_length=1, max_length=20_000)
+    coverage: Coverage
+    wrong_solutions: list[WrongSolution] = Field(min_length=2, max_length=4)
 
-
-
-
-
+    @model_validator(mode="after")
+    def check_test_quality(self) -> GeneratedProblem:
+        inputs = [case.input for case in self.problem.testcases]
+        if len(inputs) < 5 or len(set(inputs)) != len(inputs):
+            raise ValueError("至少需要 5 个互不重复的测试输入")
+        if len({item.code for item in self.wrong_solutions}) != len(self.wrong_solutions):
+            raise ValueError("错误解法必须互不重复")
+        return self

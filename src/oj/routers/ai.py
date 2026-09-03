@@ -12,6 +12,13 @@ from oj.schemas import AIModelConfig, AIProblemTaskCreate
 router = APIRouter(prefix="/api/ai")
 
 
+@router.get("/model-config")
+async def get_model_config(
+    request: Request, user: CurrentUser = Depends(get_current_user)
+) -> JSONResponse:
+    return response(data=await request.app.state.ai_authoring.get_config(user.id))
+
+
 @router.put("/model-config")
 async def model_config(
     request: Request,
@@ -60,6 +67,8 @@ async def get_problem_task(
         "task_id": row["id"],
         "status": row["status"],
         "progress": row["progress"],
+        "stage": row["stage"],
+        "usage_details": json.loads(row["usage_details"]) if row["usage_details"] else None,
         "result": result,
         "error": row["error"],
         "usage": {
@@ -88,7 +97,4 @@ async def cancel_problem_task(
     if row["status"] in {"completed", "failed", "cancelled"}:
         raise APIError(409, "AI task has already finished")
     await request.app.state.ai_authoring.cancel(task_id)
-    return response(
-        200, "task cancelled", {"task_id": task_id, "status": "cancelled"}
-    )
-
+    return response(200, "task cancelled", {"task_id": task_id, "status": "cancelled"})

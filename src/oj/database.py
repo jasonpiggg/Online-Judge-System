@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -99,9 +101,31 @@ class Database:
         self.path = path
 
     async def initialize(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(self.path.parent.mkdir, parents=True, exist_ok=True)
         async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute("PRAGMA user_version")
+            version = (await cursor.fetchone())[0]  # type: ignore[index]
+            await cursor.close()
+            if version > 1:
+                raise RuntimeError("Database schema is newer than this application")
+            existing = await db.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            has_tables = bool(await existing.fetchone())
+            await existing.close()
+            if version < 1 and has_tables:
+                stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
+                backup_path = self.path.with_name(f"{self.path.stem}.pre-v{version}-{stamp}.db")
+                async with aiosqlite.connect(backup_path) as backup:
+                    await db.backup(backup)
             await db.executescript(SCHEMA)
+            if version < 1:
+                # DDL + version commit together; reruns do not reset any business data.
+                await db.execute("BEGIN IMMEDIATE")
+                await db.execute(
+                    "ALTER TABLE ai_tasks ADD COLUMN stage TEXT NOT NULL DEFAULT 'queued'"
+                )
+                await db.execute("ALTER TABLE ai_tasks ADD COLUMN usage_details TEXT")
+                await db.execute("PRAGMA user_version = 1")
+                await db.commit()
             await db.execute("PRAGMA journal_mode = WAL")
             await db.execute("PRAGMA optimize")
             await db.commit()
