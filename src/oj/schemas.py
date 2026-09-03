@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class StrictModel(BaseModel):
@@ -59,6 +59,26 @@ class SubmissionCreate(StrictModel):
 
 class LogVisibility(StrictModel):
     public_cases: bool = False
+
+
+class AIModelConfig(StrictModel):
+    provider_url: HttpUrl
+    model: str = Field(min_length=1, max_length=200)
+    api_key: str = Field(min_length=1, max_length=1000)
+    input_price: float = Field(default=0, ge=0)
+    output_price: float = Field(default=0, ge=0)
+    price_unit: int = Field(default=1_000_000, gt=0)
+
+
+class AIProblemTaskCreate(StrictModel):
+    requirement: str = Field(min_length=10, max_length=20_000)
+    problem_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
+
+
+class GeneratedProblem(StrictModel):
+    problem: Problem
+    reference_solution: str = Field(min_length=1, max_length=200_000)
+    review: str = Field(min_length=1, max_length=20_000)
 
 
 
