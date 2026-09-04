@@ -21,7 +21,8 @@ async def list_problems(
     if include_progress:
         rows = await request.app.state.db.fetchall(
             """SELECT problem_id,COUNT(*) AS attempts,MAX(created_at) AS last_attempt,
-               MAX(CASE WHEN status='success' AND score=counts THEN 1 ELSE 0 END) AS passed,
+               MAX(CASE WHEN status='success' AND score=counts AND counts>0
+                   THEN 1 ELSE 0 END) AS passed,
                MAX(CASE WHEN status='success' AND counts>0
                    THEN CAST(score AS REAL)/counts ELSE 0 END) AS best_ratio
                FROM submissions WHERE user_id=? GROUP BY problem_id""",
