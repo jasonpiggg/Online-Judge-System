@@ -62,6 +62,32 @@ class Problem(StrictModel):
         return normalize_difficulty(value, legacy=bool((info.context or {}).get("legacy")))
 
 
+class DraftProblem(StrictModel):
+    """A bounded, partially completed problem that is not publishable yet."""
+
+    id: str = Field(default="", pattern=r"^(?:|[A-Za-z0-9_-]{1,64})$")
+    title: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=100_000)
+    input_description: str = Field(default="", max_length=20_000)
+    output_description: str = Field(default="", max_length=20_000)
+    samples: list[TestCase] = Field(default_factory=list, max_length=20)
+    constraints: str = Field(default="", max_length=20_000)
+    testcases: list[TestCase] = Field(default_factory=list, max_length=100)
+    hint: str = Field(default="", max_length=20_000)
+    source: str = Field(default="", max_length=200)
+    tags: list[str] = Field(default_factory=list, max_length=30)
+    time_limit: float | None = Field(default=None, gt=0, le=30)
+    memory_limit: int | None = Field(default=None, ge=16, le=2048)
+    author: str = Field(default="", max_length=100)
+    difficulty: str = Field(default="", max_length=40)
+    public_cases: bool = False
+
+    @field_validator("difficulty")
+    @classmethod
+    def canonical_difficulty(cls, value: str, info: ValidationInfo) -> str:
+        return normalize_difficulty(value, legacy=bool((info.context or {}).get("legacy")))
+
+
 class Language(StrictModel):
     name: str = Field(pattern=r"^[a-z][a-z0-9_+-]{0,31}$")
     file_ext: str = Field(pattern=r"^\.[A-Za-z0-9]{1,10}$")
@@ -124,7 +150,9 @@ class AssistantMessageCreate(StrictModel):
 class ProblemDraftCreate(StrictModel):
     base_problem_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
     requirement: str = Field(default="", max_length=20_000)
-    problem: Problem | None = None
+    # Drafts deliberately accept incomplete fields. Publish and verification still
+    # validate the stricter Problem schema.
+    problem: DraftProblem | None = None
     reference_solution: str = Field(default="", max_length=200_000)
     brute_solution: str = Field(default="", max_length=200_000)
     generator_code: str = Field(default="", max_length=200_000)
