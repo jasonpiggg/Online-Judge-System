@@ -1,17 +1,16 @@
+param(
+    [ValidateSet("start", "stop", "status")]
+    [string]$Action = "start",
+    [switch]$NoBrowser
+)
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
-Set-Location -LiteralPath $repoRoot
-$previousPythonPath = $env:PYTHONPATH
-$env:PYTHONPATH = if ($previousPythonPath) { "$repoRoot;$previousPythonPath" } else { $repoRoot }
-$backend = Start-Process -FilePath "python" `
-    -ArgumentList "-m", "uvicorn", "oj.main:app", "--host", "127.0.0.1", "--port", "8000" `
-    -WindowStyle Hidden -PassThru
-try {
-    $env:OJ_API_URL = "http://127.0.0.1:8000"
-    python -m streamlit run frontend/app.py --server.address 127.0.0.1 --server.port 8501
+$pythonPath = Join-Path $repoRoot ".venv\Scripts\python.exe"
+if (-not (Test-Path -LiteralPath $pythonPath)) {
+    throw "Missing .venv. Run uv sync --frozen --extra dev --extra report first."
 }
-finally {
-    Stop-Process -Id $backend.Id -ErrorAction SilentlyContinue
-    $env:PYTHONPATH = $previousPythonPath
-}
+$launchArgs = @((Join-Path $PSScriptRoot "launch.py"), $Action)
+if ($NoBrowser) { $launchArgs += "--no-browser" }
+& $pythonPath @launchArgs
+exit $LASTEXITCODE
 
