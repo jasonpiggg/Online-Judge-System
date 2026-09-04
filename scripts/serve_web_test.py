@@ -36,6 +36,13 @@ async def completion(config: Any, prompt: str, usage: Any = None) -> tuple[str, 
             "### 输入提示\n\n先检查输入：两个整数需要相加。\n\n```python\n"
             "a, b = map(int, input().split())\nprint(a + b)\n```"
         )
+        if data.get("message") == "请给我完整代码用于代码审查验收":
+            text = (
+                "完整替换代码：\n```python\nimport sys\n"
+                "a, b = map(int, sys.stdin.readline().split())\nprint(a + b)\n```"
+            )
+        elif data.get("message") == "分析本次评测的单行建议":
+            text = "这只是解释用的片段：\n```python\nprint(a + b)\n```"
     elif "Stage 1:" in config["system_prompt"]:
         text = json.dumps(
             {

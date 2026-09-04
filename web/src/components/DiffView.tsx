@@ -10,6 +10,7 @@ const labels: Record<string, string> = {
   samples: "公开样例", testcases: "评测测试点", difficulty: "难度",
   tags: "标签", time_limit: "时间限制", memory_limit: "内存限制",
   public_cases: "日志公开", source: "来源", author: "作者",
+  code: "代码",
 };
 
 function text(value: unknown) {
@@ -18,8 +19,36 @@ function text(value: unknown) {
 }
 
 function changedParts(before: string, after: string, words: boolean): [Segment[], Segment[]] {
-  const split = (value: string) => words ? value.split(/(\s+|(?=[，。；：、,.!?()（）]))/) : value.split(/(?<=\n)/);
+  // Monaco on Windows uses CRLF; newline encoding alone is not a source-code change.
+  before = before.replace(/\r\n/g, "\n");
+  after = after.replace(/\r\n/g, "\n");
+  const split = (value: string) => words ? value.split(/(\s+|[\u3400-\u9fff]|(?=[，。；：、,.!?()（）]))/).filter(Boolean) : value.split(/(?<=\n)/);
   const left = split(before), right = split(after);
+  // Bound memory for huge code/test assets; preserve multiple unchanged runs on normal inputs.
+  if (left.length * right.length <= 250_000) {
+    const width = right.length + 1;
+    const lcs = new Uint32Array((left.length + 1) * width);
+    for (let i = left.length - 1; i >= 0; i--) {
+      for (let j = right.length - 1; j >= 0; j--) {
+        lcs[i * width + j] = left[i] === right[j]
+          ? 1 + lcs[(i + 1) * width + j + 1]
+          : Math.max(lcs[(i + 1) * width + j], lcs[i * width + j + 1]);
+      }
+    }
+    const oldParts: Segment[] = [], newParts: Segment[] = [];
+    let i = 0, j = 0;
+    while (i < left.length || j < right.length) {
+      if (i < left.length && j < right.length && left[i] === right[j]) {
+        oldParts.push({ value: left[i++] });
+        newParts.push({ value: right[j++] });
+      } else if (i < left.length && (j === right.length || lcs[(i + 1) * width + j] >= lcs[i * width + j + 1])) {
+        oldParts.push({ value: left[i++], tone: "remove" });
+      } else {
+        newParts.push({ value: right[j++], tone: "add" });
+      }
+    }
+    return [oldParts, newParts];
+  }
   let start = 0;
   while (start < left.length && start < right.length && left[start] === right[start]) start++;
   let end = 0;

@@ -32,6 +32,19 @@ const ActivityContext = createContext<ActivityContextValue | null>(null);
 const iconFor = (kind: ActivityKind) =>
   ({ problem: "code", draft: "file", ai: "bot", submission: "play" })[kind];
 
+export function upsertActivity(
+  current: ActivityEntry[],
+  entry: Omit<ActivityEntry, "touchedAt"> & { touchedAt?: number },
+) {
+  const index = current.findIndex((item) => item.id === entry.id);
+  const next = { ...entry, touchedAt: entry.touchedAt || Date.now() };
+  if (index < 0) return [next, ...current].slice(0, 20);
+  const updated = current.slice();
+  // Status/title refreshes must not reorder browser-like tabs under the pointer.
+  updated[index] = next;
+  return updated.slice(0, 20);
+}
+
 export function ActivityProvider({ userId, children }: { userId: string; children: ReactNode }) {
   const storageKey = `oj-activities-${userId}`;
   const [entries, setEntries] = useState<ActivityEntry[]>(() => {
@@ -46,10 +59,7 @@ export function ActivityProvider({ userId, children }: { userId: string; childre
     catch { /* Individual editors report storage failures with actionable guidance. */ }
   }, [entries, storageKey]);
   const upsert = useCallback((entry: Omit<ActivityEntry, "touchedAt"> & { touchedAt?: number }) => {
-    setEntries((current) => {
-      const next = { ...entry, touchedAt: entry.touchedAt || Date.now() };
-      return [next, ...current.filter((item) => item.id !== entry.id)].slice(0, 20);
-    });
+    setEntries((current) => upsertActivity(current, entry));
   }, []);
   const remove = useCallback((id: string) => setEntries((items) => items.filter((e) => e.id !== id)), []);
   const value = useMemo(() => ({ entries, upsert, remove }), [entries, upsert, remove]);

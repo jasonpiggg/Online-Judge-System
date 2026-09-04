@@ -2950,3 +2950,241 @@ summary,
   .back-link { transition: none; }
   .back-link:hover { transform: none; }
 }
+
+/* Readable content rhythm. UI chrome stays compact at 14px. */
+.assistant {
+  font-size: var(--font-body);
+  line-height: 1.7;
+}
+.assistant .button,
+.assistant label,
+.assistant textarea,
+.assistant summary,
+.assistant .muted,
+.assistant .eyebrow,
+.assistant-history,
+.task-status details,
+.task-status > .muted {
+  font-size: var(--font-ui);
+}
+.page > p:not(.muted),
+.task-request-card p,
+.ai-answer-card .markdown,
+.ai-review-card .markdown,
+.preview-field .markdown,
+.task-status strong {
+  font-size: var(--font-body);
+}
+
+/* Keep text and controls visually related without letting them collide. */
+label,
+.font-control {
+  gap: var(--space-2);
+}
+.form-grid label:not(.check),
+.author-compose label,
+.assistant-composer label,
+.ai-inline label,
+.settings-grid label,
+.metadata-form label {
+  display: grid;
+  gap: var(--space-2);
+}
+.form-grid > section > * + *,
+.verification-levels > section > * + * {
+  margin-top: var(--space-3);
+}
+.filters,
+.quick-actions,
+.problem-actions,
+.sticky-actions,
+.review-actions,
+.assistant-send-row,
+.assistant-intro {
+  gap: var(--space-3);
+}
+.section-title {
+  gap: var(--space-3);
+  padding: 18px 22px;
+}
+.editor-toolbar,
+.editor-footer {
+  min-height: 60px;
+  padding: 12px 22px;
+}
+.editor-toolbar {
+  align-items: center;
+}
+.editor-footer {
+  align-items: center;
+}
+.editor-footer .button {
+  margin-left: auto;
+}
+.error-recovery {
+  margin: var(--space-4) 0;
+}
+.error-recovery > .button {
+  margin: 0 0 var(--space-3) var(--space-4);
+}
+.result-surface,
+.assistant-panel,
+.code-area {
+  margin-top: 28px;
+}
+
+.task-request-card,
+.ai-answer-card,
+.ai-review-card,
+.code-review-card,
+.preview-field,
+.task-stage-note,
+.version-note {
+  border: 1px solid #dce6f3;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #f8fbff, #fff);
+  box-shadow: 0 3px 14px #234d9006;
+}
+.task-request-card {
+  padding: 18px 20px;
+  margin: 20px 0;
+}
+.task-request-card .eyebrow {
+  margin-bottom: 10px;
+}
+.task-request-card p {
+  margin: 0;
+  line-height: 1.75;
+}
+.task-stage-note,
+.version-note {
+  padding: 11px 14px;
+  margin: 14px 0;
+  color: #536983;
+  background: #f6f9fe;
+  font-size: var(--font-ui);
+}
+.task-status {
+  padding: 18px 20px;
+  margin: 20px 0;
+  border: 1px solid #dce8fa;
+  border-radius: 11px;
+  background: linear-gradient(140deg, #f3f7ff, #fbfdff);
+}
+.task-status > .row {
+  align-items: center;
+  gap: 18px;
+}
+.task-status strong {
+  line-height: 1.5;
+}
+.task-status > .muted {
+  margin: 7px 0 14px;
+}
+.task-status details {
+  padding: 12px 0 0;
+  margin-top: 10px;
+  border-top: 1px solid #dfe8f5;
+}
+.task-status details p {
+  margin: 8px 0 0;
+}
+.ai-answer-card,
+.ai-review-card,
+.code-review-card {
+  padding: 18px 20px;
+  margin: 16px 0;
+}
+.ai-answer-card .eyebrow,
+.ai-review-card .eyebrow {
+  margin-bottom: 10px;
+}
+.ai-answer-card .markdown > :first-child,
+.ai-review-card .markdown > :first-child {
+  margin-top: 0;
+}
+.ai-answer-card .markdown > :last-child,
+.ai-review-card .markdown > :last-child {
+  margin-bottom: 0;
+}
+.current-answer > section {
+  padding: 10px 0 0;
+}
+.current-answer > section > .button {
+  margin-top: 12px;
+}
+.user-message {
+  padding: 14px 18px;
+  margin: 0 0 14px;
+  font-size: var(--font-body);
+  line-height: 1.65;
+}
+.code-review-card {
+  margin-top: 20px;
+}
+.code-review-card .section-heading {
+  margin: 0 0 12px;
+}
+.code-review-card .section-heading h3 {
+  margin: 4px 0 0;
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.generated-preview {
+  max-width: 960px;
+  padding: 22px;
+  border: 1px solid #dfe7f1;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 5px 22px #234d9008;
+}
+.generated-preview:empty {
+  display: none;
+}
+.preview-field {
+  padding: 16px 18px;
+  margin: 14px 0;
+}
+.preview-field h3 {
+  margin: 0 0 10px;
+  color: #345d95;
+}
+
+/* Plain operational messages still receive a visible container. */
+p[role="alert"],
+p[role="status"] {
+  padding: 11px 14px;
+  margin: 14px 0;
+  border: 1px solid #dce6f3;
+  border-radius: 9px;
+  background: #f7faff;
+}
+p[role="alert"] {
+  color: #7b3540;
+  border-color: #efcfd3;
+  background: #fff7f7;
+}
+
+@media (max-width: 760px) {
+  .section-title,
+  .editor-toolbar,
+  .editor-footer,
+  .task-request-card,
+  .task-status,
+  .ai-answer-card,
+  .ai-review-card,
+  .code-review-card,
+  .generated-preview {
+    padding-inline: 15px;
+  }
+  .editor-toolbar,
+  .editor-footer {
+    min-height: 54px;
+  }
+  .editor-toolbar {
+    align-items: stretch;
+  }
+}

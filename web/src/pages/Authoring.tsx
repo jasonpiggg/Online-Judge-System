@@ -804,7 +804,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                   ? draft.verification_level === "full"
                     ? "完整验证已通过"
                     : "基础检查已通过，可以发布"
-                  : "草稿尚未通过完整验证"}
+                  : "草稿尚未通过基础检查"}
               </h2>
               <p>基础检查通过即可发布手工题；完整验证会继续执行错误解检测与独立随机对拍。</p>
               <div className="verification-levels">
@@ -813,8 +813,8 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                   <h3>字段、排版与可运行性</h3>
                   <ul className="check-list">
                     <li className={schemaValid ? "passed" : "blocked"}>题目字段、样例与测试格式</li>
-                    <li className="passed">Markdown 与数学公式语法</li>
-                    <li className={reference.trim() ? "passed" : "skipped"}>{reference.trim() ? "运行参考解的全部样例和测试" : "未提供参考解，将跳过自动输出核对"}</li>
+                    <li className="skipped">Markdown 与数学公式语法：运行后确认</li>
+                    <li className="skipped">{reference.trim() ? "待运行参考解的全部样例和测试" : "未提供参考解，将跳过自动输出核对"}</li>
                   </ul>
                   {!schemaValid && <Button type="button" onClick={() => setParams({ step: "题面与样例" })}>补全题目字段</Button>}
                 </section>
@@ -825,7 +825,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                 </section>
               </div>
               {draft.verification_summary && <VerificationReport report={draft.verification_summary} />}
-              {draft.review?.review && <RichText text={draft.review.review} />}
+              {draft.review?.review && <div className="ai-review-card"><span className="eyebrow">审查意见</span><RichText text={draft.review.review} /></div>}
               <Button
                 type="button"
                 variant="default"
@@ -1015,10 +1015,13 @@ export function AuthoringTask() {
         <Icon name={t.action === "verify" ? "check" : "spark"} />
         {t.action === "verify" ? "草稿本地验证" : "AI 命题"}
       </h1>
-      <p>{t.requirement}</p>
+      <section className="task-request-card">
+        <span className="eyebrow"><Icon name="file" /> 本次任务</span>
+        <p>{t.requirement}</p>
+      </section>
       <TaskProgress task={t} disconnected={disconnected} />
       {!terminal(t.status) && (
-        <p className="muted">
+        <p className="task-stage-note">
           生成中 · 以下内容尚未验证，完成前不能发布。离开页面后任务仍会继续。
         </p>
       )}
@@ -1036,8 +1039,8 @@ export function AuthoringTask() {
       )}
       {result?.kind === "section_patch" && (
         <>
-          <p className="muted">局部建议已复审，尚未通过整题验证。</p>
-          <RichText text={result.review} />
+          <p className="task-stage-note">局部建议已复审，尚未通过整题验证。</p>
+          <div className="ai-review-card"><span className="eyebrow">AI 修改说明</span><RichText text={result.review} /></div>
           <details open>
             <summary>查看修改前后差异</summary>
             <DiffView before={result.baseline} after={result.problem} />
@@ -1051,7 +1054,7 @@ export function AuthoringTask() {
           </Button>
         </>
       )}
-      {result?.kind === "review" && <RichText text={result.review} />}
+      {result?.kind === "review" && <div className="ai-review-card"><span className="eyebrow">AI 审查结果</span><RichText text={result.review} /></div>}
       {result?.initial_problem && (
         <details>
           <summary>查看复审前后的题面</summary>
@@ -1072,11 +1075,11 @@ export function AuthoringTask() {
           <>
             {preview.title && <h2>{preview.title}</h2>}
             {[
-              "description",
-              "input_description",
-              "output_description",
-              "constraints",
-            ].map((k) => preview[k] && <RichText key={k} text={preview[k]} />)}
+              ["description", "题目描述"],
+              ["input_description", "输入格式"],
+              ["output_description", "输出格式"],
+              ["constraints", "数据范围"],
+            ].map(([k, label]) => preview[k] && <section className="preview-field" key={k}><h3>{label}</h3><RichText text={preview[k]} /></section>)}
             {preview.samples?.map(
               (s: { input: string; output: string }, i: number) => (
                 <div className="samples" key={i}>
@@ -1100,13 +1103,16 @@ export function AuthoringTask() {
           result.kind !== "review" && (
             <details>
               <summary>审查意见</summary>
-              <RichText text={result.review} />
+              <div className="ai-review-card"><RichText text={result.review} /></div>
             </details>
           )}
       </div>
       {["failed", "cancelled"].includes(t.status) && (
         <div className="notice">
-          <p>已保留当前成果。重新生成会创建新任务并产生费用。</p>
+          <p>{t.action === "verify" ? "本地验证未完成。请返回草稿查看并修正检查项，再选择基础检查或完整验证；本地检查不调用模型。" : "已保留当前成果。重新生成会创建新任务并产生费用。"}</p>
+          {t.action === "verify" ? (
+            <Button asChild><Link to={t.draft_id ? `/authoring/drafts/${t.draft_id}?step=检查与发布` : "/authoring"}>返回草稿修正并检查</Link></Button>
+          ) : (
           <Button
             disabled={busy}
             onClick={async () => {
@@ -1118,7 +1124,7 @@ export function AuthoringTask() {
                     problem_id: t.problem_id,
                     draft_id: t.draft_id,
                     workflow_version: 2,
-                    action: t.action === "verify" ? "generate" : t.action,
+                    action: t.action,
                     target_section: t.target_section,
                     resume_task_id:
                       result?.kind === "candidate" ? t.task_id : undefined,
@@ -1135,6 +1141,7 @@ export function AuthoringTask() {
           >
             {result?.kind === "candidate" ? "从已完成阶段继续" : "重新生成"}
           </Button>
+          )}
         </div>
       )}
       {actionError && <ErrorNotice message={actionError} />}
