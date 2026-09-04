@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, json, errorText, queryClient } from "../api";
 import { RichText, Code } from "./Markdown";
 import { Button } from "./ui/button";
+import { Pagination } from "./Pagination";
 export type Task = {
   task_id: string;
   action?: string;
@@ -145,6 +146,7 @@ type Message = {
   language?: string;
   submission_id?: number;
 };
+type MessagePage = { messages: Message[]; total: number; page: number };
 export function Assistant({
   problemId,
   code,
@@ -159,26 +161,38 @@ export function Assistant({
   onApply: (code: string) => void;
 }) {
   const [conversation, setConversation] = useState(""),
+    [contextGeneration, setContextGeneration] = useState(0),
     [active, setActive] = useState<string>(),
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [proposed, setProposed] = useState("");
+    [proposed, setProposed] = useState(""),
+    [historyPage, setHistoryPage] = useState(1),
+    [topicMessage, setTopicMessage] = useState("");
   const pending = useRef<{ hash: string; key: string } | undefined>(undefined);
   const { data: task, disconnected } = useTask(active);
   const history = useQuery({
-    queryKey: ["conversation", conversation],
-    queryFn: () => api<Message[]>(`/ai/conversations/${conversation}/messages`),
+    queryKey: ["conversation", conversation, contextGeneration, historyPage],
+    queryFn: () =>
+      api<MessagePage>(
+        `/ai/conversations/${conversation}/messages?include_metadata=true&page=${historyPage}&page_size=5`,
+      ),
     enabled: !!conversation,
   });
   useEffect(() => {
     let gone = false;
-    api<{ id: string }>(
+    api<{ id: string; context_generation: number }>(
       "/ai/conversations/",
       json("POST", { problem_id: problemId }),
     )
       .then((r) => {
-        if (!gone) setConversation(r.id);
+        if (!gone) {
+          setConversation(r.id);
+          setContextGeneration(r.context_generation);
+          setActive(undefined);
+          setHistoryPage(1);
+          setTopicMessage("");
+        }
       })
       .catch((e) => setError(errorText(e)));
     return () => {
@@ -186,9 +200,10 @@ export function Assistant({
     };
   }, [problemId]);
   useEffect(() => {
-    const running = history.data?.find((m) => !terminal(m.status));
-    if (running && !active) setActive(running.task_id);
-  }, [history.data, active]);
+    const latest =
+      historyPage === 1 ? history.data?.messages.at(-1) : undefined;
+    if (latest && !active) setActive(latest.task_id);
+  }, [history.data, active, historyPage]);
   useEffect(() => {
     if (task && terminal(task.status))
       void queryClient.invalidateQueries({
@@ -205,6 +220,7 @@ export function Assistant({
       return;
     setBusy(true);
     setError("");
+    setTopicMessage("");
     const payload = {
       message: text,
       code,
@@ -224,7 +240,32 @@ export function Assistant({
       );
       setActive(r.task_id);
       setMessage("");
+      setHistoryPage(1);
       pending.current = undefined;
+      await queryClient.invalidateQueries({
+        queryKey: ["conversation", conversation],
+      });
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const newTopic = async () => {
+    if (busy || !conversation || (task && !terminal(task.status))) return;
+    setBusy(true);
+    setError("");
+    try {
+      const started = await api<{ context_generation: number }>(
+        `/ai/conversations/${conversation}/new`,
+        json("POST"),
+      );
+      setActive(undefined);
+      setContextGeneration(started.context_generation);
+      setHistoryPage(1);
+      setProposed("");
+      pending.current = undefined;
+      setTopicMessage("已开始新对话，后续回答不会携带此前对话内容。");
       await queryClient.invalidateQueries({
         queryKey: ["conversation", conversation],
       });
@@ -270,7 +311,18 @@ export function Assistant({
   return (
     <div className="assistant">
       <h3>AI 做题助手</h3>
-      <p className="muted">先给提示。需要完整题解时，可以直接告诉我。</p>
+      <div className="assistant-intro">
+        <p className="muted">
+          先给提示；每次最多携带当前话题最近 4
+          轮。需要完整题解时，可以直接告诉我。
+        </p>
+        <Button
+          disabled={busy || !conversation || (!!task && !terminal(task.status))}
+          onClick={() => void newTopic()}
+        >
+          新对话
+        </Button>
+      </div>
       <div className="quick-actions">
         {["给我一个渐进提示", "解释我当前的代码", "分析本次评测"].map((t) => (
           <Button
@@ -298,19 +350,42 @@ export function Assistant({
             : "，对应当前代码。"}
         </p>
       )}
-      <div className="messages">
-        {history.data
-          ?.filter((m) => m.task_id !== active)
-          .map((m) => (
-            <section key={m.task_id}>
-              <p className="user-message">{m.message}</p>
-              <p className="muted">
-                {m.language || "代码快照"}
-                {m.submission_id ? ` · 提交 #${m.submission_id}` : ""}
-              </p>
-              {showAnswer(m.text, m.code_snapshot, m.language)}
-            </section>
-          ))}
+      {topicMessage && <p role="status">{topicMessage}</p>}
+      <form
+        className="assistant-composer"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void send();
+        }}
+      >
+        <label>
+          你的问题
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="例如：为什么边界情况会出错？"
+          />
+        </label>
+        <div className="assistant-send-row">
+          <p className="muted">
+            将附带当前题目、{language} 代码（{code.length} 字符）
+            {submissionId ? "和本次评测结果" : ""}。
+          </p>
+          <Button
+            variant="default"
+            disabled={
+              busy ||
+              !conversation ||
+              !message.trim() ||
+              (!!task && !terminal(task.status))
+            }
+          >
+            {busy ? "发送中…" : "发送"}
+          </Button>
+        </div>
+      </form>
+      {error && <p role="alert">{error}</p>}
+      <div className="current-answer">
         {task && (
           <section>
             <p className="user-message">{task.requirement}</p>
@@ -325,6 +400,42 @@ export function Assistant({
           </section>
         )}
       </div>
+      {(history.data?.total || 0) > (active ? 1 : 0) && (
+        <details className="assistant-history">
+          <summary>
+            历史对话（
+            {Math.max(0, (history.data?.total || 0) - (active ? 1 : 0))} 轮）
+          </summary>
+          <div className="messages">
+            {history.data?.messages
+              .filter((item) => item.task_id !== active)
+              .map((item) => (
+                <details className="history-turn" key={item.task_id}>
+                  <summary>
+                    <span>{item.message}</span>
+                    <small>
+                      {item.language || "代码快照"}
+                      {item.submission_id
+                        ? ` · 提交 #${item.submission_id}`
+                        : ""}
+                    </small>
+                  </summary>
+                  <div className="history-answer">
+                    {showAnswer(item.text, item.code_snapshot, item.language)}
+                  </div>
+                </details>
+              ))}
+          </div>
+          {(history.data?.total || 0) > 5 && (
+            <Pagination
+              page={historyPage}
+              totalPages={Math.ceil((history.data?.total || 0) / 5)}
+              label="AI 历史对话分页"
+              onChange={setHistoryPage}
+            />
+          )}
+        </details>
+      )}
       {proposed && (
         <div className="notice">
           <h4>应用前比较</h4>
@@ -350,37 +461,6 @@ export function Assistant({
           <Button onClick={() => setProposed("")}>取消</Button>
         </div>
       )}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-      >
-        <label>
-          你的问题
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="例如：为什么边界情况会出错？"
-          />
-        </label>
-        <p className="muted">
-          将附带当前题目、{language} 代码（{code.length} 字符）
-          {submissionId ? "和本次评测结果" : ""}。
-        </p>
-        {error && <p role="alert">{error}</p>}
-        <Button
-          variant="default"
-          disabled={
-            busy ||
-            !conversation ||
-            !message.trim() ||
-            (!!task && !terminal(task.status))
-          }
-        >
-          {busy ? "发送中…" : "发送"}
-        </Button>
-      </form>
     </div>
   );
 }

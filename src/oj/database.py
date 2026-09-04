@@ -165,12 +165,12 @@ class Database:
             cursor = await db.execute("PRAGMA user_version")
             version = (await cursor.fetchone())[0]  # type: ignore[index]
             await cursor.close()
-            if version > 6:
+            if version > 7:
                 raise RuntimeError("Database schema is newer than this application")
             existing = await db.execute("SELECT name FROM sqlite_master WHERE type='table'")
             has_tables = bool(await existing.fetchone())
             await existing.close()
-            if version < 6 and has_tables:
+            if version < 7 and has_tables:
                 stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
                 backup_path = self.path.with_name(f"{self.path.stem}.pre-v{version}-{stamp}.db")
                 async with aiosqlite.connect(backup_path) as backup:
@@ -267,6 +267,19 @@ class Database:
                     PRAGMA user_version = 6;
                     COMMIT;
                 """)
+            if version < 7:
+                await db.execute("BEGIN IMMEDIATE")
+                for table in ("ai_conversations", "ai_task_context"):
+                    cursor = await db.execute(f"PRAGMA table_info({table})")  # noqa: S608
+                    columns = {row[1] for row in await cursor.fetchall()}
+                    await cursor.close()
+                    if "context_generation" not in columns:
+                        await db.execute(
+                            f"ALTER TABLE {table} ADD COLUMN context_generation "  # noqa: S608
+                            "INTEGER NOT NULL DEFAULT 0"
+                        )
+                await db.execute("PRAGMA user_version = 7")
+                await db.commit()
             await db.execute("PRAGMA journal_mode = WAL")
             await db.execute("PRAGMA optimize")
             await db.commit()

@@ -119,7 +119,7 @@ export function Admin({ user }: { user: User }) {
       {(error || loadError) && (
         <p role="alert">{error || loadError?.message}</p>
       )}
-      {tab === "题目" && <AdminProblems />}
+      {tab === "题目" && <AdminProblems adminView />}
       {tab === "提交" && <Records user={user} adminView />}
       {tab === "角色审计" && (
         <>

@@ -16,7 +16,7 @@ import { Statement } from "../components/Statement";
 import { Code } from "../components/Markdown";
 import { createEditingDraft } from "../problem-actions";
 
-export function AdminProblems() {
+export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
   const [params, setParams] = useSearchParams();
   const location = useLocation(),
     navigate = useNavigate();
@@ -61,8 +61,10 @@ export function AdminProblems() {
     <section>
       <div className="section-heading">
         <div>
-          <h2>题目管理</h2>
-          <p className="muted">按题号定位，查看完整信息并管理题目。</p>
+          <h2>{adminView ? "题目管理" : "题目资源"}</h2>
+          <p className="muted">
+            按题号定位，查看完整信息并{adminView ? "管理" : "编辑"}题目。
+          </p>
         </div>
         <Button asChild>
           <Link to="/authoring">创建题目</Link>
@@ -200,55 +202,65 @@ export function AdminProblems() {
               编辑题目
             </Button>
             <Button asChild>
-              <Link to={`/admin?tab=提交&problem_id=${p.id}`}>
-                查看该题提交
+              <Link
+                to={
+                  adminView
+                    ? `/admin?tab=提交&problem_id=${p.id}`
+                    : `/submissions?problem_id=${p.id}`
+                }
+              >
+                {adminView ? "查看该题全部提交" : "查看我的提交"}
               </Link>
             </Button>
-            <Button
-              variant="destructive"
-              disabled={busy}
-              onClick={() => {
-                if (
-                  window.prompt(`删除后无法恢复，请输入题号 ${p.id} 确认`) ===
-                  p.id
-                )
-                  void action(async () => {
-                    await api(`/problems/${p.id}`, json("DELETE"));
-                    setParams({ tab: "题目" });
-                  });
-              }}
-            >
-              删除题目
-            </Button>
-          </div>
-          <div className="setting-row">
-            <div>
-              <strong>公开评测日志</strong>
-              <p className="muted">
-                允许其他登录用户查看逐点状态、耗时和内存，不公开提交代码。
-              </p>
-            </div>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={
-                  visibility?.id === p.id ? visibility.value : p.public_cases
-                }
+            {adminView && (
+              <Button
+                variant="destructive"
                 disabled={busy}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setVisibility({ id: p.id, value: checked });
-                  void action(() =>
-                    api(
-                      `/problems/${p.id}/log_visibility`,
-                      json("PUT", { public_cases: checked }),
-                    ),
-                  ).finally(() => setVisibility(null));
+                onClick={() => {
+                  if (
+                    window.prompt(`删除后无法恢复，请输入题号 ${p.id} 确认`) ===
+                    p.id
+                  )
+                    void action(async () => {
+                      await api(`/problems/${p.id}`, json("DELETE"));
+                      setParams({ tab: "题目" });
+                    });
                 }}
-              />
-              公开日志
-            </label>
+              >
+                删除题目
+              </Button>
+            )}
           </div>
+          {adminView && (
+            <div className="setting-row">
+              <div>
+                <strong>公开评测日志</strong>
+                <p className="muted">
+                  允许其他登录用户查看逐点状态、耗时和内存，不公开提交代码。
+                </p>
+              </div>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={
+                    visibility?.id === p.id ? visibility.value : p.public_cases
+                  }
+                  disabled={busy}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setVisibility({ id: p.id, value: checked });
+                    void action(() =>
+                      api(
+                        `/problems/${p.id}/log_visibility`,
+                        json("PUT", { public_cases: checked }),
+                      ),
+                    ).finally(() => setVisibility(null));
+                  }}
+                />
+                公开日志
+              </label>
+            </div>
+          )}
           <details>
             <summary>完整题面与样例</summary>
             <Statement problem={p} />

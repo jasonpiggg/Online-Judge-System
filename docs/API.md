@@ -49,25 +49,33 @@
 
 ## AI 智能命题
 
-| Method         | Path                                 | 权限          | 说明                                             |
-| -------------- | ------------------------------------ | ------------- | ------------------------------------------------ |
-| GET            | `/api/ai/model-config`               | 登录          | 有效配置来源与状态；只返回本人配置的可编辑元数据 |
-| PUT            | `/api/ai/model-config`               | 登录          | 保存加密的兼容模型配置与价格                     |
-| DELETE         | `/api/ai/model-config`               | 登录          | 仅移除本人覆盖，回退系统默认；幂等               |
-| POST           | `/api/ai/problem-tasks/`             | 登录          | 创建流式命题任务                                 |
-| GET            | `/api/ai/problem-tasks/`             | 登录          | 最近 50 个本人任务、状态与费用                   |
-| GET            | `/api/ai/problem-tasks/{id}`         | 创建者/管理员 | 查询进度、结果、Token 与费用                     |
-| PUT            | `/api/ai/problem-tasks/{id}/cancel`  | 创建者/管理员 | 实际中断后台任务                                 |
-| GET/POST       | `/api/problem-drafts/`               | 登录          | 本人命题草稿列表/创建                            |
-| GET/PUT/DELETE | `/api/problem-drafts/{id}`           | 创建者        | 读取、部分草稿乐观锁更新、归档                   |
-| GET            | `/api/problem-drafts/{id}/revisions` | 创建者        | 完整版本快照                                     |
-| POST           | `/api/problem-drafts/{id}/publish`   | 创建者        | 仅发布通过质量门禁的草稿                         |
+| Method         | Path                                  | 权限          | 说明                                             |
+| -------------- | ------------------------------------- | ------------- | ------------------------------------------------ |
+| GET            | `/api/ai/model-config`                | 登录          | 有效配置来源与状态；只返回本人配置的可编辑元数据 |
+| PUT            | `/api/ai/model-config`                | 登录          | 保存加密的兼容模型配置与价格                     |
+| DELETE         | `/api/ai/model-config`                | 登录          | 仅移除本人覆盖，回退系统默认；幂等               |
+| POST           | `/api/ai/problem-tasks/`              | 登录          | 创建流式命题任务                                 |
+| GET            | `/api/ai/problem-tasks/`              | 登录          | 最近 50 个本人任务、状态与费用                   |
+| GET            | `/api/ai/problem-tasks/{id}`          | 创建者/管理员 | 查询进度、结果、Token 与费用                     |
+| PUT            | `/api/ai/problem-tasks/{id}/cancel`   | 创建者/管理员 | 实际中断后台任务                                 |
+| POST           | `/api/ai/conversations/`              | 登录          | 获取当前题目的本人做题会话                       |
+| GET/POST       | `/api/ai/conversations/{id}/messages` | 创建者        | 分页读取或发送做题助手消息                       |
+| POST           | `/api/ai/conversations/{id}/new`      | 创建者        | 开始不继承旧上下文的新话题                       |
+| GET/POST       | `/api/problem-drafts/`                | 登录          | 本人命题草稿列表/创建                            |
+| GET/PUT/DELETE | `/api/problem-drafts/{id}`            | 创建者        | 读取、部分草稿乐观锁更新、归档                   |
+| GET            | `/api/problem-drafts/{id}/revisions`  | 创建者        | 完整版本快照                                     |
+| POST           | `/api/problem-drafts/{id}/publish`    | 创建者        | 仅发布通过质量门禁的草稿                         |
 
 `GET /api/ai/model-config` 返回 `source`（`personal/system/none`）、
 `system_configured`、`personal_configured` 和 `api_key_configured`。
 使用系统默认时不返回系统地址、模型名或密钥。个人配置存在时额外返回本人模型地址、
 名称、价格等可编辑元数据，不返回密钥。PUT 始终只写入当前用户的个人配置；首次覆盖
 不能省略 key，已有个人配置可省略以保留自己的 key。
+
+做题助手消息接口默认保留旧版最近 50 条列表响应；传入 `include_metadata=true` 时按
+`page/page_size` 返回 `messages/total/page`。新话题通过递增服务端上下文代次保留旧任务
+及其用量记录，但后续请求不会再发送此前对话；有回答仍在生成时拒绝切换话题。同一话题
+最多携带最近 4 轮、20,000 字节历史，当前问题、当前代码和结构化评测不受历史裁剪影响。
 
 系统配置只从服务器环境首次初始化，无用户级系统配置写接口。
 已有默认配置的非敏感模型/价格更新由服务器管理员显式运行

@@ -278,6 +278,7 @@ async def test_assistant_context_isolation_history_and_duplicate(
     body = {"message": "给我提示", "code": "print(1)", "language": "python"}
     reply = await client.post(path, json=body, headers={"Idempotency-Key": "message"})
     task_id = reply.json()["data"]["task_id"]
+    assert (await client.post(f"/api/ai/conversations/{chat}/new")).status_code == 409
     await finish(manager, task_id)
     assert (await client.post(path, json=body, headers={"Idempotency-Key": "message"})).json()[
         "data"
@@ -286,6 +287,27 @@ async def test_assistant_context_isolation_history_and_duplicate(
     next_reply = await client.post(path, json={**body, "message": "再给一步提示"})
     await finish(manager, next_reply.json()["data"]["task_id"])
     assert len(seen[1]["history"]) == 1
+    page = (await client.get(path, params={"include_metadata": True, "page_size": 1})).json()[
+        "data"
+    ]
+    assert page["total"] == 2
+    assert [message["message"] for message in page["messages"]] == ["再给一步提示"]
+    started = await client.post(f"/api/ai/conversations/{chat}/new")
+    assert started.json()["data"]["context_generation"] == 1
+    assert (await client.get(path)).json()["data"] == []
+    fresh = await client.post(path, json={**body, "message": "换一种解法"})
+    await finish(manager, fresh.json()["data"]["task_id"])
+    assert seen[2]["history"] == []
+    for index in range(5):
+        follow_up = await client.post(path, json={**body, "message": f"追问 {index}"})
+        await finish(manager, follow_up.json()["data"]["task_id"])
+    assert [turn["user"] for turn in seen[-1]["history"]] == [
+        "追问 0",
+        "追问 1",
+        "追问 2",
+        "追问 3",
+    ]
+    assert seen[-1]["history_policy"]["older_context_omitted"] is True
     assert (await client.get(f"/api/ai/assistant-tasks/{task_id}")).status_code == 200
     assert (await client.get(f"/api/ai/assistant-tasks/{task_id}/events")).status_code == 200
     assert (await client.post(path, json={**body, "code": "中" * 100000})).status_code == 400
@@ -294,6 +316,7 @@ async def test_assistant_context_isolation_history_and_duplicate(
     await client.post("/api/auth/login", json={"username": "learner", "password": "password"})
     assert (await client.get(path)).status_code == 404
     assert (await client.post(path, json=body)).status_code == 404
+    assert (await client.post(f"/api/ai/conversations/{chat}/new")).status_code == 404
     assert (await client.get(f"/api/ai/assistant-tasks/{task_id}")).status_code == 403
 
 

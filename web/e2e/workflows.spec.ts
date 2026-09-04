@@ -125,7 +125,7 @@ test("Chinese composition, URL restoration and vertical result controls", async 
 });
 test("AI streams, restores after refresh and cancels without resubmission", async ({
   page,
-}) => {
+}, testInfo) => {
   await login(page);
   await page.goto("/problems/sum_2?tab=AI");
   await page.getByLabel("你的问题").fill("给我提示");
@@ -137,6 +137,23 @@ test("AI streams, restores after refresh and cancels without resubmission", asyn
   ).toBeVisible();
   await page.reload();
   await expect(page.getByText("先检查输入：两个整数需要相加。")).toBeVisible();
+  await page.getByLabel("你的问题").fill("再给一步提示");
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+  await expect(
+    page.getByText("历史对话（1 轮）", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("给我提示", { exact: true })).not.toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("assistant-collapsed-history.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "新对话", exact: true }).click();
+  await expect(
+    page.getByText("已开始新对话，后续回答不会携带此前对话内容。"),
+  ).toBeVisible();
+  await expect(page.getByText("历史对话（1 轮）", { exact: true })).toHaveCount(
+    0,
+  );
   await page.getByLabel("你的问题").fill("模拟慢速回答");
   await page.getByRole("button", { name: "发送", exact: true }).click();
   await expect(
@@ -189,7 +206,7 @@ test("incomplete draft saves and AI completes it", async ({ page }) => {
     timeout: 45000,
   });
 });
-test("regular user can configure an evaluation language from account", async ({
+test("regular user manages experiment resources from the main navigation", async ({
   page,
 }) => {
   await login(page);
@@ -199,8 +216,35 @@ test("regular user can configure an evaluation language from account", async ({
   await page.request.post("/api/auth/login", {
     data: { username: "language_student", password: "language-password" },
   });
-  await page.goto("/account");
-  await page.getByText("评测语言配置", { exact: true }).click();
+  await page.goto("/resources");
+  await expect(
+    page.getByRole("heading", { name: "资源管理", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("navigation", { name: "主导航" })
+      .getByRole("link", { name: "资源", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("navigation", { name: "主导航" })
+      .getByRole("link", { name: "管理", exact: true }),
+  ).toHaveCount(0);
+  await page.getByLabel("管理题目搜索").fill("sum_2");
+  await page
+    .getByRole("row", { name: /sum_2/ })
+    .getByRole("button", { name: "查看详情", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "题目详细信息" }),
+  ).toContainText("sum_2");
+  await expect(
+    page.getByRole("button", { name: "编辑题目", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "删除题目", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "语言", exact: true }).click();
   await page.getByText("注册语言 / 更新配置", { exact: true }).click();
   await page.getByLabel("语言名称").fill("browserlang");
   await page.getByLabel("文件扩展名").fill(".txt");
@@ -360,6 +404,7 @@ test("visual acceptance across pages and result panels", async ({
       ["workspace", "/problems/sum_2"],
       ["records", "/submissions"],
       ["authoring", "/authoring"],
+      ["resources", "/resources"],
       ["account", "/account"],
       ["admin", "/admin"],
       ["result", `/submissions/${sid}`],

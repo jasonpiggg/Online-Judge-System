@@ -5,7 +5,7 @@ import json
 import secrets
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from oj.ai_authoring import utcnow
@@ -190,52 +190,83 @@ async def conversation(
         ("chat-" + secrets.token_urlsafe(12), user.id, body.problem_id, utcnow()),
     )
     row = await request.app.state.db.fetchone(
-        "SELECT id,problem_id FROM ai_conversations WHERE user_id=? AND problem_id=?",
+        "SELECT id,problem_id,context_generation FROM ai_conversations "
+        "WHERE user_id=? AND problem_id=?",
         (user.id, body.problem_id),
     )
     return response(data=dict(row))
 
 
-async def owned_conversation(request: Request, conversation_id: str, user: CurrentUser) -> str:
+async def owned_conversation(
+    request: Request, conversation_id: str, user: CurrentUser
+) -> tuple[str, int]:
     row = await request.app.state.db.fetchone(
-        "SELECT problem_id FROM ai_conversations WHERE id=? AND user_id=?",
+        "SELECT problem_id,context_generation FROM ai_conversations WHERE id=? AND user_id=?",
         (conversation_id, user.id),
     )
     if not row:
         raise APIError(404, "conversation not found")
-    return str(row["problem_id"])
+    return str(row["problem_id"]), int(row["context_generation"])
+
+
+@router.post("/conversations/{conversation_id}/new")
+async def new_conversation_topic(
+    request: Request,
+    conversation_id: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> JSONResponse:
+    await owned_conversation(request, conversation_id, user)
+    generation = await request.app.state.ai_authoring.start_new_topic(user.id, conversation_id)
+    return response(
+        200,
+        "new conversation started",
+        {"id": conversation_id, "context_generation": generation},
+    )
 
 
 @router.get("/conversations/{conversation_id}/messages")
 async def messages(
     request: Request,
     conversation_id: str,
+    include_metadata: bool = False,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=5, ge=1, le=20),
     user: CurrentUser = Depends(get_current_user),
 ) -> JSONResponse:
-    await owned_conversation(request, conversation_id, user)
+    _, generation = await owned_conversation(request, conversation_id, user)
+    total = await request.app.state.db.fetchone(
+        "SELECT COUNT(*) AS n FROM ai_task_context "
+        "WHERE conversation_id=? AND context_generation=?",
+        (conversation_id, generation),
+    )
+    limit = page_size if include_metadata else 50
+    offset = (page - 1) * page_size if include_metadata else 0
     rows = await request.app.state.db.fetchall(
         "SELECT t.id,t.requirement,t.status,t.result,c.preview,c.payload,t.created_at "
         "FROM ai_tasks t JOIN ai_task_context c ON c.task_id=t.id WHERE c.conversation_id=? "
-        "ORDER BY t.created_at DESC LIMIT 50",
-        (conversation_id,),
+        "AND c.context_generation=? ORDER BY t.created_at DESC LIMIT ? OFFSET ?",
+        (conversation_id, generation, limit, offset),
     )
+    data = [
+        {
+            "task_id": r["id"],
+            "message": r["requirement"],
+            "status": r["status"],
+            "text": (
+                json.loads(r["result"] or "{}").get("text")
+                or json.loads(r["preview"]).get("text", "")
+            ),
+            "code_snapshot": json.loads(r["payload"]).get("code", ""),
+            "language": json.loads(r["payload"]).get("language"),
+            "submission_id": json.loads(r["payload"]).get("submission_id"),
+            "created_at": r["created_at"],
+        }
+        for r in reversed(rows)
+    ]
     return response(
-        data=[
-            {
-                "task_id": r["id"],
-                "message": r["requirement"],
-                "status": r["status"],
-                "text": (
-                    json.loads(r["result"] or "{}").get("text")
-                    or json.loads(r["preview"]).get("text", "")
-                ),
-                "code_snapshot": json.loads(r["payload"]).get("code", ""),
-                "language": json.loads(r["payload"]).get("language"),
-                "submission_id": json.loads(r["payload"]).get("submission_id"),
-                "created_at": r["created_at"],
-            }
-            for r in reversed(rows)
-        ]
+        data={"messages": data, "total": int(total["n"]), "page": page}
+        if include_metadata
+        else data
     )
 
 
@@ -247,7 +278,7 @@ async def create_message(
     user: CurrentUser = Depends(get_current_user),
     idempotency_key: str | None = Header(default=None),
 ) -> JSONResponse:
-    problem_id = await owned_conversation(request, conversation_id, user)
+    problem_id, _ = await owned_conversation(request, conversation_id, user)
     task_id = await request.app.state.ai_authoring.create_request(
         user.id,
         {**body.model_dump(), "problem_id": problem_id},

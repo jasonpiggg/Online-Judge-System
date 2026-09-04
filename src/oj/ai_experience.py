@@ -35,6 +35,9 @@ from oj.errors import APIError
 from oj.evaluation import evaluation_summary
 from oj.schemas import GeneratedProblem, Problem
 
+ASSISTANT_HISTORY_TURNS = 4
+ASSISTANT_HISTORY_BYTES = 20_000
+
 
 def compact(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -108,6 +111,34 @@ class AIExperience(AIAuthoringManager):
         self.intake_lock = asyncio.Lock()
         self.provider_slots = asyncio.Semaphore(self.settings.ai_model_concurrency)
 
+    async def start_new_topic(self, user_id: int, conversation_id: str) -> int:
+        """Advance the context boundary without deleting earlier usage history."""
+        async with self.intake_lock, self.db.connect() as db:
+            await db.execute("BEGIN IMMEDIATE")
+            cursor = await db.execute(
+                "SELECT context_generation FROM ai_conversations WHERE id=? AND user_id=?",
+                (conversation_id, user_id),
+            )
+            conversation = await cursor.fetchone()
+            if conversation is None:
+                raise APIError(404, "conversation not found")
+            cursor = await db.execute(
+                "SELECT COUNT(*) AS n FROM ai_tasks t JOIN ai_task_context c "
+                "ON c.task_id=t.id WHERE c.conversation_id=? "
+                "AND t.status IN ('pending','running')",
+                (conversation_id,),
+            )
+            active = await cursor.fetchone()
+            if active is not None and active["n"]:
+                raise APIError(409, "当前回答仍在生成，请先等待完成或停止任务")
+            generation = int(conversation["context_generation"]) + 1
+            await db.execute(
+                "UPDATE ai_conversations SET context_generation=? WHERE id=?",
+                (generation, conversation_id),
+            )
+            await db.commit()
+            return generation
+
     async def create_request(
         self,
         user_id: int,
@@ -119,8 +150,19 @@ class AIExperience(AIAuthoringManager):
     ) -> str:
         if key is not None and not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", key):
             raise APIError(400, "invalid Idempotency-Key")
-        request_hash = digest({"kind": kind, "conversation_id": conversation_id, **request})
         async with self.intake_lock:
+            context_generation = 0
+            if kind == "assistant":
+                conversation = await self.db.fetchone(
+                    "SELECT context_generation FROM ai_conversations WHERE id=? AND user_id=?",
+                    (conversation_id, user_id),
+                )
+                if conversation is None:
+                    raise APIError(404, "conversation not found")
+                context_generation = int(conversation["context_generation"])
+            # A retried Idempotency-Key keeps identifying the same paid request,
+            # even if the user has since started a new topic.
+            request_hash = digest({"kind": kind, "conversation_id": conversation_id, **request})
             if key:
                 prior = await self.db.fetchone(
                     "SELECT * FROM ai_request_keys WHERE user_id=? AND request_key=?",
@@ -235,7 +277,14 @@ class AIExperience(AIAuthoringManager):
                     }
                 if len(compact(payload).encode()) > 100000:
                     raise APIError(400, "当前题目与代码超过上下文容量，请选择较小的代码片段")
-            fingerprint = digest({"kind": kind, "conversation": conversation_id, **payload})
+            fingerprint_input = {
+                "kind": kind,
+                "conversation": conversation_id,
+                **payload,
+            }
+            if kind == "assistant":
+                fingerprint_input["context_generation"] = context_generation
+            fingerprint = digest(fingerprint_input)
             running = await self.db.fetchone(
                 "SELECT t.id FROM ai_tasks t JOIN ai_task_context c ON c.task_id=t.id "
                 "WHERE t.user_id=? AND c.fingerprint=? AND t.status IN ('pending','running')",
@@ -259,13 +308,15 @@ class AIExperience(AIAuthoringManager):
                 history = await self.db.fetchall(
                     "SELECT c.payload,t.result FROM ai_task_context c "
                     "JOIN ai_tasks t ON t.id=c.task_id "
-                    "WHERE c.conversation_id=? AND t.status='completed' ORDER BY t.created_at DESC "
-                    "LIMIT 8",
-                    (conversation_id,),
+                    "WHERE c.conversation_id=? AND c.context_generation=? "
+                    "AND t.status='completed' ORDER BY t.created_at DESC "
+                    "LIMIT ?",
+                    (conversation_id, context_generation, ASSISTANT_HISTORY_TURNS + 1),
                 )
                 turns = []
-                budget = 40000
-                for row in history:
+                budget = ASSISTANT_HISTORY_BYTES
+                history_limited = len(history) > ASSISTANT_HISTORY_TURNS
+                for row in history[:ASSISTANT_HISTORY_TURNS]:
                     previous = json.loads(row["payload"])
                     answer = json.loads(row["result"] or "{}")
                     turn = {
@@ -284,9 +335,15 @@ class AIExperience(AIAuthoringManager):
                     }
                     budget -= len(compact(turn).encode())
                     if budget < 0:
+                        history_limited = True
                         break
                     turns.append(turn)
                 payload["history"] = list(reversed(turns))
+                payload["history_policy"] = {
+                    "maximum_turns": ASSISTANT_HISTORY_TURNS,
+                    "maximum_bytes": ASSISTANT_HISTORY_BYTES,
+                    "older_context_omitted": history_limited,
+                }
             config = dict(config)
             config["_output_limits"] = dict(self.settings.ai_model_output_limits)
             config["encrypted_api_key"] = config["encrypted_api_key"].decode()
@@ -312,8 +369,8 @@ class AIExperience(AIAuthoringManager):
                 )
                 await db.execute(
                     "INSERT INTO ai_task_context(task_id,kind,conversation_id,payload,"
-                    "config_snapshot,"
-                    "fingerprint,stage_started_at) VALUES(?,?,?,?,?,?,?)",
+                    "config_snapshot,fingerprint,stage_started_at,context_generation) "
+                    "VALUES(?,?,?,?,?,?,?,?)",
                     (
                         task_id,
                         kind,
@@ -322,6 +379,7 @@ class AIExperience(AIAuthoringManager):
                         config_blob,
                         fingerprint,
                         now,
+                        context_generation,
                     ),
                 )
                 if key:
