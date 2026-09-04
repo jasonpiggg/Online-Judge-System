@@ -25,6 +25,7 @@ export type Task = {
   code_snapshot?: string;
   language?: string;
   submission_id?: number;
+  recovery_draft_id?: string | null;
   usage: {
     input_tokens: number;
     output_tokens: number;
@@ -42,39 +43,51 @@ export type CodeSuggestion = {
   language: string;
   canApply: boolean;
   reason: string;
+  warnings: string[];
+  index: number;
 };
 
-export function extractCodeSuggestion(
+const excludedFenceLanguages = new Set([
+  "text", "txt", "plaintext", "log", "console", "output", "json", "yaml", "yml",
+  "markdown", "md", "bash", "shell", "sh", "powershell", "diff",
+]);
+
+export function extractCodeSuggestions(
   answer: string,
   currentCode: string,
-  request: string,
-): CodeSuggestion | null {
+  currentLanguage: string,
+): CodeSuggestion[] {
   const matches = [...answer.matchAll(/```([^\n`]*)\n([\s\S]*?)```/g)].filter(
-    (match) => /^(?:python|py|cpp|c\+\+|c|java|javascript|js|typescript|ts|go|rust)\b/i.test(match[1].trim()),
+    (match) => {
+      const label = match[1].trim().toLowerCase();
+      return /^[a-z][a-z0-9_+.-]*$/i.test(label) && !excludedFenceLanguages.has(label);
+    },
   );
-  const candidate = matches.at(-1);
-  if (!candidate) return null;
-  const code = candidate[2].trimEnd();
-  if (!code.trim()) return null;
-  const prefix = answer.slice(Math.max(0, (candidate.index || 0) - 120), candidate.index);
-  const explicitlyComplete = /(?:^|\n)(?:#{1,6}\s*)?(?:\*\*)?完整替换代码[：:](?:\*\*)?\s*$/.test(prefix);
-  const userRequestedCode = /完整.{0,8}(?:代码|题解|解法|实现)|(?:给|写|提供|生成|修复|修改|改正|重写).{0,8}(?:代码|程序)|直接.{0,6}(?:代码|实现)/i.test(request);
-  const lines = code.split(/\r?\n/).filter((line) => line.trim()).length;
-  const looksExecutable =
-    /\b(?:int\s+main|public\s+static\s+void\s+main)\b/.test(code) ||
-    ((/\b(?:input\s*\(|stdin|readline\s*\()/i.test(code) || /\bdef\s+main\s*\(/.test(code)) &&
-      /\bprint\s*\(|stdout|cout\s*<</i.test(code));
-  const substantial = lines >= (currentCode.trim() ? 3 : 2) &&
-    (!currentCode.trim() || code.length >= Math.min(120, currentCode.trim().length * 0.35));
-  const unchanged = code.trim() === currentCode.trim();
-  const canApply = explicitlyComplete && userRequestedCode && looksExecutable && substantial && !unchanged;
-  let reason = "模型标注为完整替换代码，尚未编译或评测；请先检查差异，应用后重新提交验证。";
-  if (unchanged) reason = "建议代码与当前代码相同，无需替换。";
-  else if (!userRequestedCode) reason = "你没有要求替换完整程序，此代码块按讲解片段展示，不会覆盖编辑器。";
-  else if (!explicitlyComplete || !looksExecutable || !substantial)
-    reason = "该代码块不像完整、可运行的解答，已禁止一键覆盖；可复制需要的片段手动修改。";
-  const fenceLanguage = candidate[1].trim().toLowerCase();
-  return { code, language: ({ py: "python", "c++": "cpp" } as Record<string, string>)[fenceLanguage] || fenceLanguage, canApply, reason };
+  return matches.flatMap((candidate, offset) => {
+    const code = candidate[2].trimEnd();
+    if (!code.trim()) return [];
+    const rawLanguage = candidate[1].trim().toLowerCase();
+    const language = ({ py: "python", py3: "python", python3: "python", "c++": "cpp", js: "javascript", ts: "typescript" } as Record<string, string>)[rawLanguage] || rawLanguage;
+    const warnings: string[] = [];
+    const nonEmptyLines = code.split(/\r?\n/).filter((line) => line.trim()).length;
+    if (language !== currentLanguage) warnings.push(`代码块标记为 ${language}，当前编辑器语言是 ${currentLanguage}。`);
+    if (nonEmptyLines < 3) warnings.push("代码较短，可能只是讲解片段。覆盖前请确认它包含完整解法。");
+    if (currentCode.trim() && code.length < currentCode.trim().length * 0.3)
+      warnings.push("这次覆盖会删除当前代码的大部分内容。");
+    if (code.trim() === currentCode.trim()) warnings.push("候选代码与当前代码相同。");
+    return [{
+      code,
+      language,
+      canApply: code.trim() !== currentCode.trim(),
+      reason: "此候选尚未编译或评测。请先查看差异，确认后再覆盖并重新提交。",
+      warnings,
+      index: offset + 1,
+    }];
+  });
+}
+
+export function extractCodeSuggestion(answer: string, currentCode: string, currentLanguage: string) {
+  return extractCodeSuggestions(answer, currentCode, currentLanguage).at(-1) || null;
 }
 export function useTask(id?: string) {
   const [disconnected, setDisconnected] = useState(false);
@@ -333,10 +346,9 @@ export function Assistant({
     text: string,
     snapshot: string,
     snapshotLanguage?: string,
-    request = "",
     status = "completed",
   ) => {
-    const suggestion = extractCodeSuggestion(text, code, request);
+    const suggestions = extractCodeSuggestions(text, code, language);
     return (
       <>
         <div className="ai-answer-card">
@@ -347,16 +359,19 @@ export function Assistant({
           (snapshotLanguage && snapshotLanguage !== language)) && (
           <p className="version-note">此回答基于较早的代码版本，请勿把旧评测结论直接套用到当前代码。</p>
         )}
-        {suggestion && (
-          <Button disabled={status !== "completed"} onClick={() => {
-            const matchesSnapshot = snapshot === code && snapshotLanguage === language && suggestion.language === language;
-            setProposed({ ...suggestion, baseline: code, editorLanguage: language,
-              canApply: suggestion.canApply && matchesSnapshot,
-              reason: matchesSnapshot ? suggestion.reason : "当前代码或语言与回答快照不同，已禁止覆盖。请基于当前版本重新提问，或复制片段手动合并。",
-            });
-          }}>
-            审查回答中的代码
-          </Button>
+        {status === "completed" && suggestions.length > 0 && (
+          <div className="code-candidate-actions">
+            {suggestions.map((suggestion) => (
+              <Button key={`${suggestion.language}-${suggestion.index}`} onClick={() => {
+                const stale = snapshot !== code || (!!snapshotLanguage && snapshotLanguage !== language);
+                setProposed({ ...suggestion, baseline: code, editorLanguage: language,
+                  warnings: stale ? [...suggestion.warnings, "回答基于较早的代码快照；差异已按当前编辑器重新生成。"] : suggestion.warnings,
+                });
+              }}>
+                查看代码候选 {suggestion.index} 差异（{suggestion.language}）
+              </Button>
+            ))}
+          </div>
         )}
       </>
     );
@@ -450,7 +465,7 @@ export function Assistant({
             <p className="user-message">{task.requirement}</p>
             <TaskProgress task={task} disconnected={disconnected} />
             {answer
-              ? showAnswer(answer, task.code_snapshot || "", task.language, task.requirement, task.status)
+              ? showAnswer(answer, task.code_snapshot || "", task.language, task.status)
               : !terminal(task.status) && (
                   <p className="skeleton">
                     正在组织回答，内容生成后会显示在这里…
@@ -480,7 +495,7 @@ export function Assistant({
                     </small>
                   </summary>
                   <div className="history-answer">
-                    {showAnswer(item.text, item.code_snapshot, item.language, item.message, item.status)}
+                    {showAnswer(item.text, item.code_snapshot, item.language, item.status)}
                   </div>
                 </details>
               ))}
@@ -501,6 +516,7 @@ export function Assistant({
             <div><span className="eyebrow">代码审查</span><h3>应用前检查修改</h3></div>
           </div>
           <p className={proposed.canApply ? "status-good" : "notice-inline"}>{proposed.reason}</p>
+          {proposed.warnings.map((warning) => <p className="notice-inline" key={warning}>{warning}</p>)}
           <DiffView before={{ code: proposed.baseline }} after={{ code: proposed.code }} />
           {(code !== proposed.baseline || language !== proposed.editorLanguage) && <p className="notice-inline">审查打开后代码或语言已改变。请关闭并重新审查，当前内容不会被覆盖。</p>}
           <div className="review-actions">
@@ -515,7 +531,7 @@ export function Assistant({
                   setProposed(null);
                 }}
               >
-                应用完整代码
+                确认覆盖编辑器
               </Button>
             )}
             <Button onClick={async () => {

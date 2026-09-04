@@ -10,6 +10,7 @@ import type { User } from "../types";
 import { Button } from "../components/ui/button";
 import { Pagination } from "../components/Pagination";
 import { LanguageSettings } from "../components/LanguageSettings";
+import { useActionReveal } from "../components/useActionReveal";
 
 type AuditPage = { logs: Record<string, any>[]; total: number };
 export function Admin({ user }: { user: User }) {
@@ -20,7 +21,10 @@ export function Admin({ user }: { user: User }) {
     [message, setMessage] = useState(""),
     [confirm, setConfirm] = useState(""),
     [busy, setBusy] = useState(false);
+  const profileReveal = useActionReveal<HTMLElement>();
+  const tabReveal = useActionReveal<HTMLDivElement>();
   const page = Math.max(1, Number(params.get("page")) || 1);
+  const hasAuditScope = !!(params.get("user_id") || params.get("problem_id"));
   const users = useQuery({
     queryKey: ["users", page, params.get("q")],
     queryFn: () =>
@@ -35,7 +39,7 @@ export function Admin({ user }: { user: User }) {
       api<AuditPage>(
         `/logs/access/?page=${page}&page_size=20&include_metadata=true${params.get("user_id") ? "&user_id=" + encodeURIComponent(params.get("user_id")!) : ""}${params.get("problem_id") ? "&problem_id=" + encodeURIComponent(params.get("problem_id")!) : ""}`,
       ),
-    enabled: tab === "访问审计",
+    enabled: tab === "访问审计" && hasAuditScope,
   });
   const profile = useQuery({
     queryKey: ["admin-user", params.get("user_id")],
@@ -110,12 +114,14 @@ export function Admin({ user }: { user: User }) {
               setError("");
               setMessage("");
               setParams({ tab: v });
+              tabReveal.reveal();
             }}
           >
             {v}
           </Button>
         ))}
       </div>
+      <div ref={tabReveal.ref} className="admin-tab-panel reveal-target">
       {(error || loadError) && (
         <p role="alert">{error || loadError?.message}</p>
       )}
@@ -183,7 +189,7 @@ export function Admin({ user }: { user: User }) {
             <p className="skeleton">正在读取用户资料…</p>
           )}
           {profile.data && (
-            <section className="admin-detail" aria-label="用户资料">
+            <section ref={profileReveal.ref} className="admin-detail reveal-target" aria-label="用户资料">
               <div className="section-heading">
                 <h2>{profile.data.username}</h2>
                 <Button asChild>
@@ -268,7 +274,7 @@ export function Admin({ user }: { user: User }) {
                     </td>
                     <td>
                       <div className="action-group">
-                        <Link to={`/admin?tab=用户&user_id=${u.user_id}`}>
+                        <Link onClick={profileReveal.reveal} to={`/admin?tab=用户&user_id=${u.user_id}`}>
                           资料
                         </Link>
                         <Link to={`/admin?tab=提交&user_id=${u.user_id}`}>
@@ -349,6 +355,9 @@ export function Admin({ user }: { user: User }) {
               />
             ))}
           </div>
+          {!hasAuditScope && (
+            <p className="empty">请至少填写用户 ID 或题号，再查询访问审计。</p>
+          )}
           {logs.isPending && <p className="skeleton">正在读取访问审计…</p>}
           {logs.data?.total === 0 && (
             <p className="empty">没有匹配的访问记录。</p>
@@ -440,6 +449,7 @@ export function Admin({ user }: { user: User }) {
           </Button>
         </details>
       )}
+      </div>
     </div>
   );
 }

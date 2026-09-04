@@ -5,7 +5,9 @@ import { ActivityBar, ActivityProvider, upsertActivity, useRegisterActivity } fr
 import { BackLink } from "./BackLink";
 import { DiffView } from "./DiffView";
 import { ErrorNotice } from "./ErrorNotice";
-import { extractCodeSuggestion } from "./AI";
+import { extractCodeSuggestion, extractCodeSuggestions } from "./AI";
+import { useActionReveal } from "./useActionReveal";
+import { DEFAULT_EDITOR_FONT_SIZE } from "../pages/Workspace";
 
 afterEach(cleanup);
 beforeEach(() => localStorage.clear());
@@ -83,24 +85,61 @@ it("does not mark every Windows line as changed against model LF output", () => 
 describe("AI code review safeguards", () => {
   const current = "import sys\nvalue = int(sys.stdin.readline())\nprint(value)";
 
-  it("shows an isolated snippet without allowing it to replace the editor", () => {
+  it("offers an isolated snippet for review with a warning", () => {
     const suggestion = extractCodeSuggestion(
       "可以这样判断：\n```python\nprint(value)\n```",
       current,
-      "分析本次评测",
+      "python",
     );
     expect(suggestion?.code).toBe("print(value)");
-    expect(suggestion?.canApply).toBe(false);
-    expect(suggestion?.reason).toMatch(/不会覆盖|禁止一键覆盖/);
-    expect(extractCodeSuggestion("运行输出：\n```text\nAC\n```", current, "分析评测")).toBeNull();
+    expect(suggestion?.canApply).toBe(true);
+    expect(suggestion?.warnings).toContain("代码较短，可能只是讲解片段。覆盖前请确认它包含完整解法。");
+    expect(extractCodeSuggestion("运行输出：\n```text\nAC\n```", current, "python")).toBeNull();
   });
 
   it("allows an explicitly requested complete executable replacement", () => {
     const suggestion = extractCodeSuggestion(
       "完整替换代码：\n```python\nimport sys\nvalue = int(sys.stdin.readline())\nprint(value + 1)\n```",
       current,
-      "请修复并给我完整代码",
+      "python",
     );
     expect(suggestion?.canApply).toBe(true);
+  });
+
+  it("returns every language-labelled candidate but ignores logs", () => {
+    const candidates = extractCodeSuggestions(
+      "```python\nprint(1)\n```\n```text\nAC\n```\n```cpp\nint main() { return 0; }\n```",
+      "print(0)",
+      "python",
+    );
+    expect(candidates.map((item) => item.language)).toEqual(["python", "cpp"]);
+    expect(candidates[1].warnings.join(" ")).toMatch(/当前编辑器语言/);
+  });
+});
+
+function RevealFixture() {
+  const target = useActionReveal<HTMLElement>();
+  return <><button onClick={target.reveal}>显示</button><section ref={target.ref}>详情</section></>;
+}
+
+describe("action reveal", () => {
+  it("uses the 14px editor default and scrolls only on a user action", () => {
+    expect(DEFAULT_EDITOR_FONT_SIZE).toBe(14);
+    const scroll = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scroll;
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: () => ({ matches: false }) });
+    render(<RevealFixture />);
+    expect(scroll).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "显示" }));
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+  });
+  it("disables smooth motion when the operating system requests it", () => {
+    const scroll = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scroll;
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: () => ({ matches: true }) });
+    render(<RevealFixture />);
+    fireEvent.click(screen.getByRole("button", { name: "显示" }));
+    expect(scroll).toHaveBeenCalledWith({ behavior: "auto", block: "start" });
   });
 });

@@ -3188,3 +3188,30 @@ p[role="alert"] {
     align-items: stretch;
   }
 }
+/* Managed authoring lists and user-triggered reveal targets. */
+.managed-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.managed-row > a {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.reveal-target {
+  scroll-margin-top: 136px;
+  outline: none;
+}
+.reveal-target:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .18);
+}
+.code-candidate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}

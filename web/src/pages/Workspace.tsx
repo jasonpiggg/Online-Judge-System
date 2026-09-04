@@ -21,6 +21,7 @@ import { readBackup, writeBackup, clearBackup } from "../draft-backup";
 import { BackLink } from "../components/BackLink";
 import { useRegisterActivity } from "../components/Activity";
 import { ErrorNotice } from "../components/ErrorNotice";
+export const DEFAULT_EDITOR_FONT_SIZE = 14;
 export function Workspace({ user }: { user: User }) {
   const { id = "" } = useParams();
   const { data: p, error } = useQuery({
@@ -46,7 +47,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const [language, setLanguage] = useState(
     localStorage.getItem("oj-language") || "python",
   );
-  const [size, setSize] = useState(16);
+  const [size, setSize] = useState(DEFAULT_EDITOR_FONT_SIZE);
   const [code, setCode] = useState("");
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState("");

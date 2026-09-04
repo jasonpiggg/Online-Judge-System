@@ -7,6 +7,7 @@ import { Code, logText } from "./Markdown";
 import { Icon } from "./Icon";
 import { Button } from "./ui/button";
 import { Pagination } from "./Pagination";
+import { useActionReveal } from "./useActionReveal";
 
 const labels: Record<string, string> = {
   AC: "全部通过",
@@ -66,6 +67,7 @@ export function EvaluationView({
   const [onlyFailed, setOnlyFailed] = useState(false);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<number | null>(null);
+  const detailReveal = useActionReveal<HTMLDivElement>();
   const e = s.evaluation;
   const compiled = e?.verdict === "CE";
   const available = compiled ? [] : cases?.filter((c) => c.result !== "CE");
@@ -160,7 +162,10 @@ export function EvaluationView({
                     className={`case-tile tone-${tone(c.result)}`}
                     aria-pressed={selected === c.id}
                     aria-label={`测试点 ${c.id} ${c.result}`}
-                    onClick={() => setSelected(c.id)}
+                    onClick={() => {
+                      detailReveal.reveal();
+                      setSelected(c.id);
+                    }}
                   >
                     <span className="case-id">#{c.id}</span>
                     <Icon name={icon(c.result)} />
@@ -191,7 +196,7 @@ export function EvaluationView({
             </>
           )}
           {chosen && (
-            <div className="case-detail" aria-live="polite">
+            <div ref={detailReveal.ref} className="case-detail reveal-target" aria-live="polite">
               <strong>
                 测试点 #{chosen.id} · {labels[chosen.result] || "未知结果"}
               </strong>

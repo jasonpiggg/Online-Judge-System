@@ -31,4 +31,10 @@ describe("Pagination", () => {
     fireEvent.click(screen.getByRole("button", { name: "尾页" }));
     expect(onChange.mock.calls.map(([page]) => page)).toEqual([12, 9, 1, 20]);
   });
+
+  it("moves back to the last valid page after an archive shrinks the list", () => {
+    const onChange = vi.fn();
+    render(<Pagination page={2} totalPages={1} onChange={onChange} />);
+    expect(onChange).toHaveBeenCalledWith(1);
+  });
 });

@@ -17,7 +17,9 @@ export function LanguageSettings({ heading = true }: { heading?: boolean }) {
   return (
     <section className="language-settings">
       {heading && <h2>评测语言</h2>}
-      <p className="muted">查看当前执行配置，或注册课程要求的评测语言。</p>
+      <p className="muted">
+        查看当前执行配置，或登记课程要求的评测语言。注册操作不会安装编译器；请先在服务器预装对应运行环境。已有 gcc 时可通过配置动态加入 C。
+      </p>
       {languages.isPending && <p className="skeleton">正在读取语言配置…</p>}
       {languages.error && <p role="alert">{languages.error.message}</p>}
       <div className="table-scroll">
