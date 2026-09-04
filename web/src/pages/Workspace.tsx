@@ -43,7 +43,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const [language, setLanguage] = useState(
     localStorage.getItem("oj-language") || "python",
   );
-  const [size, setSize] = useState(16);
+  const [size, setSize] = useState(14);
   const [code, setCode] = useState("");
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState("");
@@ -203,50 +203,52 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
           )}
         </div>
       </div>
-      <div className="work-heading">
-        <span className="eyebrow">
-          <Icon name="book" /> 编程练习
-        </span>
-        <h1>{p.title}</h1>
-        <p className="muted">
-          {p.id} · <DifficultyBadge value={p.difficulty} /> · {p.time_limit} 秒
-          · {p.memory_limit} MB
-        </p>
-      </div>
-      <details className="problem-tools">
-        <summary>题目操作</summary>
-        <Button
-          onClick={async () => {
-            try {
-              const draft = await createEditingDraft(p);
-              navigate("/authoring/drafts/" + draft.id);
-            } catch (e) {
-              setError(errorText(e));
-            }
-          }}
-        >
-          编辑题目
-        </Button>
-        {user.role === "admin" && (
+      <div className="work-heading-row">
+        <div className="work-heading">
+          <span className="eyebrow">
+            <Icon name="book" /> 编程练习
+          </span>
+          <h1>{p.title}</h1>
+          <p className="muted">
+            {p.id} · <DifficultyBadge value={p.difficulty} /> · {p.time_limit}{" "}
+            秒 · {p.memory_limit} MB
+          </p>
+        </div>
+        <div className="problem-actions" aria-label="题目操作">
           <Button
             onClick={async () => {
-              if (
-                window.prompt(`删除后无法恢复，请输入题号 ${p.id} 确认`) !==
-                p.id
-              )
-                return;
               try {
-                await api(`/problems/${p.id}`, json("DELETE"));
-                navigate("/problems");
+                const draft = await createEditingDraft(p);
+                navigate("/authoring/drafts/" + draft.id);
               } catch (e) {
                 setError(errorText(e));
               }
             }}
           >
-            删除题目
+            编辑题目
           </Button>
-        )}
-      </details>
+          {user.role === "admin" && (
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (
+                  window.prompt(`删除后无法恢复，请输入题号 ${p.id} 确认`) !==
+                  p.id
+                )
+                  return;
+                try {
+                  await api(`/problems/${p.id}`, json("DELETE"));
+                  navigate("/problems");
+                } catch (e) {
+                  setError(errorText(e));
+                }
+              }}
+            >
+              删除题目
+            </Button>
+          )}
+        </div>
+      </div>
       <nav className="section-nav" aria-label="做题快捷跳转">
         {["题目", "代码", "结果", "AI"].map((t) => (
           <Button

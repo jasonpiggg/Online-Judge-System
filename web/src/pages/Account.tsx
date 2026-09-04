@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api, json, errorText, queryClient } from "../api";
 import type { User } from "../types";
 import { Button } from "../components/ui/button";
+import { LanguageSettings } from "../components/LanguageSettings";
 export function ModelSettings() {
   const { data: c } = useQuery({
     queryKey: ["model-config"],
@@ -155,6 +156,10 @@ export function Account({ user }: { user: User }) {
         </div>
       </div>
       <ModelSettings />
+      <details className="account-language-settings">
+        <summary>评测语言配置</summary>
+        <LanguageSettings heading={false} />
+      </details>
       <Button
         onClick={async () => {
           await api("/auth/logout", json("POST"));

@@ -13,6 +13,7 @@ import { SearchInput } from "../components/SearchInput";
 import { Icon } from "../components/Icon";
 import { difficulties, difficultyLevel } from "../difficulty";
 import { DifficultyBadge, DifficultyGuide } from "../components/Difficulty";
+import { Pagination } from "../components/Pagination";
 export function Library() {
   const [params, setParams] = useSearchParams();
   const location = useLocation();
@@ -160,33 +161,17 @@ export function Library() {
               <Button onClick={() => setParams({})}>清除筛选</Button>
             </div>
           )}
-          <div className="pagination">
-            <Button
-              disabled={page === 1}
-              onClick={() =>
-                setParams({
-                  ...Object.fromEntries(params),
-                  page: String(page - 1),
-                })
-              }
-            >
-              上一页
-            </Button>
-            <span>
-              {page} / {Math.max(1, Math.ceil((filtered?.length || 0) / 20))}
-            </span>
-            <Button
-              disabled={page * 20 >= (filtered?.length || 0)}
-              onClick={() =>
-                setParams({
-                  ...Object.fromEntries(params),
-                  page: String(page + 1),
-                })
-              }
-            >
-              下一页
-            </Button>
-          </div>
+          <Pagination
+            page={page}
+            totalPages={Math.ceil((filtered?.length || 0) / 20)}
+            label="题库分页"
+            onChange={(next) =>
+              setParams({
+                ...Object.fromEntries(params),
+                page: String(next),
+              })
+            }
+          />
         </>
       )}
     </div>

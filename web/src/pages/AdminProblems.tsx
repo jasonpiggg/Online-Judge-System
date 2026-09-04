@@ -11,6 +11,7 @@ import type { Problem } from "../types";
 import { Button } from "../components/ui/button";
 import { SearchInput } from "../components/SearchInput";
 import { DifficultyBadge } from "../components/Difficulty";
+import { Pagination } from "../components/Pagination";
 import { Statement } from "../components/Statement";
 import { Code } from "../components/Markdown";
 import { createEditingDraft } from "../problem-actions";
@@ -126,33 +127,17 @@ export function AdminProblems() {
             </table>
           </div>
           {!filtered?.length && <p className="empty">没有匹配的题目。</p>}
-          <div className="pagination">
-            <Button
-              disabled={page === 1}
-              onClick={() =>
-                setParams({
-                  ...Object.fromEntries(params),
-                  page: String(page - 1),
-                })
-              }
-            >
-              上一页
-            </Button>
-            <span>
-              {page} / {Math.max(1, Math.ceil((filtered?.length || 0) / 20))}
-            </span>
-            <Button
-              disabled={page * 20 >= (filtered?.length || 0)}
-              onClick={() =>
-                setParams({
-                  ...Object.fromEntries(params),
-                  page: String(page + 1),
-                })
-              }
-            >
-              下一页
-            </Button>
-          </div>
+          <Pagination
+            page={page}
+            totalPages={Math.ceil((filtered?.length || 0) / 20)}
+            label="题目管理分页"
+            onChange={(next) =>
+              setParams({
+                ...Object.fromEntries(params),
+                page: String(next),
+              })
+            }
+          />
         </>
       )}
       {id && detail.isPending && <p className="skeleton">正在读取题目详情…</p>}

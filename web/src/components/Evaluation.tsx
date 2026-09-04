@@ -6,6 +6,7 @@ import type { Submission, CaseResult } from "../types";
 import { Code, logText } from "./Markdown";
 import { Icon } from "./Icon";
 import { Button } from "./ui/button";
+import { Pagination } from "./Pagination";
 
 const labels: Record<string, string> = {
   AC: "全部通过",
@@ -168,23 +169,12 @@ export function EvaluationView({
                 </p>
               )}
               {pages > 1 && (
-                <div className="pagination">
-                  <Button
-                    disabled={current === 1}
-                    onClick={() => setPage(current - 1)}
-                  >
-                    上一组
-                  </Button>
-                  <span>
-                    {current} / {pages}
-                  </span>
-                  <Button
-                    disabled={current === pages}
-                    onClick={() => setPage(current + 1)}
-                  >
-                    下一组
-                  </Button>
-                </div>
+                <Pagination
+                  page={current}
+                  totalPages={pages}
+                  label="测试点分页"
+                  onChange={setPage}
+                />
               )}
             </>
           )}

@@ -83,6 +83,13 @@ async def test_role_audit_has_pagination_and_is_admin_only(client: AsyncClient) 
         "new_role"
     ] == "banned"
     assert (await client.get("/api/logs/roles/?page=3&page_size=1")).json()["data"] == []
+    metadata = (
+        await client.get(
+            "/api/logs/roles/",
+            params={"page": 1, "page_size": 1, "include_metadata": True},
+        )
+    ).json()["data"]
+    assert metadata["total"] == 2 and len(metadata["logs"]) == 1
     assert (await client.get("/api/logs/roles/?page_size=101")).status_code == 400
     await client.post("/api/auth/login", json={"username": "audit-target", "password": "secret123"})
     assert (await client.get("/api/logs/roles/")).status_code == 403

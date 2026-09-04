@@ -8,6 +8,10 @@ import { Records } from "./Records";
 import { api, json, errorText, queryClient } from "../api";
 import type { User } from "../types";
 import { Button } from "../components/ui/button";
+import { Pagination } from "../components/Pagination";
+import { LanguageSettings } from "../components/LanguageSettings";
+
+type AuditPage = { logs: Record<string, any>[]; total: number };
 export function Admin({ user }: { user: User }) {
   const location = useLocation();
   const [params, setParams] = useSearchParams();
@@ -25,19 +29,11 @@ export function Admin({ user }: { user: User }) {
       ),
     enabled: tab === "用户",
   });
-  const languages = useQuery({
-    queryKey: ["language-details"],
-    queryFn: () =>
-      api<{ languages: Record<string, any>[] }>(
-        "/languages/?include_metadata=true",
-      ),
-    enabled: tab === "语言",
-  });
   const logs = useQuery({
     queryKey: ["audit", page, params.get("user_id"), params.get("problem_id")],
     queryFn: () =>
-      api<Record<string, any>[]>(
-        `/logs/access/?page=${page}&page_size=20${params.get("user_id") ? "&user_id=" + encodeURIComponent(params.get("user_id")!) : ""}${params.get("problem_id") ? "&problem_id=" + encodeURIComponent(params.get("problem_id")!) : ""}`,
+      api<AuditPage>(
+        `/logs/access/?page=${page}&page_size=20&include_metadata=true${params.get("user_id") ? "&user_id=" + encodeURIComponent(params.get("user_id")!) : ""}${params.get("problem_id") ? "&problem_id=" + encodeURIComponent(params.get("problem_id")!) : ""}`,
       ),
     enabled: tab === "访问审计",
   });
@@ -49,7 +45,9 @@ export function Admin({ user }: { user: User }) {
   const roleLogs = useQuery({
     queryKey: ["role-audit", page],
     queryFn: () =>
-      api<Record<string, any>[]>(`/logs/roles/?page=${page}&page_size=20`),
+      api<AuditPage>(
+        `/logs/roles/?page=${page}&page_size=20&include_metadata=true`,
+      ),
     enabled: tab === "角色审计",
   });
   const action = async (fn: () => Promise<unknown>) => {
@@ -70,13 +68,11 @@ export function Admin({ user }: { user: User }) {
   const loadError =
     tab === "用户"
       ? users.error || profile.error
-      : tab === "语言"
-        ? languages.error
-        : tab === "访问审计"
-          ? logs.error
-          : tab === "角色审计"
-            ? roleLogs.error
-            : null;
+      : tab === "访问审计"
+        ? logs.error
+        : tab === "角色审计"
+          ? roleLogs.error
+          : null;
   return (
     <div className="page">
       <div className="page-heading">
@@ -133,7 +129,7 @@ export function Admin({ user }: { user: User }) {
                 </tr>
               </thead>
               <tbody>
-                {roleLogs.data?.map((l) => (
+                {roleLogs.data?.logs.map((l) => (
                   <tr key={l.id}>
                     <td>
                       {l.actor_name} <small>#{l.actor_id}</small>
@@ -149,7 +145,7 @@ export function Admin({ user }: { user: User }) {
               </tbody>
             </table>
           </div>
-          {roleLogs.data?.length === 0 && (
+          {roleLogs.data?.total === 0 && (
             <p className="empty">尚无角色变更记录。</p>
           )}
         </>
@@ -322,98 +318,7 @@ export function Admin({ user }: { user: User }) {
           </details>
         </>
       )}
-      {tab === "语言" && (
-        <>
-          {languages.isPending && <p className="skeleton">正在读取语言配置…</p>}
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>语言</th>
-                  <th>时间</th>
-                  <th>内存</th>
-                  <th>执行配置</th>
-                </tr>
-              </thead>
-              <tbody>
-                {languages.data?.languages.map((l) => (
-                  <tr key={l.name}>
-                    <td>{l.name}</td>
-                    <td>{l.time_limit} 秒</td>
-                    <td>{l.memory_limit} MB</td>
-                    <td>
-                      <details>
-                        <summary>查看命令</summary>
-                        <dl>
-                          <dt>扩展名</dt>
-                          <dd>{l.file_ext}</dd>
-                          <dt>编译命令</dt>
-                          <dd>
-                            <code>{l.compile_cmd || "无需编译"}</code>
-                          </dd>
-                          <dt>运行命令</dt>
-                          <dd>
-                            <code>{l.run_cmd}</code>
-                          </dd>
-                        </dl>
-                      </details>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <details>
-            <summary>注册语言 / 更新配置</summary>
-            <form
-              className="form-grid narrow"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const f = new FormData(e.currentTarget);
-                void action(() =>
-                  api(
-                    "/languages/",
-                    json("POST", {
-                      name: f.get("name"),
-                      file_ext: f.get("file_ext"),
-                      compile_cmd: f.get("compile_cmd") || null,
-                      run_cmd: f.get("run_cmd"),
-                      time_limit: Number(f.get("time_limit")),
-                      memory_limit: Number(f.get("memory_limit")),
-                    }),
-                  ),
-                );
-              }}
-            >
-              {[
-                ["name", "语言名称"],
-                ["file_ext", "文件扩展名"],
-                ["compile_cmd", "编译命令（可留空）"],
-                ["run_cmd", "运行命令"],
-              ].map(([n, l]) => (
-                <label key={n}>
-                  {l}
-                  <input name={n} required={n !== "compile_cmd"} />
-                </label>
-              ))}
-              <label>
-                时间限制（秒）
-                <input
-                  name="time_limit"
-                  type="number"
-                  step="any"
-                  defaultValue={3}
-                />
-              </label>
-              <label>
-                内存限制（MB）
-                <input name="memory_limit" type="number" defaultValue={128} />
-              </label>
-              <Button disabled={busy}>保存语言</Button>
-            </form>
-          </details>
-        </>
-      )}
+      {tab === "语言" && <LanguageSettings />}
       {tab === "访问审计" && (
         <>
           <div className="filters filter-panel">
@@ -437,7 +342,7 @@ export function Admin({ user }: { user: User }) {
             ))}
           </div>
           {logs.isPending && <p className="skeleton">正在读取访问审计…</p>}
-          {logs.data?.length === 0 && (
+          {logs.data?.total === 0 && (
             <p className="empty">没有匹配的访问记录。</p>
           )}
           <div className="table-scroll">
@@ -452,7 +357,7 @@ export function Admin({ user }: { user: User }) {
                 </tr>
               </thead>
               <tbody>
-                {logs.data?.map((l, i) => (
+                {logs.data?.logs.map((l, i) => (
                   <tr key={i}>
                     <td>
                       <Link to={`/admin?tab=用户&user_id=${l.user_id}`}>
@@ -488,36 +393,23 @@ export function Admin({ user }: { user: User }) {
         </>
       )}
       {["用户", "访问审计", "角色审计"].includes(tab) && (
-        <div className="pagination">
-          <Button
-            disabled={page === 1}
-            onClick={() =>
-              setParams({
-                ...Object.fromEntries(params),
-                page: String(page - 1),
-              })
-            }
-          >
-            上一页
-          </Button>
-          <span>{page}</span>
-          <Button
-            disabled={
-              tab === "用户"
-                ? page * 20 >= (users.data?.total || 0)
-                : ((tab === "角色审计" ? roleLogs.data : logs.data)?.length ||
-                    0) < 20
-            }
-            onClick={() =>
-              setParams({
-                ...Object.fromEntries(params),
-                page: String(page + 1),
-              })
-            }
-          >
-            下一页
-          </Button>
-        </div>
+        <Pagination
+          page={page}
+          totalPages={Math.ceil(
+            ((tab === "用户"
+              ? users.data?.total
+              : tab === "角色审计"
+                ? roleLogs.data?.total
+                : logs.data?.total) || 0) / 20,
+          )}
+          label={`${tab}分页`}
+          onChange={(next) =>
+            setParams({
+              ...Object.fromEntries(params),
+              page: String(next),
+            })
+          }
+        />
       )}
       {tab === "系统设置" && (
         <details>

@@ -13,6 +13,7 @@ import { Button } from "../components/ui/button";
 import { ResultPanel, VerdictBadge } from "../components/Evaluation";
 import { SearchInput } from "../components/SearchInput";
 import { Icon } from "../components/Icon";
+import { Pagination } from "../components/Pagination";
 export function Records({
   user,
   adminView = false,
@@ -182,33 +183,17 @@ export function Records({
                 {!isAdmin && <Link to="/problems">去做一道题 →</Link>}
               </p>
             )}
-            <div className="pagination">
-              <Button
-                disabled={page === 1}
-                onClick={() =>
-                  setParams({
-                    ...Object.fromEntries(params),
-                    page: String(page - 1),
-                  })
-                }
-              >
-                上一页
-              </Button>
-              <span>
-                第 {page} / {Math.max(1, Math.ceil(data.total / 20))} 页
-              </span>
-              <Button
-                disabled={page * 20 >= data.total}
-                onClick={() =>
-                  setParams({
-                    ...Object.fromEntries(params),
-                    page: String(page + 1),
-                  })
-                }
-              >
-                下一页
-              </Button>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={Math.ceil(data.total / 20)}
+              label="提交记录分页"
+              onChange={(next) =>
+                setParams({
+                  ...Object.fromEntries(params),
+                  page: String(next),
+                })
+              }
+            />
           </>
         )
       )}
