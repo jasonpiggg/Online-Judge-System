@@ -242,6 +242,28 @@ async def publish_problem_draft(
     return response(200, "problem draft published", {"id": problem.id})
 
 
+@router.post("/{draft_id}/verify")
+async def verify_problem_draft(
+    request: Request,
+    draft_id: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> JSONResponse:
+    row = await _owned_draft(request, draft_id, user.id)
+    task_id = await request.app.state.ai_authoring.create_request(
+        user.id,
+        {
+            "draft_id": draft_id,
+            "problem_id": row["base_problem_id"],
+            "requirement": "验证当前草稿的参考解、测试与独立对拍资产",
+            "action": "verify",
+            "target_section": "all",
+            "workflow_version": 2,
+        },
+        request.headers.get("idempotency-key"),
+    )
+    return response(data={"task_id": task_id})
+
+
 @router.delete("/{draft_id}")
 async def archive_problem_draft(
     request: Request,

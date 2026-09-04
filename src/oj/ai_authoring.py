@@ -401,7 +401,8 @@ class AIAuthoringManager:
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
         await self.db.execute(
-            "UPDATE ai_tasks SET status='cancelled',progress='任务已中断',updated_at=? WHERE id=?",
+            "UPDATE ai_tasks SET status='cancelled',progress='任务已中断',updated_at=? "
+            "WHERE id=? AND status IN ('pending','running')",
             (utcnow(), task_id),
         )
 
@@ -679,6 +680,16 @@ class AIAuthoringManager:
             )
             return
         generated = GeneratedProblem.model_validate(_extract_json(text))
+        await self._validate_generated(task_id, generated, task_row, draft_revision)
+
+    async def _validate_generated(
+        self,
+        task_id: str,
+        generated: GeneratedProblem,
+        task_row: Any,
+        draft_revision: int | None,
+        initial_problem: dict[str, Any] | None = None,
+    ) -> None:
         await self.db.execute(
             "UPDATE ai_tasks SET result=? WHERE id=?", (generated.model_dump_json(), task_id)
         )
@@ -737,6 +748,8 @@ class AIAuthoringManager:
                 "note": "有限测试是质量证据，不是复杂度正确性的数学证明。",
             },
         }
+        if initial_problem is not None:
+            result["initial_problem"] = initial_problem
         await self.db.execute(
             "UPDATE ai_tasks SET result=?,updated_at=? WHERE id=?",
             (json.dumps(result, ensure_ascii=False), utcnow(), task_id),
@@ -1028,11 +1041,15 @@ class AIAuthoringManager:
                                     raise AuthoringError("模型输出超过 2 MB，请缩小命题规模。")
                         if on_usage and time.monotonic() - last_update >= 0.5:
                             await on_usage(*tokens(), cached_tokens())
+                            if config.get("_on_content"):
+                                await config["_on_content"]("".join(chunks))
                             last_update = time.monotonic()
         finally:
             # Cancellation closes the HTTP context first, then persists observed usage.
             if observed and on_usage:
                 await on_usage(*tokens(), cached_tokens())
+            if config.get("_on_content") and chunks:
+                await config["_on_content"]("".join(chunks))
             if chunks and config.get("_task_id"):
                 # Preserve incomplete output for download, never treat it as a validated problem.
                 await self.db.execute(

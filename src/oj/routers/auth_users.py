@@ -14,6 +14,13 @@ from oj.security import hash_password, verify_password
 router = APIRouter(prefix="/api")
 
 
+@router.get("/auth/me")
+async def current_profile(
+    request: Request, user: CurrentUser = Depends(get_current_user)
+) -> JSONResponse:
+    return response(data=await _user_data(request.app.state.db, user.id))
+
+
 async def _user_data(db: object, user_id: int) -> dict[str, object] | None:
     row = await db.fetchone(  # type: ignore[attr-defined]
         """SELECT u.id, u.username, u.role, u.join_time,

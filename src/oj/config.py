@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, PositiveInt, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     ai_quality_cached_input_price: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     ai_max_output_tokens: int = Field(default=16384, ge=512, le=65536)
     ai_section_max_output_tokens: int = Field(default=8192, ge=512, le=32768)
+    ai_assistant_max_output_tokens: int = Field(default=16384, ge=512, le=65536)
+    ai_user_active_tasks: int = Field(default=2, ge=1, le=20)
+    ai_model_concurrency: int = Field(default=4, ge=1, le=32)
+    ai_model_output_limits: dict[str, PositiveInt] = Field(
+        default_factory=lambda: {"gpt-4o": 16384}
+    )
     ai_stream_read_timeout_seconds: float = Field(default=90, gt=0, le=600)
     allow_private_ai_endpoints: bool = False
     ai_task_timeout_seconds: float = Field(default=300, gt=0, le=7200)

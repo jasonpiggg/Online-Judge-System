@@ -165,12 +165,12 @@ class Database:
             cursor = await db.execute("PRAGMA user_version")
             version = (await cursor.fetchone())[0]  # type: ignore[index]
             await cursor.close()
-            if version > 5:
+            if version > 6:
                 raise RuntimeError("Database schema is newer than this application")
             existing = await db.execute("SELECT name FROM sqlite_master WHERE type='table'")
             has_tables = bool(await existing.fetchone())
             await existing.close()
-            if version < 5 and has_tables:
+            if version < 6 and has_tables:
                 stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
                 backup_path = self.path.with_name(f"{self.path.stem}.pre-v{version}-{stamp}.db")
                 async with aiosqlite.connect(backup_path) as backup:
@@ -233,6 +233,40 @@ class Database:
                 )
                 await db.execute("PRAGMA user_version = 5")
                 await db.commit()
+            if version < 6:
+                await db.executescript("""
+                    BEGIN IMMEDIATE;
+                    CREATE TABLE IF NOT EXISTS ai_conversations (
+                        id TEXT PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        problem_id TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        UNIQUE(user_id, problem_id)
+                    );
+                    CREATE TABLE IF NOT EXISTS ai_task_context (
+                        task_id TEXT PRIMARY KEY REFERENCES ai_tasks(id) ON DELETE CASCADE,
+                        kind TEXT NOT NULL DEFAULT 'authoring',
+                        conversation_id TEXT REFERENCES ai_conversations(id) ON DELETE CASCADE,
+                        payload TEXT NOT NULL,
+                        config_snapshot BLOB NOT NULL,
+                        fingerprint TEXT NOT NULL,
+                        preview TEXT NOT NULL DEFAULT '{}',
+                        version INTEGER NOT NULL DEFAULT 0,
+                        stage_started_at TEXT,
+                        repair_used INTEGER NOT NULL DEFAULT 0
+                    );
+                    CREATE TABLE IF NOT EXISTS ai_request_keys (
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        request_key TEXT NOT NULL,
+                        fingerprint TEXT NOT NULL,
+                        task_id TEXT NOT NULL REFERENCES ai_tasks(id) ON DELETE CASCADE,
+                        PRIMARY KEY(user_id,request_key)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_ai_conversation_tasks
+                        ON ai_task_context(conversation_id);
+                    PRAGMA user_version = 6;
+                    COMMIT;
+                """)
             await db.execute("PRAGMA journal_mode = WAL")
             await db.execute("PRAGMA optimize")
             await db.commit()

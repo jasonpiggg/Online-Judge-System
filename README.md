@@ -3,7 +3,7 @@
 > 程序设计训练（Python）实验二 · Online Judge System
 
 Atelier OJ 是一个功能完整的小型在线评测系统：FastAPI 提供全异步 REST API，
-Streamlit 提供浏览器工作台，Linux runner 执行 Python 与 C++14，并包含用户权限、
+React + TypeScript 提供默认浏览器工作台，Streamlit 保留为兼容入口，Linux runner 执行 Python 与 C++14，并包含用户权限、
 访问审计及可中断的 AI 智能命题。实现对应课程 Step 1–6 与 Advance R1–R4。
 
 ## 功能矩阵
@@ -15,7 +15,7 @@ Streamlit 提供浏览器工作台，Linux runner 执行 Python 与 C++14，并�
 | Step 3 · 提交管理 | 后台评测、状态恢复、组合筛选、分页、限频、管理员重测 |
 | Step 4 · 用户管理 | bcrypt、服务端 Session、注册登录、角色与禁用、实时统计 |
 | Step 5 · 日志审计 | 测试点日志、公开策略、访问成功/拒绝审计、管理员筛选 |
-| Step 6 · Web UI | Streamlit 响应式工作台、题目/提交/管理/AI 全流程 |
+| Step 6 · Web UI | 白底 React 工作台、Monaco、Markdown/数学公式、移动端标签、版本草稿与 AI 做题助手 |
 | Advance · 命题中心 | 加密配置、流式任务、版本草稿、独立 oracle 对拍、mutation score、Token 计费 |
 
 所有业务响应统一为 `{"code": HTTP状态码, "msg": "...", "data": ...}`；
@@ -27,7 +27,7 @@ FastAPI 的请求校验错误按实验要求转换为 HTTP 400。
 Browser
   │
   ▼
-Streamlit UI ── requests.Session / HttpOnly Cookie ── FastAPI
+React UI / Streamlit ── HttpOnly Session Cookie ── FastAPI
                                                         ├── JSON problem store
                                                         ├── SQLite metadata & audit
                                                         ├── async judge task registry
@@ -38,7 +38,8 @@ Streamlit UI ── requests.Session / HttpOnly Cookie ── FastAPI
 
 - `src/oj/routers/`：课程 API 路由、依赖鉴权与统一错误处理。
 - `src/oj/*.py`：认证、数据库、题目存储、评测、提交和 AI 工作流。
-- `frontend/`：仅通过 REST API 操作后端的 Streamlit 客户端。
+- `web/`：默认 React 前端；构建到 `web/dist/`，由 FastAPI 同源提供。
+- `frontend/`：保留的 Streamlit 兼容客户端。
 - `data/problem_seeds/`：版本化的初始题目；运行数据保存在已忽略的 `var/`。
 - `tests/`：模型、API、权限矩阵、runner、AI mock 与界面 smoke tests。
 
@@ -50,6 +51,7 @@ Streamlit UI ── requests.Session / HttpOnly Cookie ── FastAPI
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync --frozen --extra dev --extra report
 cp .env.example .env
+(cd web && npm ci && npm run build)
 uv run -- bash scripts/run.sh
 ```
 
@@ -58,8 +60,8 @@ Windows 可用于界面开发；原生 Windows 的资源限制不宣称与 Linux
 ### Windows 日常一键打开（环境已安装）
 
 1. 打开项目文件夹，双击根目录的 `Open-OJ.cmd`。
-2. 脚本自动使用项目 `.venv`，后台启动后端和前端；两者就绪后自动打开
-   `http://127.0.0.1:8501`。不需要分别开两个终端，启动窗口会自动关闭。
+2. 脚本自动使用项目 `.venv`，后台启动 FastAPI 并提供构建后的前端；就绪后自动打开
+   `http://127.0.0.1:8000`。日常启动无需 Node，也不会联网安装依赖。
 3. 关闭浏览器不会停止服务；再次双击同一文件会复用服务并重新打开网页。
 4. 不再使用时，双击 `Stop-OJ.cmd` 释放后台进程。请等提交评测/AI 命题结束后再停止，
    避免中断进行中的任务。已保存的账号、题库和数据不会删除。
@@ -79,6 +81,7 @@ Windows 可用于界面开发；原生 Windows 的资源限制不宣称与 Linux
 .\scripts\run.ps1 -Action status       # 查看状态
 .\scripts\run.ps1 -Action stop         # 停止服务
 .\scripts\run.ps1 -NoBrowser           # 仅启动，不打开浏览器
+.\scripts\run.ps1 -Legacy              # 兼容 Streamlit，打开 8501
 ```
 
 ### Windows 首次安装
@@ -87,14 +90,24 @@ Windows 可用于界面开发；原生 Windows 的资源限制不宣称与 Linux
 winget install --id=astral-sh.uv -e
 uv sync --frozen --extra dev --extra report
 Copy-Item .env.example .env
+# 先安装 Node.js 24 LTS；仅首次安装或更新前端后需要构建。
+Push-Location web
+npm ci
+npm run build
+Pop-Location
 uv run -- powershell -ExecutionPolicy Bypass -File .\scripts\run.ps1
 ```
 
 没有 `uv` 时仍可使用 `python -m venv .venv` 后执行
 `pip install -r requirements-dev.txt`；正式验收与 CI 使用已提交的 `uv.lock`。
 
-打开 <http://127.0.0.1:8501>。后端 API 和交互文档分别位于
-<http://127.0.0.1:8000> 与 <http://127.0.0.1:8000/docs>。
+打开 <http://127.0.0.1:8000>。交互文档位于 <http://127.0.0.1:8000/docs>。
+Linux 使用 `scripts/run.sh --legacy` 可启动兼容界面。
+
+开发前端：先启动 `uv run uvicorn oj.main:app --host 127.0.0.1 --port 8000`，
+再在 `web/` 执行 `npm run dev`，打开 `http://127.0.0.1:5173`；Vite 代理 `/api`。
+新版使用浏览器 Session Cookie，旧版会话无需迁移。页面与 AI 验收记录见
+[新版前端与 AI 工作流](docs/web-ai-experience.md)。
 
 初始管理员：
 
