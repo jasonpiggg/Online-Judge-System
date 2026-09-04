@@ -17,6 +17,10 @@ import { Button } from "../components/ui/button";
 import { Code, RichText } from "../components/Markdown";
 import { Statement } from "../components/Statement";
 import { TaskProgress, terminal, useTask } from "../components/AI";
+import { BackLink } from "../components/BackLink";
+import { DiffView } from "../components/DiffView";
+import { ErrorNotice } from "../components/ErrorNotice";
+import { useRegisterActivity } from "../components/Activity";
 type Draft = {
   id: string;
   base_problem_id: string | null;
@@ -28,6 +32,8 @@ type Draft = {
   generator_code: string;
   review: Record<string, any>;
   revision: number;
+  verification_level?: "basic" | "full" | null;
+  verification_summary?: Record<string, any> | null;
 };
 const sample = z.object({ input: z.string(), output: z.string() });
 const problemSchema = z.object({
@@ -69,6 +75,19 @@ const empty: FormProblem = {
   memory_limit: null,
   public_cases: false,
 };
+function VerificationReport({ report }: { report: Record<string, any> }) {
+  return (
+    <section className={`verification-report level-${report.level || "full"}`}>
+      <div className="row">
+        <h3>{report.level === "basic" ? "基础检查报告" : "完整验证报告"}</h3>
+        <span className="badge tone-AC"><Icon name="check" />已通过</span>
+      </div>
+      {Array.isArray(report.checks) && <ul className="check-list">{report.checks.map((item: any) => <li className={item.status === "passed" ? "passed" : item.status === "skipped" ? "skipped" : "blocked"} key={item.id}><strong>{item.label}</strong>{item.detail && <span>{item.detail}</span>}</li>)}</ul>}
+      {report.warnings?.map((warning: string) => <p className="notice-inline" key={warning}>{warning}</p>)}
+      {report.note && <p className="muted">{report.note}</p>}
+    </section>
+  );
+}
 function clean(p: Problem): FormProblem {
   return {
     ...empty,
@@ -153,6 +172,12 @@ export function Authoring() {
             placeholder="例如：面向初学者的前缀和题目，使用生活场景，包含清晰的样例和边界测试。"
             minLength={10}
             required
+            onKeyDown={(event) => {
+              if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                void generate();
+              }
+            }}
           />
           <div className="row">
             <p className="muted">
@@ -168,7 +193,7 @@ export function Authoring() {
           </div>
         </form>
       </section>
-      {error && <p role="alert">{error}</p>}
+      {error && <ErrorNotice message={error} />}
       <h2>我的草稿</h2>
       <div className="draft-list">
         {drafts.data
@@ -191,7 +216,7 @@ export function Authoring() {
                     } as Record<string, string>
                   )[d.status]
                 }{" "}
-                · 版本 {d.revision}
+                · {d.status === "ready" ? (d.verification_level === "full" ? "完整验证" : "基础检查") + " · " : ""}版本 {d.revision}
               </span>
             </Link>
           ))}
@@ -240,6 +265,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
     [generator, setGenerator] = useState(draft.generator_code),
     [raw, setRaw] = useState(""),
     [preview, setPreview] = useState(false);
+  const [backupFailed, setBackupFailed] = useState(false);
   const version = useRef(draft.revision);
   const pending = useRef<{ hash: string; key: string } | undefined>(undefined);
   const backup = `oj-author-${user.user_id}-${draft.id}`;
@@ -322,10 +348,22 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
           JSON.stringify({ revision: version.current, ...JSON.parse(content) }),
         );
       } catch {
+        setBackupFailed(true);
         setError("本机备份失败，请保存草稿或复制内容。");
       }
     }
   }, [content, backup, dirty, backupConflict]);
+  useRegisterActivity({
+    id: `draft:${draft.id}`,
+    kind: "draft",
+    title: values.title || "未命名草稿",
+    path: `/authoring/drafts/${draft.id}?step=${encodeURIComponent(step)}`,
+    status: dirty ? "已在本机备份" : "已同步",
+    unsafeToClose: backupFailed || backupConflict,
+    closeMessage: backupConflict
+      ? "草稿存在尚未解决的版本冲突，确认关闭任务入口？内容仍会保留。"
+      : "本机备份失败，关闭前请先保存或复制内容。仍要关闭吗？",
+  });
   const save = async (p: FormProblem) => {
     if (backupConflict) throw new Error("请先处理本机与云端草稿的版本冲突");
     if (!dirty) return { ...draft, revision: version.current };
@@ -400,6 +438,43 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
       setBusy(false);
     }
   };
+  const runVerification = async (mode: "basic" | "full") => {
+    if (busy || backupConflict) return;
+    setBusy(true);
+    setError("");
+    try {
+      const saved = await save(problemSchema.parse(form.getValues()));
+      const hash = `verify:${mode}:${saved.revision}`;
+      if (pending.current?.hash !== hash)
+        pending.current = { hash, key: crypto.randomUUID() };
+      const task = await api<{ task_id: string }>(
+        `/problem-drafts/${draft.id}/verify`,
+        {
+          ...json("POST", { mode }),
+          headers: { "Idempotency-Key": pending.current.key },
+        },
+      );
+      pending.current = undefined;
+      navigate("/authoring/tasks/" + task.task_id);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const schemaValid = problemSchema.safeParse(values).success;
+  const uniqueTests = new Set(values.testcases.map((item) => item.input)).size;
+  const wrongSolutions = Array.isArray(reviewAssets.wrong_solutions)
+    ? reviewAssets.wrong_solutions.filter((item: any) => item?.code?.trim() && item?.reason?.trim())
+    : [];
+  const fullIssues = [
+    !reference.trim() && "参考解",
+    values.testcases.length < 5 && "至少 5 个测试点",
+    uniqueTests !== values.testcases.length && "互不重复的测试输入",
+    wrongSolutions.length < 2 && "至少 2 个典型错误解",
+    !brute.trim() && "独立 oracle / 暴力解",
+    !generator.trim() && "随机数据生成器",
+  ].filter(Boolean) as string[];
   const array = (name: "samples" | "testcases") => {
     const list = name === "samples" ? samples : cases;
     return (
@@ -443,7 +518,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
   };
   return (
     <div className="page">
-      <Link to="/authoring">← 命题中心</Link>
+      <BackLink to="/authoring">返回命题中心</BackLink>
       <div className="row">
         <h1>{values.title || "创建题目"}</h1>
         <Button onClick={() => setPreview(!preview)}>
@@ -465,7 +540,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
           </Button>
         ))}
       </div>
-      {error && <p role="alert">{error}</p>}
+      {error && <ErrorNotice message={error} />}
       {message && <p role="status">{message}</p>}
       {backupConflict && (
         <section className="notice">
@@ -725,10 +800,30 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
             <>
               <h2>
                 {draft.status === "ready"
-                  ? "验证已通过"
+                  ? draft.verification_level === "full"
+                    ? "完整验证已通过"
+                    : "基础检查已通过，可以发布"
                   : "草稿尚未通过完整验证"}
               </h2>
-              <p>发布前需要参考解评测、错误解检测及独立对拍全部通过。</p>
+              <p>基础检查通过即可发布手工题；完整验证会继续执行错误解检测与独立随机对拍。</p>
+              <div className="verification-levels">
+                <section>
+                  <span className="eyebrow"><Icon name="check" /> 基础检查</span>
+                  <h3>字段、排版与可运行性</h3>
+                  <ul className="check-list">
+                    <li className={schemaValid ? "passed" : "blocked"}>题目字段、样例与测试格式</li>
+                    <li className="passed">Markdown 与数学公式语法</li>
+                    <li className={reference.trim() ? "passed" : "skipped"}>{reference.trim() ? "运行参考解的全部样例和测试" : "未提供参考解，将跳过自动输出核对"}</li>
+                  </ul>
+                  {!schemaValid && <Button type="button" onClick={() => setParams({ step: "题面与样例" })}>补全题目字段</Button>}
+                </section>
+                <section>
+                  <span className="eyebrow"><Icon name="shield" /> 完整验证</span>
+                  <h3>AI 命题质量资产</h3>
+                  {fullIssues.length ? <><p className="muted">还缺少：{fullIssues.join("、")}</p><Button type="button" onClick={() => setParams({ step: "测试与解法" })}>前往补充验证资产</Button></> : <p className="status-good">完整验证所需内容已填写。</p>}
+                </section>
+              </div>
+              {draft.verification_summary && <VerificationReport report={draft.verification_summary} />}
               {draft.review?.review && <RichText text={draft.review.review} />}
               <Button
                 type="button"
@@ -755,33 +850,17 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
               </Button>
               <Button
                 type="button"
-                disabled={busy || backupConflict}
-                onClick={async () => {
-                  setBusy(true);
-                  setError("");
-                  try {
-                    const saved = await save(
-                      problemSchema.parse(form.getValues()),
-                    );
-                    const hash = "verify:" + saved.revision;
-                    if (pending.current?.hash !== hash)
-                      pending.current = { hash, key: crypto.randomUUID() };
-                    const t = await api<{ task_id: string }>(
-                      `/problem-drafts/${draft.id}/verify`,
-                      {
-                        ...json("POST"),
-                        headers: { "Idempotency-Key": pending.current.key },
-                      },
-                    );
-                    navigate("/authoring/tasks/" + t.task_id);
-                  } catch (e) {
-                    setError(errorText(e));
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
+                disabled={busy || backupConflict || !schemaValid}
+                onClick={() => void runVerification("basic")}
               >
-                运行本地验证（不调用 AI）
+                运行基础检查
+              </Button>
+              <Button
+                type="button"
+                disabled={busy || backupConflict || !schemaValid || fullIssues.length > 0}
+                onClick={() => void runVerification("full")}
+              >
+                运行完整验证
               </Button>
               <details>
                 <summary>高级：JSON 导入与导出</summary>
@@ -846,6 +925,13 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
             value={requirement}
             onChange={(e) => setRequirement(e.target.value)}
             placeholder="补充你的要求，无需再次粘贴题目"
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                event.stopPropagation();
+                void runAI();
+              }
+            }}
           />
           <Button
             disabled={
@@ -882,6 +968,13 @@ export function AuthoringTask() {
   const navigate = useNavigate();
   const [actionError, setActionError] = useState(""),
     [busy, setBusy] = useState(false);
+  useRegisterActivity(t ? {
+    id: `ai:${t.task_id}`,
+    kind: "ai",
+    title: t.action === "verify" ? "草稿验证" : "AI 命题",
+    path: `/authoring/tasks/${t.task_id}`,
+    status: t.progress || t.status,
+  } : null);
   if (!t) return <p className="skeleton">{error?.message || "读取任务…"}</p>;
   const result = t.result,
     preview = t.preview || {};
@@ -916,10 +1009,10 @@ export function AuthoringTask() {
   };
   return (
     <div className="page">
-      <Link to="/authoring">← 命题中心</Link>
+      <BackLink to="/authoring">返回命题中心</BackLink>
       <h1>
-        <Icon name="spark" />
-        AI 命题
+        <Icon name={t.action === "verify" ? "check" : "spark"} />
+        {t.action === "verify" ? "草稿本地验证" : "AI 命题"}
       </h1>
       <p>{t.requirement}</p>
       <TaskProgress task={t} disconnected={disconnected} />
@@ -930,29 +1023,23 @@ export function AuthoringTask() {
       )}
       {t.status === "completed" &&
         t.draft_id &&
-        result?.verification?.quality_gate_passed && (
+        (result?.verification?.publishable || result?.verification?.quality_gate_passed) && (
           <Button variant="default" asChild>
             <Link to={"/authoring/drafts/" + t.draft_id + "?step=检查与发布"}>
               打开已验证草稿
             </Link>
           </Button>
         )}
+      {result?.kind === "verification" && result.verification && (
+        <VerificationReport report={result.verification} />
+      )}
       {result?.kind === "section_patch" && (
         <>
           <p className="muted">局部建议已复审，尚未通过整题验证。</p>
           <RichText text={result.review} />
-          <details>
+          <details open>
             <summary>查看修改前后差异</summary>
-            <div className="samples">
-              <div>
-                <h3>修改前</h3>
-                <Statement problem={result.baseline} />
-              </div>
-              <div>
-                <h3>修改后</h3>
-                <Statement problem={result.problem} />
-              </div>
-            </div>
+            <DiffView before={result.baseline} after={result.problem} />
           </details>
           <Button
             disabled={busy || t.status !== "completed" || !t.draft_id}
@@ -967,16 +1054,7 @@ export function AuthoringTask() {
       {result?.initial_problem && (
         <details>
           <summary>查看复审前后的题面</summary>
-          <div className="samples">
-            <div>
-              <h3>初稿</h3>
-              <Statement problem={result.initial_problem} />
-            </div>
-            <div>
-              <h3>最终版本</h3>
-              <Statement problem={result.problem} />
-            </div>
-          </div>
+          <DiffView before={result.initial_problem} after={result.problem} />
         </details>
       )}
       <div className="generated-preview">
@@ -1058,7 +1136,7 @@ export function AuthoringTask() {
           </Button>
         </div>
       )}
-      {actionError && <p role="alert">{actionError}</p>}
+      {actionError && <ErrorNotice message={actionError} />}
     </div>
   );
 }

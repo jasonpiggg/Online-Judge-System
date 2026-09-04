@@ -14,6 +14,9 @@ import { ResultPanel, VerdictBadge } from "../components/Evaluation";
 import { SearchInput } from "../components/SearchInput";
 import { Icon } from "../components/Icon";
 import { Pagination } from "../components/Pagination";
+import { BackLink } from "../components/BackLink";
+import { ErrorNotice } from "../components/ErrorNotice";
+import { useRegisterActivity } from "../components/Activity";
 export function Records({
   user,
   adminView = false,
@@ -202,6 +205,7 @@ export function Records({
 }
 export function SubmissionPage({ user }: { user: User }) {
   const { id } = useParams();
+  const location = useLocation();
   const [params] = useSearchParams();
   const from = params.get("from") || "";
   const back =
@@ -216,13 +220,18 @@ export function SubmissionPage({ user }: { user: User }) {
     queryFn: () => api<Submission>(`/submissions/${id}?include_metadata=true`),
     refetchInterval: (q) => (q.state.data?.status === "pending" ? 1000 : false),
   });
+  useRegisterActivity({
+    id: `submission:${id}`,
+    kind: "submission",
+    title: `提交 #${id}`,
+    path: `/submissions/${id}${location.search}`,
+    status: s?.status === "pending" ? "评测中" : s ? "已完成" : "读取中",
+  });
   return (
     <div className="page">
-      <Link className="back-link" to={back}>
-        ← 返回提交列表
-      </Link>
+      <BackLink to={back}>返回提交列表</BackLink>
       <h1>提交 #{id}</h1>
-      {loadError && <p role="alert">{loadError.message}</p>}
+      {loadError && <ErrorNotice title="无法读取提交详情" message={loadError.message} />}
       {s && (
         <>
           <div className="row">
@@ -268,7 +277,7 @@ export function SubmissionPage({ user }: { user: User }) {
           )}
         </>
       )}
-      {error && <p role="alert">{error}</p>}
+      {error && <ErrorNotice message={error} />}
     </div>
   );
 }

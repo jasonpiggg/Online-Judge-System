@@ -30,6 +30,15 @@ const icon = (v: string) =>
     : ["pending", "TLE", "MLE"].includes(v)
       ? "clock"
       : "cross";
+const advice: Record<string, string> = {
+  WA: "程序正常运行，但输出与标准答案不同。优先检查边界条件、输入解析和输出格式。",
+  TLE: "程序超过时间限制。检查循环终止条件，并考虑降低算法时间复杂度。",
+  MLE: "程序使用内存过多。检查大型数组、递归深度和是否保存了不必要的数据。",
+  RE: "程序运行时异常。检查数组下标、除零、空输入和递归深度；展开日志查看异常位置。",
+  CE: "代码未能编译。根据下方诊断定位首个错误，修正语法、类型或缺失依赖后重新提交。",
+  UNK: "评测器无法识别本次异常。保留代码并重试，持续出现时联系管理员查看服务状态。",
+  error: "评测服务没有完成本次任务。代码已保留，可以稍后重新提交或请管理员重新评测。",
+};
 export function VerdictBadge({ submission: s }: { submission: Submission }) {
   const v =
     s.evaluation?.verdict ||
@@ -100,6 +109,9 @@ export function EvaluationView({
           )
         )}
       </div>
+      {advice[e?.verdict || s.status] && (
+        <p className="outcome-advice">{advice[e?.verdict || s.status]}</p>
+      )}
       {compiled && (
         <div className="compile-diagnostic">
           <h3>编译诊断</h3>

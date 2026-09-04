@@ -19,6 +19,8 @@ import { Authoring, DraftPage, AuthoringTask } from "./pages/Authoring";
 import { Resources } from "./pages/Resources";
 import "./style.css";
 import { Icon } from "./components/Icon";
+import { ActivityBar, ActivityProvider } from "./components/Activity";
+import { PublicLog } from "./pages/PublicLog";
 const Workspace = lazy(() =>
   import("./pages/Workspace").then((m) => ({ default: m.Workspace })),
 );
@@ -107,7 +109,7 @@ export default function App() {
   const user = me.data;
   setApiUser(String(user.user_id));
   return (
-    <>
+    <ActivityProvider userId={String(user.user_id)}>
       <header className="topbar">
         <div className="topbar-inner">
           <Link className="brand" to="/problems">
@@ -158,6 +160,7 @@ export default function App() {
           </NavLink>
         </div>
       </header>
+      <ActivityBar />
       <main>
         <Suspense fallback={<div className="skeleton">正在打开页面…</div>}>
           <Routes>
@@ -170,6 +173,7 @@ export default function App() {
             />
             <Route path="/account" element={<Account user={user} />} />
             <Route path="/resources" element={<Resources />} />
+            <Route path="/logs/submissions/:id" element={<PublicLog />} />
             <Route
               path="/admin"
               element={
@@ -190,6 +194,6 @@ export default function App() {
           </Routes>
         </Suspense>
       </main>
-    </>
+    </ActivityProvider>
   );
 }

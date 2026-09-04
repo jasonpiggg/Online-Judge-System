@@ -6,9 +6,21 @@ export const setApiUser = (id?: string) => {
 export class ApiError extends Error {
   constructor(
     public status: number,
-    message: string,
+    public technicalMessage: string,
+    public details?: {
+      id?: string;
+      title?: string;
+      message?: string;
+      suggestion?: string;
+      retryable?: boolean;
+      fields?: Array<{ field: string; message: string }>;
+    },
   ) {
-    super(message);
+    super(
+      details?.title && details?.suggestion
+        ? `${details.title}。${details.suggestion}`
+        : technicalMessage,
+    );
   }
 }
 export const queryClient = new QueryClient({
@@ -36,7 +48,11 @@ export async function api<T>(
   if (!response.ok) {
     if (response.status === 401 && !path.startsWith("/auth/"))
       window.dispatchEvent(new Event("session-expired"));
-    throw new ApiError(response.status, value.msg || "请求失败，请重试");
+    throw new ApiError(
+      response.status,
+      value.msg || "请求失败，请重试",
+      value.error,
+    );
   }
   return value.data as T;
 }
