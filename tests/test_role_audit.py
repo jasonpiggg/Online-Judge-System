@@ -26,3 +26,11 @@ async def test_role_change_is_atomic_and_separate_from_access_logs(
     assert await app.state.db.fetchall("SELECT * FROM access_logs") == []
     assert (await client.put("/api/users/999/role", json={"role": "admin"})).status_code == 404
     assert len(await app.state.db.fetchall("SELECT * FROM role_change_logs")) == 3
+
+
+async def test_last_administrator_cannot_be_removed(client: AsyncClient) -> None:
+    await login_admin(client)
+    result = await client.put("/api/users/1/role", json={"role": "banned"})
+    assert result.status_code == 409
+    profile = await client.get("/api/users/1")
+    assert profile.json()["data"]["role"] == "admin"

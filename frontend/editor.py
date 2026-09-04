@@ -21,10 +21,14 @@ def clean_problem(value: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
-def load_editor(value: dict[str, Any], update: bool = False) -> None:
+def load_editor(
+    value: dict[str, Any], update: bool = False, assets: dict[str, Any] | None = None
+) -> None:
     data = clean_problem(value)
     key = str(data["id"]) if update else "new"
     st.session_state.setdefault("editor_drafts", {})[key] = data
+    if assets:
+        st.session_state.setdefault("authoring_assets", {})[key] = copy.deepcopy(assets)
     st.session_state.editor_revision = st.session_state.get("editor_revision", 0) + 1
     navigate("editor", editing_problem=data if update else None)
 
@@ -62,6 +66,63 @@ def editor_page(api: ApiClient) -> None:
         "编辑题目" if existing else "新建题目",
         note="分区填写，实时保留草稿。样例和测试点不需要手写 JSON。",
     )
+
+    with st.expander("AI 辅助当前草稿", icon=":material/auto_awesome:"):
+        st.caption("从当前上下文发起修改；生成结果会保存为命题草稿，不会直接覆盖或发布。")
+        with st.form(f"inline-ai-{key}"):
+            target = st.selectbox(
+                "修改范围",
+                ["testcases", "statement", "constraints", "samples", "review", "all"],
+                format_func=lambda value: {
+                    "testcases": "测试点",
+                    "statement": "题面",
+                    "constraints": "约束",
+                    "samples": "样例",
+                    "review": "完整审查",
+                    "all": "整题",
+                }[value],
+            )
+            ai_requirement = st.text_area(
+                "具体要求",
+                placeholder="例如：补充能卡掉只考虑正数解法的边界测试点，并保持题面不变。",
+            )
+            if st.form_submit_button("创建 AI 修改任务", type="primary"):
+                problem: dict[str, Any] | None
+                try:
+                    problem = Problem.model_validate(draft).model_dump()
+                except ValidationError:
+                    problem = None
+                assets = st.session_state.get("authoring_assets", {}).get(key, {})
+                created_draft = call(
+                    lambda: api.post(
+                        "/api/problem-drafts/",
+                        json={
+                            "base_problem_id": existing["id"] if existing else None,
+                            "requirement": ai_requirement,
+                            "problem": problem,
+                            "reference_solution": assets.get("reference_solution", ""),
+                            "brute_solution": assets.get("brute_solution", ""),
+                            "generator_code": assets.get("generator_code", ""),
+                            "review": assets.get("review", {}),
+                        },
+                    )
+                )
+                if created_draft:
+                    task = call(
+                        lambda: api.post(
+                            "/api/ai/problem-tasks/",
+                            json={
+                                "requirement": ai_requirement,
+                                "problem_id": existing["id"] if existing else None,
+                                "draft_id": created_draft["data"]["id"],
+                                "action": "tests" if target == "testcases" else "revise",
+                                "target_section": target,
+                            },
+                        )
+                    )
+                    if task:
+                        st.session_state.ai_task_id = task["data"]["task_id"]
+                        navigate("ai")
 
     def field(label: str, name: str, *, area: bool = False, **kwargs: Any) -> None:
         widget_key = f"{prefix}-{name}"

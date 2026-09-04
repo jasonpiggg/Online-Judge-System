@@ -63,7 +63,10 @@ async def test_admin_boundary_matrix(client: AsyncClient, problem_payload: dict[
     ).status_code == 401
     await login_admin(client)
     assert (await client.get("/api/ai/model-config")).json()["data"] == {
-        "api_key_configured": False
+        "api_key_configured": False,
+        "source": "none",
+        "system_configured": False,
+        "personal_configured": False,
     }
     assert (
         await client.put(

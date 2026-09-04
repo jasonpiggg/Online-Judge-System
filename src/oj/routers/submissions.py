@@ -69,6 +69,7 @@ async def list_submissions(
     user_id: int | None = None,
     problem_id: str | None = None,
     status: str | None = Query(default=None, pattern="^(pending|success|error)$"),
+    outcome: str | None = Query(default=None, pattern="^(passed|not_passed)$"),
     page: int | None = Query(default=None, ge=1),
     page_size: int | None = Query(default=None, ge=1, le=100),
     all_users: bool = False,
@@ -97,6 +98,13 @@ async def list_submissions(
     if status is not None:
         clauses.append("status=?")
         params.append(status)
+    if outcome == "passed":
+        clauses.append("status='success' AND score=counts")
+    elif outcome == "not_passed":
+        clauses.append(
+            "(status='error' OR (status='success' AND "
+            "(score IS NULL OR counts IS NULL OR score<counts)))"
+        )
     where = " AND ".join(clauses) or "1=1"
     total = await request.app.state.db.fetchone(
         f"SELECT COUNT(*) AS n FROM submissions WHERE {where}",  # noqa: S608

@@ -1,4 +1,4 @@
-# Atelier OJ v1.1.0 测试记录
+# Atelier OJ v1.2.0 修复候选版测试记录
 
 记录日期：2026-09-04。以下数字来自实际命令输出，未把跳过项或 mock 结果改写成真实供应商结果。
 
@@ -6,9 +6,9 @@
 
 | 环境 | 结果 | 说明 |
 | --- | --- | --- |
-| Windows `.venv` | 88 passed，10 skipped | 10 项均标记为 Linux judge integration；Ruff 与 mypy 通过 |
-| WSL2 Ubuntu / Python 3.12.3 | 98 passed，0 skipped | 实际调用系统 `g++`，执行完整 runner 与 API 测试 |
-| 后端覆盖率 | 行 97.67%，分支 93.07% | 门槛分别为 90% / 85%，由 `scripts/check_coverage.py` 独立读取 coverage JSON |
+| Windows `.venv` | 108 passed，10 skipped | 系统默认模型配置增量后的全量回归；10 项均为 Linux judge integration；Ruff 与 mypy 通过 |
+| WSL2 Ubuntu / Python 3.12.3 | 本轮未执行 | 当前 WSL Python 缺少 pytest；v1.1 最近基线为 98 passed，0 skipped |
+| 上一轮后端覆盖率 | 行 96.45%，分支 89.74% | 系统模型配置增量前的结果；本轮未重算，不作为新增代码覆盖率证据 |
 | 依赖审计 | 0 known vulnerabilities | `pip-audit --local --skip-editable`；CI 同样执行 |
 
 WSL 实际 verdict：
@@ -25,6 +25,8 @@ WSL 实际 verdict：
 - 私有/公开/本人/他人/管理员日志矩阵；200/403 访问审计与独立角色修改审计。
 - 版本迁移备份、幂等升级、旧用户/提交保留；AI 密钥不回显且 `.ai-key` 可跨重启解密。
 - AI 使用真正本地 HTTP/SSE 服务覆盖两阶段请求、取消、超时、坏 JSON、usage/估算/累计费用、参考解和错误解失败。
+- v3 草稿迁移、源码草稿账号隔离、命题草稿乐观锁/版本/发布门禁、任务历史、受限生成器、独立 oracle 对拍与 mutation score。
+- v4 系统模型迁移及升级备份；启动加密导入与幂等；新用户系统回退；个人覆盖、空 key 防借用、删除后恢复；reset 保留系统默认；错误主密钥拒绝启动；旧 `.ai-key` 个人配置迁移；系统字段不返回前端；默认配置下生成按钮可用。所有模型请求仍为 mock，无真实付费调用。
 
 ## Streamlit 与真实浏览器
 
@@ -49,5 +51,6 @@ WSL 实际 verdict：
 ## 未宣称通过的项目
 
 - 未配置真实外部模型供应商密钥，因此真实供应商输出质量未验收。
+- 新增 v1.2 测试尚未取得本轮 Linux/CI 结果，不能沿用 v1.1 的 98 passed 作为发布证据。
 - Windows runner 只用于 UI 状态流，不用于证明 Linux 地址空间和进程组限制。
 - 没有将课程级 subprocess runner 宣称为可直接公网部署的生产沙箱。

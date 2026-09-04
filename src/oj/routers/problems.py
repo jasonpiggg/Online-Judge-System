@@ -12,9 +12,28 @@ router = APIRouter(prefix="/api/problems")
 
 @router.get("/")
 async def list_problems(
-    request: Request, include_metadata: bool = False, _user: CurrentUser = Depends(get_current_user)
+    request: Request,
+    include_metadata: bool = False,
+    include_progress: bool = False,
+    user: CurrentUser = Depends(get_current_user),
 ) -> JSONResponse:
-    return response(data=await request.app.state.problems.list(include_metadata))
+    problems = await request.app.state.problems.list(include_metadata)
+    if include_progress:
+        rows = await request.app.state.db.fetchall(
+            """SELECT problem_id,COUNT(*) AS attempts,MAX(created_at) AS last_attempt,
+               MAX(CASE WHEN status='success' AND score=counts THEN 1 ELSE 0 END) AS passed,
+               MAX(CASE WHEN status='success' AND counts>0
+                   THEN CAST(score AS REAL)/counts ELSE 0 END) AS best_ratio
+               FROM submissions WHERE user_id=? GROUP BY problem_id""",
+            (user.id,),
+        )
+        progress = {row["problem_id"]: dict(row) for row in rows}
+        for problem in problems:
+            problem["progress"] = progress.get(
+                problem["id"],
+                {"attempts": 0, "last_attempt": None, "passed": 0, "best_ratio": 0},
+            )
+    return response(data=problems)
 
 
 @router.post("/")

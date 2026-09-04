@@ -49,12 +49,14 @@ class PinnedTransport(httpx.AsyncHTTPTransport):
         return await super().handle_async_request(pinned)
 
 
-async def bounded_sse_lines(response: httpx.Response) -> AsyncIterator[str]:
+async def bounded_sse_lines(
+    response: httpx.Response, *, max_wire_bytes: int = 8_000_000
+) -> AsyncIterator[str]:
     pending = bytearray()
     total = 0
     async for chunk in response.aiter_bytes():
         total += len(chunk)
-        if total > 8_000_000:
+        if total > max_wire_bytes:
             raise ValueError("AI stream exceeds wire limit")
         pending.extend(chunk)
         while (newline := pending.find(b"\n")) >= 0:

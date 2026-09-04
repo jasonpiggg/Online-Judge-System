@@ -1,6 +1,6 @@
 # 在线评测系统实验报告
 
-Atelier OJ · 实验二 · v1.1.0
+Atelier OJ · 实验二 · v1.2.0 修复候选版
 
 | 项目 | 内容 |
 | --- | --- |
@@ -29,7 +29,7 @@ Atelier OJ · 实验二 · v1.1.0
 | Step 5 | 5 | 私有/公开测试点日志、200/403 访问审计；test_logs_reset、test_api_edges |
 | Step 6 | 5 | 账户、题库、同屏做题、可视化编辑器、管理中心；AppTest 及三尺寸真实浏览器验收 |
 | AI R1-R4 | 4 | 可读工作台、自定义加密配置、进度与取消、Token/费用；真实 HTTP/SSE mock 自动测试 |
-| AI 质量与易用性 | 6 | 二次批判改进、唯一测试输入、参考解与错误解验证、编辑器集成；真实供应商质量未验收 |
+| AI 质量与易用性 | 6 | 二次批判、独立 oracle 随机对拍、mutation score、版本化草稿与编辑器局部入口；真实供应商质量未验收 |
 | 代码规范 | 5 | 分层结构、Ruff/mypy、uv.lock、CI、分阶段真实 PR；不以自动检查代替代码理解 |
 | 实验报告 | 5 | 架构、难点、测试证据、真实截图、AI 使用说明与改进建议 |
 
@@ -41,7 +41,7 @@ Atelier OJ · 实验二 · v1.1.0
 
 每题一个 JSON 文件。安全题号只允许字母、数字、下划线和连字符；保存前经 Pydantic 校验。同目录临时文件写入、fsync、原子替换及异步锁保证写入完整性。输入、输出、代码和密码不自动 strip，保留有意义的空白。
 
-SQLite 表包括 users、sessions、languages、submissions、submission_cases、access_logs、role_change_logs、ai_configs、ai_tasks。启用外键、WAL 和查询索引。PRAGMA user_version 管理版本：旧库升级前使用 SQLite backup 生成 pre-vN 备份，迁移幂等，不通过 reset 升级。版本 1 增加 AI 阶段/用量依据，版本 2 增加角色审计。
+SQLite 在原有业务表外新增 workspace_drafts、problem_drafts、problem_draft_revisions 和 verification_runs。源码草稿按用户、题目和语言隔离；命题草稿采用 revision 乐观锁并保存完整快照。PRAGMA user_version 3 负责无损升级 AI 任务关联字段；旧库仍在升级前生成 SQLite 备份，reset 不承担迁移职责。
 
 题目限制内部允许未设置，JSON 中保持省略。评测逐项使用“题目显式值、语言值、系统 3 秒/128 MB”的顺序。课程 GET 接口仍展示默认值，额外 limit_inheritance 字段供编辑器区分继承与显式配置，不猜测旧数据的原始意图。
 
@@ -81,7 +81,7 @@ stdout/stderr 各并发分块读取，分别最多保留 1 MB；超限立即终�
 
 生成结构必须包含题目、Python 参考解、审查、基础/边界/规模覆盖说明，以及至少两种不同的典型错误算法。测试输入不少于 5 个且不能重复。参考解必须通过全部样例与测试点；每种错误解必须被至少一个 WA/TLE/MLE 测试点拒绝，CE、RE 或 UNK 不能充当有效卡错证据。失败保留诊断，但不提供一键入库。
 
-通过验证后，结果按题面、测试点、参考解和审查报告呈现。用户确认后载入公共题目编辑器，可选择新建或更新已有题目；更新仍需单独确认和标准 PUT API。有限测试不等于复杂度证明，真实出题质量仍依赖模型、命题需求和人工审阅。
+通过基础验证后，独立暴力解与参考解对数据生成器产生的 20–100 组受限唯一输入进行对拍；生成器本身使用同一 runner 的超时、内存、进程和输出上限。典型错误解的实际杀伤率形成 mutation score。只有对拍通过且 mutation score 为 100% 的关联草稿进入 ready，发布仍要求显式操作。命题编辑器可按题面、约束、样例、测试点或审查范围发起任务，结果、费用、完整资产和版本历史在刷新后恢复。
 
 ### 实时状态、取消与费用
 
@@ -97,7 +97,7 @@ stdout/stderr 各并发分块读取，分别最多保留 1 MB；超限立即终�
 
 ## 5. 真实测试结果与限制
 
-Linux / Python 3.12.3：98 passed；后端行覆盖率 97.67%，分支覆盖率 93.07%。命令为 pytest --cov=oj --cov-branch；scripts/check_coverage.py 分别检查行 90%、分支 85%，未通过排除困难生产代码提高数值。
+本轮 Windows / Python 3.14 全量回归为 97 passed、10 个 Linux 专用测试 skipped；后端行覆盖率 96.45%、分支覆盖率 89.74%，Ruff、mypy、覆盖率门禁、依赖审计和 git diff 检查通过。v1.1 的最近一次 WSL2 基线为 98 passed、0 skipped；本轮 WSL 环境缺少 pytest，故没有把旧基线改写成本轮 Linux 结果。发布前仍需在 CI/Linux 复跑新增测试。
 
 | 测试范围 | 证据 |
 | --- | --- |
@@ -118,13 +118,13 @@ Linux / Python 3.12.3：98 passed；后端行覆盖率 97.67%，分支覆盖率 
 
 ## 6. 界面成果
 
-视觉采用浅灰白主界面、深蓝侧栏和蓝色主操作，移除网格、酸橙和偏移阴影。侧栏导航 17px/600，主要交互控件至少 44px；系统中文字体不依赖外部字体服务，图标保留组件字体。题库搜索与分页、题面/代码同屏、视觉编辑块、草稿保持和分区管理减少操作跳转。
+视觉改为 Archive Lab：暖纸色主界面、苔绿色侧栏与陶土红主操作，使用克制边框、低圆角和衬线标题，减少常见渐变大卡片的模板感。题库直接显示未开始/尝试中/已通过及提交次数；工作区提供返回、前后题和服务端保存状态；记录页支持是否全过筛选，并在二次确认后把历史源码恢复到工作区。
 
 ![1440×900：桌面工作区，C++14 实际提交 #4 全部通过；截图位于工作区中段](screenshots/desktop-workspace.png)
 
-![390×844：手机结果标签，Python 实际提交 #2 全部通过](screenshots/mobile-result.png)
+![390×844：手机题库，筛选折叠且页面无横向溢出](screenshots/mobile-result.png)
 
-![AI 工作台：本地 HTTP mock 双阶段生成、累计用量与审查，不代表真实供应商结果](screenshots/ai-workbench.png)
+![命题中心：草稿与任务历史入口；未配置真实供应商时如实显示未配置](screenshots/ai-workbench.png)
 
 ## 7. 工程过程与 AI 使用说明
 
