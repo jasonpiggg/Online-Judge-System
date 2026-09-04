@@ -37,6 +37,38 @@ type Draft = {
   verification_level?: "basic" | "full" | null;
   verification_summary?: Record<string, any> | null;
 };
+type ManagedPage<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  legacy: boolean;
+};
+
+export function normalizeManagedPage<T>(
+  value: T[] | { drafts?: T[]; tasks?: T[]; total: number; page: number; page_size: number },
+  page: number,
+  pageSize = 10,
+): ManagedPage<T> {
+  if (Array.isArray(value)) {
+    const start = (page - 1) * pageSize;
+    return {
+      items: value.slice(start, start + pageSize),
+      total: value.length,
+      page,
+      pageSize,
+      legacy: true,
+    };
+  }
+  const items = value.drafts ?? value.tasks ?? [];
+  return {
+    items,
+    total: value.total,
+    page: value.page,
+    pageSize: value.page_size,
+    legacy: false,
+  };
+}
 const sample = z.object({ input: z.string(), output: z.string() });
 const problemSchema = z.object({
   id: z
@@ -113,17 +145,23 @@ export function Authoring() {
   const pending = useRef<{ text: string; key: string } | undefined>(undefined);
   const drafts = useQuery({
     queryKey: ["drafts", draftPage],
-    queryFn: () => api<{ drafts: Draft[]; total: number; page: number; page_size: number }>(
-      `/problem-drafts/?page=${draftPage}&page_size=10&include_metadata=true&include_archived=false`,
+    queryFn: async () => normalizeManagedPage(
+      await api<Draft[] | { drafts: Draft[]; total: number; page: number; page_size: number }>(
+        `/problem-drafts/?page=${draftPage}&page_size=10&include_metadata=true&include_archived=false`,
+      ),
+      draftPage,
     ),
   });
   const tasks = useQuery({
     queryKey: ["tasks", taskPage],
-    queryFn: () => api<{ tasks: Record<string, any>[]; total: number; page: number; page_size: number }>(
-      `/ai/problem-tasks/?page=${taskPage}&page_size=10&include_metadata=true&include_archived=false`,
+    queryFn: async () => normalizeManagedPage(
+      await api<Record<string, any>[] | { tasks: Record<string, any>[]; total: number; page: number; page_size: number }>(
+        `/ai/problem-tasks/?page=${taskPage}&page_size=10&include_metadata=true&include_archived=false`,
+      ),
+      taskPage,
     ),
     refetchInterval: (q) =>
-      q.state.data?.tasks.some((t) => !terminal(t.status)) ? 5000 : false,
+      q.state.data?.items.some((t) => !terminal(t.status)) ? 5000 : false,
   });
   const changePage = (key: "draft_page" | "task_page", value: number) => {
     const next = new URLSearchParams(searchParams);
@@ -231,9 +269,15 @@ export function Authoring() {
         </form>
       </section>
       {error && <ErrorNotice message={error} />}
+      {(drafts.data?.legacy || tasks.data?.legacy) && (
+        <div className="notice" role="status">
+          <strong>命题中心已使用兼容模式打开</strong>
+          <p>当前后端进程仍是旧版本。请重启 OJ 服务，以启用服务端分页、任务归档和失败成果恢复。</p>
+        </div>
+      )}
       <h2>我的草稿</h2>
       <div className="draft-list">
-        {drafts.data?.drafts.map((d) => (
+        {drafts.data?.items.map((d) => (
             <div className="draft-row managed-row" key={d.id}>
               <Link to={"/authoring/drafts/" + d.id}>
                 <strong>{d.problem?.title || "未命名题目"}</strong>
@@ -260,7 +304,7 @@ export function Authoring() {
       </div>
       {drafts.data && drafts.data.total > 10 && <Pagination page={draftPage} totalPages={Math.ceil(drafts.data.total / 10)} label="草稿分页" onChange={(page) => changePage("draft_page", page)} />}
       <h2>AI 任务</h2>
-      {tasks.data?.tasks.map((t) => (
+      {tasks.data?.items.map((t) => (
         <div className="draft-row managed-row" key={t.id}>
           <Link to={"/authoring/tasks/" + t.id}>
             <span>{t.progress}</span>

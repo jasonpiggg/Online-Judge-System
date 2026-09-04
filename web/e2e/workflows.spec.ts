@@ -181,6 +181,21 @@ test("author, verify, publish and open problem", async ({ page }) => {
     page.getByRole("heading", { name: "浏览器验收求和题", exact: true }),
   ).toBeVisible();
 });
+
+test("authoring navigation tolerates a legacy list response", async ({ page }) => {
+  await login(page);
+  for (const pattern of ["**/api/problem-drafts/?**", "**/api/ai/problem-tasks/?**"]) {
+    await page.route(pattern, async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      const data = body.data?.drafts ?? body.data?.tasks ?? body.data ?? [];
+      await route.fulfill({ response, json: { ...body, data } });
+    });
+  }
+  await page.getByRole("link", { name: "命题中心", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "命题中心", exact: true })).toBeVisible();
+  await expect(page.getByText("命题中心已使用兼容模式打开")).toBeVisible();
+});
 test("incomplete draft saves and AI completes it", async ({ page }) => {
   await login(page);
   await page.goto("/authoring");
