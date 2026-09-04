@@ -10,7 +10,6 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useFieldArray, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api, json, errorText, queryClient } from "../api";
 import type { Problem, User } from "../types";
@@ -264,8 +263,11 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
     }
   }
   const form = useForm<FormProblem>({
-    resolver: zodResolver(problemSchema),
     defaultValues: initial,
+  });
+  const modelConfig = useQuery({
+    queryKey: ["model-config"],
+    queryFn: () => api<Record<string, any>>("/ai/model-config"),
   });
   const samples = useFieldArray({ control: form.control, name: "samples" }),
     cases = useFieldArray({ control: form.control, name: "testcases" });
@@ -361,20 +363,26 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
     setBusy(true);
     setError("");
     try {
-      const p = problemSchema.parse(form.getValues());
+      const p = form.getValues();
+      const complete = problemSchema.safeParse(p).success;
       const saved = await save(p);
+      const effectiveTarget = complete || target === "review" ? target : "all";
+      const requestText = requirement.trim()
+        ? `用户补充要求：${requirement.trim()}\n请严格检查当前草稿并生成可验证的结果。`
+        : complete
+          ? "请严格检查当前草稿，修复错误并完善质量验证。"
+          : "当前草稿尚未完成。请保留已有内容，补全一道结构完整、可验证的题目。";
       const body = {
         draft_id: draft.id,
         problem_id: draft.base_problem_id,
-        requirement:
-          requirement || "请严格检查当前草稿，修复错误并完善质量验证。",
+        requirement: requestText,
         action:
-          target === "review"
+          effectiveTarget === "review"
             ? "review"
-            : target === "all"
+            : effectiveTarget === "all"
               ? "generate"
               : "revise",
-        target_section: target,
+        target_section: effectiveTarget,
         workflow_version: 2,
       };
       const hash = JSON.stringify({ ...body, revision: saved.revision });
@@ -384,6 +392,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
         ...json("POST", body),
         headers: { "Idempotency-Key": pending.current.key },
       });
+      pending.current = undefined;
       navigate("/authoring/tasks/" + t.task_id);
     } catch (e) {
       setError(errorText(e));
@@ -495,20 +504,18 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
       ) : (
         <form
           className="form-grid"
-          onSubmit={form.handleSubmit(
-            async (p) => {
-              setBusy(true);
-              setError("");
-              try {
-                await save(p);
-              } catch (e) {
-                setError(errorText(e));
-              } finally {
-                setBusy(false);
-              }
-            },
-            () => setError("请完善题号、标题、题面、输入输出格式和数据范围。"),
-          )}
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setBusy(true);
+            setError("");
+            try {
+              await save(form.getValues());
+            } catch (e) {
+              setError(errorText(e));
+            } finally {
+              setBusy(false);
+            }
+          }}
         >
           {step === "题面与样例" && (
             <>
@@ -548,6 +555,16 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                       )
                     }
                   />
+                </label>
+              </div>
+              <div className="samples">
+                <label>
+                  来源
+                  <input {...form.register("source")} />
+                </label>
+                <label>
+                  作者
+                  <input {...form.register("author")} />
                 </label>
               </div>
               <DifficultyGuide />
@@ -830,13 +847,31 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
             onChange={(e) => setRequirement(e.target.value)}
             placeholder="补充你的要求，无需再次粘贴题目"
           />
-          <Button disabled={busy} onClick={() => void runAI()}>
-            开始
+          <Button
+            disabled={
+              busy ||
+              (!!modelConfig.data &&
+                !modelConfig.data.system_configured &&
+                !modelConfig.data.personal_configured)
+            }
+            onClick={() => void runAI()}
+          >
+            {problemSchema.safeParse(values).success ? "开始" : "补全草稿"}
           </Button>
         </div>
         <p className="muted">
-          使用当前已保存草稿；局部修改需采纳后重新验证。调用产生费用，最多自动修复一次。
+          {problemSchema.safeParse(values).success
+            ? "使用当前已保存草稿；局部修改需采纳后重新验证。"
+            : "草稿尚未完整，AI 会保留已填写内容并自动补全整题。"}
+          调用产生费用，最多自动修复一次。
         </p>
+        {modelConfig.data &&
+          !modelConfig.data.system_configured &&
+          !modelConfig.data.personal_configured && (
+            <p role="alert">
+              尚未配置可用模型。<Link to="/account">前往账户配置</Link>
+            </p>
+          )}
       </details>
     </div>
   );

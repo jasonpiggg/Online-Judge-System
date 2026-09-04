@@ -16,6 +16,7 @@ async def role_logs(
     request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    include_metadata: bool = False,
     _admin: CurrentUser = Depends(require_admin),
 ) -> JSONResponse:
     rows = await request.app.state.db.fetchall(
@@ -25,7 +26,11 @@ async def role_logs(
            LEFT JOIN users t ON t.id=l.target_id ORDER BY l.id DESC LIMIT ? OFFSET ?""",
         (page_size, (page - 1) * page_size),
     )
-    return response(data=[dict(row) for row in rows])
+    logs = [dict(row) for row in rows]
+    if not include_metadata:
+        return response(data=logs)
+    total = await request.app.state.db.fetchone("SELECT COUNT(*) AS n FROM role_change_logs")
+    return response(data={"logs": logs, "total": int(total["n"])})
 
 
 async def _audit(request: Request, user_id: int, problem_id: str, status: int) -> None:
@@ -82,6 +87,7 @@ async def access_logs(
     problem_id: str | None = None,
     page: int | None = Query(default=None, ge=1),
     page_size: int | None = Query(default=None, ge=1, le=100),
+    include_metadata: bool = False,
     _admin: CurrentUser = Depends(require_admin),
 ) -> JSONResponse:
     if page is not None and page_size is None:
@@ -95,21 +101,27 @@ async def access_logs(
         clauses.append("problem_id=?")
         params.append(problem_id)
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    count_params = tuple(params)
     sql = f"SELECT user_id,problem_id,action,time,status FROM access_logs{where} ORDER BY id DESC"  # noqa: S608
     if page_size is not None:
         page = page or 1
         sql += " LIMIT ? OFFSET ?"
         params.extend((page_size, (page - 1) * page_size))
     rows = await request.app.state.db.fetchall(sql, params)
-    return response(
-        data=[
-            {
-                "user_id": str(row["user_id"]),
-                "problem_id": row["problem_id"],
-                "action": row["action"],
-                "time": row["time"],
-                "status": row["status"],
-            }
-            for row in rows
-        ]
+    logs = [
+        {
+            "user_id": str(row["user_id"]),
+            "problem_id": row["problem_id"],
+            "action": row["action"],
+            "time": row["time"],
+            "status": row["status"],
+        }
+        for row in rows
+    ]
+    if not include_metadata:
+        return response(data=logs)
+    total = await request.app.state.db.fetchone(
+        f"SELECT COUNT(*) AS n FROM access_logs{where}",  # noqa: S608
+        count_params,
     )
+    return response(data={"logs": logs, "total": int(total["n"])})

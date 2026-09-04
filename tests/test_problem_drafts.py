@@ -53,9 +53,31 @@ async def test_only_verified_draft_can_publish(
     blocked = await client.post(f"/api/problem-drafts/{draft_id}/publish")
     assert blocked.status_code == 409
 
-    await app.state.db.execute(
-        "UPDATE problem_drafts SET status='ready' WHERE id=?", (draft_id,)
-    )
+    await app.state.db.execute("UPDATE problem_drafts SET status='ready' WHERE id=?", (draft_id,))
     published = await client.post(f"/api/problem-drafts/{draft_id}/publish")
     assert published.status_code == 200
     assert (await client.get("/api/problems/sum_2")).status_code == 200
+
+
+async def test_incomplete_draft_can_be_saved_but_not_published(client: AsyncClient) -> None:
+    await _login(client, "drafting")
+    created = await client.post("/api/problem-drafts/", json={})
+    draft = created.json()["data"]
+    saved = await client.put(
+        f"/api/problem-drafts/{draft['id']}",
+        json={
+            "revision": draft["revision"],
+            "problem": {
+                "id": "partial_problem",
+                "title": "只完成标题的草稿",
+                "difficulty": "easy",
+            },
+            "change_summary": "保存未完成草稿",
+        },
+    )
+    assert saved.status_code == 200
+    data = saved.json()["data"]
+    assert data["problem"]["title"] == "只完成标题的草稿"
+    assert data["problem"]["difficulty"] == "简单"
+    assert data["problem"]["description"] == ""
+    assert (await client.post(f"/api/problem-drafts/{draft['id']}/publish")).status_code == 409

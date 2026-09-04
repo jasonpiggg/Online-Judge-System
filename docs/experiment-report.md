@@ -2,15 +2,15 @@
 
 Atelier OJ · 实验二 · v1.2.0 修复候选版
 
-| 项目 | 内容 |
-| --- | --- |
-| 姓名 | ____________________ |
-| 学号 | ____________________ |
-| 班级 | ____________________ |
-| GitHub | jasonpiggg/Online-Judge-System |
-| 完整评测环境 | Ubuntu / WSL2，Python 3.12.3，系统 g++，C++14 |
-| 界面开发环境 | Windows，Streamlit 1.63.0，FastAPI |
-| 报告日期 | 2026-09-04 |
+| 项目         | 内容                                           |
+| ------------ | ---------------------------------------------- |
+| 姓名         | ____________________                           |
+| 学号         | ____________________                           |
+| 班级         | ____________________                           |
+| GitHub       | jasonpiggg/Online-Judge-System                 |
+| 完整评测环境 | Ubuntu / WSL2，Python 3.12.3，系统 g++，C++14  |
+| 界面开发环境 | Windows，React 19、TypeScript、Vite 8、FastAPI |
+| 报告日期     | 2026-09-04                                     |
 
 本报告描述实际代码和已执行的测试，不代表助教最终评分。课程说明以 [2026-python 分支](https://github.com/dbg-course/python-docs/tree/2026-python/docs/oj) 为准。最终提交仍需遵守课程指定仓库、网络学堂和线下验收要求。
 
@@ -18,22 +18,22 @@ Atelier OJ · 实验二 · v1.2.0 修复候选版
 
 ## 1. 目标、架构与评分点
 
-系统保留课程要求的 Python 技术栈。Streamlit 只负责交互，通过 requests.Session 调用 REST API；FastAPI 使用 async def 路由，依赖注入完成鉴权，后台 asyncio Task 负责评测和命题。阻塞文件操作、密码哈希、DNS 查询使用线程卸载，SQLite 通过 aiosqlite 访问。
+系统保留课程要求的 Python 后端。默认网页由 FastAPI 同源提供 React 构建产物，通过 HttpOnly Session Cookie 调用 REST API；FastAPI 使用 async def 路由，依赖注入完成鉴权，后台 asyncio Task 负责评测和命题。Streamlit 保留为兼容入口。阻塞文件操作、密码哈希、DNS 查询使用线程卸载，SQLite 通过 aiosqlite 访问。
 
-| 模块 | 分值 | 实现及证据 |
-| --- | --- | --- |
-| Step 1 | 5 | 独立 JSON、加载校验、CRUD、原子替换；test_problems、test_core_edges |
-| Step 2 | 5 | Python/C++14、语言模板注册、逐点评测及资源限制；test_linux_judge、test_judge_regressions |
-| Step 3 | 5 | pending、组合查询、分页、本人/管理员权限、重测；test_submissions、test_api_edges |
-| Step 4 | 5 | bcrypt、Session、角色、统计、独立角色审计；test_auth_users、test_role_audit |
-| Step 5 | 5 | 私有/公开测试点日志、200/403 访问审计；test_logs_reset、test_api_edges |
-| Step 6 | 5 | 账户、题库、同屏做题、可视化编辑器、管理中心；AppTest 及三尺寸真实浏览器验收 |
-| AI R1-R4 | 4 | 可读工作台、自定义加密配置、进度与取消、Token/费用；真实 HTTP/SSE mock 自动测试 |
-| AI 质量与易用性 | 6 | 二次批判、独立 oracle 随机对拍、mutation score、版本化草稿与编辑器局部入口；真实供应商质量未验收 |
-| 代码规范 | 5 | 分层结构、Ruff/mypy、uv.lock、CI、分阶段真实 PR；不以自动检查代替代码理解 |
-| 实验报告 | 5 | 架构、难点、测试证据、真实截图、AI 使用说明与改进建议 |
+| 模块            | 分值 | 实现及证据                                                                                       |
+| --------------- | ---- | ------------------------------------------------------------------------------------------------ |
+| Step 1          | 5    | 独立 JSON、加载校验、CRUD、原子替换；test_problems、test_core_edges                              |
+| Step 2          | 5    | Python/C++14、语言模板注册、逐点评测及资源限制；test_linux_judge、test_judge_regressions         |
+| Step 3          | 5    | pending、组合查询、分页、本人/管理员权限、重测；test_submissions、test_api_edges                 |
+| Step 4          | 5    | bcrypt、Session、角色、统计、独立角色审计；test_auth_users、test_role_audit                      |
+| Step 5          | 5    | 私有/公开测试点日志、200/403 访问审计；test_logs_reset、test_api_edges                           |
+| Step 6          | 5    | 账户、题库、纵向做题、Monaco 编辑器、命题与管理中心；Vitest 及三尺寸 Playwright 验收             |
+| AI R1-R4        | 4    | 可读工作台、自定义加密配置、进度与取消、Token/费用；真实 HTTP/SSE mock 自动测试                  |
+| AI 质量与易用性 | 6    | 二次批判、独立 oracle 随机对拍、mutation score、版本化草稿与编辑器局部入口；真实供应商质量未验收 |
+| 代码规范        | 5    | 分层结构、Ruff/mypy、uv.lock、CI、分阶段真实 PR；不以自动检查代替代码理解                        |
+| 实验报告        | 5    | 架构、难点、测试证据、真实截图、AI 使用说明与改进建议                                            |
 
-目录分工：src/oj/routers 保存业务接口；auth、security、database、problem_store、judge、submissions、ai_authoring、ai_transport 分别负责领域功能。frontend 下按账户、题库、编辑器、记录、管理、AI 页面拆分；data/problem_seeds 保存可恢复的演示题。
+目录分工：src/oj/routers 保存业务接口；auth、security、database、problem_store、judge、submissions、ai_authoring、ai_transport 分别负责领域功能。web/src 按账户、题库、编辑器、记录、管理、AI 页面与共享组件拆分；frontend 保留兼容入口；data/problem_seeds 保存可恢复的演示题。
 
 ## 2. 数据、权限与接口
 
@@ -97,20 +97,20 @@ stdout/stderr 各并发分块读取，分别最多保留 1 MB；超限立即终�
 
 ## 5. 真实测试结果与限制
 
-本轮 Windows / Python 3.14 全量回归为 97 passed、10 个 Linux 专用测试 skipped；后端行覆盖率 96.45%、分支覆盖率 89.74%，Ruff、mypy、覆盖率门禁、依赖审计和 git diff 检查通过。v1.1 的最近一次 WSL2 基线为 98 passed、0 skipped；本轮 WSL 环境缺少 pytest，故没有把旧基线改写成本轮 Linux 结果。发布前仍需在 CI/Linux 复跑新增测试。
+当前 Windows / Python 3.14 全量回归为 223 passed、10 个 Linux 专用测试 skipped；后端行覆盖率 96.64%、分支覆盖率 90.43%，Ruff、mypy、覆盖率门禁和 git diff 检查通过。Linux CI 在每个 PR 和合并后的 main 复跑完整质量门禁，最终状态以 GitHub Actions 记录为准。
 
-| 测试范围 | 证据 |
-| --- | --- |
-| Python verdict | 实际执行 AC、WA、RE、TLE、MLE、UNK |
-| C++14 verdict | 实际编译/执行 AC、WA、CE、RE、TLE、MLE |
-| 运行边界 | 空白保真、限制继承、输出洪泛、编译超时、取消清理 |
-| API | Session 轮换/过期/禁用、权限、状态码、分页、并发限频、重测、reset、审计 |
-| 存储 | 旧库数据保留、迁移备份和幂等、原子写失败、路径限制 |
-| AI | 真正本地 HTTP/SSE 服务：两次请求、缺 usage 估算、取消、超时、坏 JSON、参考/错误解失败 |
-| Streamlit | 导航角色差异、可视化编辑块、登录错误、401 草稿保留、AI 导入新增/更新 |
-| 依赖 | 升级 cryptography/pytest/pip，锁定 uv.lock；扫描前 16 条已知漏洞，升级后 0 条 |
+| 测试范围       | 证据                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------- |
+| Python verdict | 实际执行 AC、WA、RE、TLE、MLE、UNK                                                    |
+| C++14 verdict  | 实际编译/执行 AC、WA、CE、RE、TLE、MLE                                                |
+| 运行边界       | 空白保真、限制继承、输出洪泛、编译超时、取消清理                                      |
+| API            | Session 轮换/过期/禁用、权限、状态码、分页、并发限频、重测、reset、审计               |
+| 存储           | 旧库数据保留、迁移备份和幂等、原子写失败、路径限制                                    |
+| AI             | 真正本地 HTTP/SSE 服务：两次请求、缺 usage 估算、取消、超时、坏 JSON、参考/错误解失败 |
+| Streamlit      | 导航角色差异、可视化编辑块、登录错误、401 草稿保留、AI 导入新增/更新                  |
+| 依赖           | 升级 cryptography/pytest/pip，锁定 uv.lock；扫描前 16 条已知漏洞，升级后 0 条         |
 
-浏览器已实际完成：1440×900 管理员题库与工作区、1024×768 提交/管理流程、390×844 手机导航与题目/代码/结果标签；三档均无页面级横向溢出。普通用户实际注册、登录、提交、查看记录并验证草稿保持；管理员实际修改角色、公开日志、重测，检查删除/reset 二次确认并取消。AI mock 在 UI 中完成双阶段生成、真实中断、累计费用、新建入库和确认更新入库。截图为浏览器原始输出，不使用绘制界面替代。
+浏览器 16 条 Playwright 流程已实际完成：1440、1024、390px 题库、纵向工作区、提交、命题、账户与管理页面；三档均无页面级横向溢出。普通用户实际注册、登录、提交、恢复草稿、配置评测语言；管理员实际修改角色、公开日志、重测并检查危险操作确认。AI mock 在 UI 中完成完整命题、未完成草稿补全、局部修改、流式恢复与取消。截图为浏览器原始输出，不使用绘制界面替代。
 
 浏览器与启动验收还发现三个自动测试外问题并在发布前修复：启动脚本显式注入仓库根目录 `PYTHONPATH`，解决直接运行 Streamlit 的包导入失败；`.gitattributes` 强制 shell 脚本使用 LF，解决 Windows Git 下 WSL 将 `EXIT\r` 识别为非法 signal；切换不同账号时清除私有瞬态状态，解决同一 Streamlit 会话沿用前一账号草稿的问题。修复后 `scripts/run.sh` 实际启动的 API `/docs` 与 Streamlit health 均返回 200。真正删除和 reset 由 API 自动测试执行；浏览器只验证确认文字、输入门槛、取消无副作用，未破坏最终截图数据集。
 
@@ -118,7 +118,7 @@ stdout/stderr 各并发分块读取，分别最多保留 1 MB；超限立即终�
 
 ## 6. 界面成果
 
-视觉改为 Archive Lab：暖纸色主界面、苔绿色侧栏与陶土红主操作，使用克制边框、低圆角和衬线标题，减少常见渐变大卡片的模板感。题库直接显示未开始/尝试中/已通过及提交次数；工作区提供返回、前后题和服务端保存状态；记录页支持是否全过筛选，并在二次确认后把历史源码恢复到工作区。
+默认 React 网页采用紧凑浅色工具风，正文基准 14px，使用浅蓝点缀、细边框和低强度阴影。题库直接显示题号、难度与学习状态；工作区按题面、代码、结果和 AI 纵向排列，编辑与管理员删除按钮直接位于题目标题旁；记录页提供组合筛选和统一分页。命题中心支持未完成草稿保存与 AI 补全，所有课程得分点的网页入口见 [实验功能与 React 网页覆盖核对](web-scoring-coverage.md)。
 
 ![1440×900：桌面工作区，C++14 实际提交 #4 全部通过；截图位于工作区中段](screenshots/desktop-workspace.png)
 

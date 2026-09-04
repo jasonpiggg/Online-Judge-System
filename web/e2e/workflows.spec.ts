@@ -12,6 +12,11 @@ test("standard difficulty aliases, filtering, guide and draft persistence", asyn
   page,
 }, testInfo) => {
   await login(page);
+  expect(
+    await page
+      .locator("body")
+      .evaluate((node) => getComputedStyle(node).fontSize),
+  ).toBe("14px");
   const expected = [
     "全部难度",
     "入门",
@@ -47,7 +52,13 @@ test("standard difficulty aliases, filtering, guide and draft persistence", asyn
   await page.setViewportSize({ width: 1440, height: 950 });
   await page.locator(".problem-row").click();
   await expect(page.locator(".work-heading .difficulty")).toHaveText("简单");
-  await page.getByText("题目操作", { exact: true }).click();
+  await expect(page.getByText("题目操作", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "编辑题目", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "删除题目", exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "编辑题目", exact: true }).click();
   const difficulty = page.getByLabel("难度", { exact: true });
   await expect(difficulty).toHaveValue("简单");
@@ -153,6 +164,51 @@ test("author, verify, publish and open problem", async ({ page }) => {
     page.getByRole("heading", { name: "浏览器验收求和题", exact: true }),
   ).toBeVisible();
 });
+test("incomplete draft saves and AI completes it", async ({ page }) => {
+  await login(page);
+  await page.goto("/authoring");
+  await page.getByRole("button", { name: "手动创建题目" }).click();
+  await page.getByLabel("题号", { exact: true }).fill("partial_browser");
+  await page.getByLabel("标题", { exact: true }).fill("未完成的浏览器草稿");
+  await page.getByLabel("来源", { exact: true }).fill("浏览器验收");
+  await page.getByLabel("作者", { exact: true }).fill("课程用户");
+  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+  await expect(page.locator(".sticky-actions")).toContainText("已同步");
+  await page.reload();
+  await expect(page.getByLabel("标题", { exact: true })).toHaveValue(
+    "未完成的浏览器草稿",
+  );
+  await expect(page.getByLabel("来源", { exact: true })).toHaveValue(
+    "浏览器验收",
+  );
+  await expect(
+    page.getByText("草稿尚未完整，AI 会保留已填写内容并自动补全整题。"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "补全草稿", exact: true }).click();
+  await expect(page.getByRole("link", { name: "打开已验证草稿" })).toBeVisible({
+    timeout: 45000,
+  });
+});
+test("regular user can configure an evaluation language from account", async ({
+  page,
+}) => {
+  await login(page);
+  await page.request.post("/api/users/", {
+    data: { username: "language_student", password: "language-password" },
+  });
+  await page.request.post("/api/auth/login", {
+    data: { username: "language_student", password: "language-password" },
+  });
+  await page.goto("/account");
+  await page.getByText("评测语言配置", { exact: true }).click();
+  await page.getByText("注册语言 / 更新配置", { exact: true }).click();
+  await page.getByLabel("语言名称").fill("browserlang");
+  await page.getByLabel("文件扩展名").fill(".txt");
+  await page.getByLabel("运行命令").fill("python {src}");
+  await page.getByRole("button", { name: "保存语言", exact: true }).click();
+  await expect(page.getByText("语言配置已保存", { exact: true })).toBeVisible();
+  await expect(page.locator("tbody")).toContainText("browserlang");
+});
 test("two tabs preserve both conflicting drafts and language switching", async ({
   page,
   context,
@@ -219,7 +275,6 @@ test("edit existing problem and accept a scoped AI suggestion", async ({
 }) => {
   await login(page);
   await page.goto("/problems/sum_2");
-  await page.getByText("题目操作", { exact: true }).click();
   await page.getByRole("button", { name: "编辑题目", exact: true }).click();
   await expect(page.getByLabel("标题", { exact: true })).toHaveValue(
     "两数之和",
@@ -348,14 +403,12 @@ test("library columns stay aligned with long identifiers and mobile navigation",
     await expect(
       page.locator(".problem-row").filter({ hasText: id }),
     ).toBeVisible();
-    const header = await page
-      .locator(".list-head")
-      .evaluate((e) =>
-        Array.from(e.children).map((c) => ({
-          x: c.getBoundingClientRect().x,
-          width: c.getBoundingClientRect().width,
-        })),
-      );
+    const header = await page.locator(".list-head").evaluate((e) =>
+      Array.from(e.children).map((c) => ({
+        x: c.getBoundingClientRect().x,
+        width: c.getBoundingClientRect().width,
+      })),
+    );
     const row = await page
       .locator(".problem-row")
       .filter({ hasText: id })
@@ -383,7 +436,7 @@ test("library columns stay aligned with long identifiers and mobile navigation",
       .getByRole("navigation", { name: "主导航" })
       .getByRole("link")
       .all())
-      expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(36);
     await page.screenshot({
       path: testInfo.outputPath(`alignment-${width}.png`),
       fullPage: true,
@@ -517,4 +570,27 @@ test("administrator manages problems, users, submissions and audit through the U
     }
   }
   await student.dispose();
+});
+
+test("administrator pagination preserves a deep-linked page while data loads", async ({
+  page,
+}) => {
+  await login(page);
+  const prefix = `page_${Date.now()}`;
+  for (let index = 0; index < 21; index += 1) {
+    const response = await page.request.post("/api/users/", {
+      data: {
+        username: `${prefix}_${String(index).padStart(2, "0")}`,
+        password: "test-pagination-password",
+      },
+    });
+    expect(response.status()).toBe(200);
+  }
+
+  await page.goto("/admin?tab=用户&page=2");
+  await expect(page.getByRole("button", { name: "第 2 页" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(page).toHaveURL(/(?:\?|&)page=2(?:&|$)/);
 });

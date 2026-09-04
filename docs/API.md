@@ -5,39 +5,39 @@
 
 ## 用户与会话
 
-| Method | Path | 权限 | 说明 |
-| --- | --- | --- | --- |
-| POST | `/api/users/` | 公开 | 注册普通用户 |
-| POST | `/api/users/admin` | 管理员 | 创建管理员 |
-| POST | `/api/auth/login` | 公开 | 登录并设置 Session Cookie |
-| POST | `/api/auth/logout` | 登录 | 立即销毁 Session |
-| GET | `/api/users/{user_id}` | 本人/管理员 | 用户信息与统计 |
-| PUT | `/api/users/{user_id}/role` | 管理员 | 设置 `user/admin/banned` |
-| GET | `/api/users/` | 管理员 | 分页用户列表 |
+| Method | Path                        | 权限        | 说明                      |
+| ------ | --------------------------- | ----------- | ------------------------- |
+| POST   | `/api/users/`               | 公开        | 注册普通用户              |
+| POST   | `/api/users/admin`          | 管理员      | 创建管理员                |
+| POST   | `/api/auth/login`           | 公开        | 登录并设置 Session Cookie |
+| POST   | `/api/auth/logout`          | 登录        | 立即销毁 Session          |
+| GET    | `/api/users/{user_id}`      | 本人/管理员 | 用户信息与统计            |
+| PUT    | `/api/users/{user_id}/role` | 管理员      | 设置 `user/admin/banned`  |
+| GET    | `/api/users/`               | 管理员      | 分页用户列表              |
 
 ## 题目与语言
 
-| Method | Path | 权限 | 说明 |
-| --- | --- | --- | --- |
-| GET/POST | `/api/problems/` | 登录 | 列表/新增；列表可附带本人练习进度 |
-| GET/PUT | `/api/problems/{problem_id}` | 登录 | 详情/完整更新 |
-| DELETE | `/api/problems/{problem_id}` | 管理员 | 删除题目 |
-| PUT | `/api/problems/{problem_id}/log_visibility` | 管理员 | 设置测例日志公开性 |
-| GET | `/api/languages/` | 公开 | 查询语言 |
-| POST | `/api/languages/` | 登录 | 注册受限命令模板 |
+| Method   | Path                                        | 权限   | 说明                              |
+| -------- | ------------------------------------------- | ------ | --------------------------------- |
+| GET/POST | `/api/problems/`                            | 登录   | 列表/新增；列表可附带本人练习进度 |
+| GET/PUT  | `/api/problems/{problem_id}`                | 登录   | 详情/完整更新                     |
+| DELETE   | `/api/problems/{problem_id}`                | 管理员 | 删除题目                          |
+| PUT      | `/api/problems/{problem_id}/log_visibility` | 管理员 | 设置测例日志公开性                |
+| GET      | `/api/languages/`                           | 公开   | 查询语言                          |
+| POST     | `/api/languages/`                           | 登录   | 注册受限命令模板                  |
 
 ## 提交与日志
 
-| Method | Path | 权限 | 说明 |
-| --- | --- | --- | --- |
-| POST | `/api/submissions/` | 登录 | 异步提交，每分钟最多三次 |
-| GET | `/api/submissions/` | 本人/管理员 | 按用户、题目、状态、是否全过筛选和分页 |
-| GET | `/api/submissions/{id}` | 本人/管理员 | 总体评测结果 |
-| PUT | `/api/submissions/{id}/rejudge` | 管理员 | 覆盖并重新评测 |
-| GET | `/api/submissions/{id}/log` | 本人/管理员/公开题目 | 测试点明细 |
-| GET | `/api/logs/access/` | 管理员 | 日志访问审计 |
-| GET | `/api/logs/roles/` | 管理员 | 角色变更审计，支持 `page/page_size`，每页最多 100 条 |
-| POST | `/api/reset/` | 管理员 | 恢复确定的测试初始状态 |
+| Method | Path                            | 权限                 | 说明                                                     |
+| ------ | ------------------------------- | -------------------- | -------------------------------------------------------- |
+| POST   | `/api/submissions/`             | 登录                 | 异步提交，每分钟最多三次                                 |
+| GET    | `/api/submissions/`             | 本人/管理员          | 按用户、题目、状态、是否全过筛选和分页                   |
+| GET    | `/api/submissions/{id}`         | 本人/管理员          | 总体评测结果                                             |
+| PUT    | `/api/submissions/{id}/rejudge` | 管理员               | 覆盖并重新评测                                           |
+| GET    | `/api/submissions/{id}/log`     | 本人/管理员/公开题目 | 测试点明细                                               |
+| GET    | `/api/logs/access/`             | 管理员               | 日志访问审计；`include_metadata=true` 返回总数和分页结果 |
+| GET    | `/api/logs/roles/`              | 管理员               | 角色变更审计；支持分页，`include_metadata=true` 返回总数 |
+| POST   | `/api/reset/`                   | 管理员               | 恢复确定的测试初始状态                                   |
 
 提交列表至少提供 `user_id` 或 `problem_id`。若提供 `page`，必须同时提供
 `page_size`；只有 `page_size` 时默认第一页；两者均省略时返回全部结果。
@@ -45,22 +45,23 @@
 管理员可用 `all_users=true` 查询全站提交；`include_metadata=true` 的列表/详情增加 `username`，
 列表仍不返回源码。管理员用户列表支持 `q` 按用户名子串（字面匹配）或精确用户 ID 搜索。
 新版网页对应入口与权限核对见 [管理员网页覆盖表](admin-web-coverage.md)。
+完整实验功能入口见 [实验功能与 React 网页覆盖核对](web-scoring-coverage.md)。
 
 ## AI 智能命题
 
-| Method | Path | 权限 | 说明 |
-| --- | --- | --- | --- |
-| GET | `/api/ai/model-config` | 登录 | 有效配置来源与状态；只返回本人配置的可编辑元数据 |
-| PUT | `/api/ai/model-config` | 登录 | 保存加密的兼容模型配置与价格 |
-| DELETE | `/api/ai/model-config` | 登录 | 仅移除本人覆盖，回退系统默认；幂等 |
-| POST | `/api/ai/problem-tasks/` | 登录 | 创建流式命题任务 |
-| GET | `/api/ai/problem-tasks/` | 登录 | 最近 50 个本人任务、状态与费用 |
-| GET | `/api/ai/problem-tasks/{id}` | 创建者/管理员 | 查询进度、结果、Token 与费用 |
-| PUT | `/api/ai/problem-tasks/{id}/cancel` | 创建者/管理员 | 实际中断后台任务 |
-| GET/POST | `/api/problem-drafts/` | 登录 | 本人命题草稿列表/创建 |
-| GET/PUT/DELETE | `/api/problem-drafts/{id}` | 创建者 | 读取、乐观锁更新、归档 |
-| GET | `/api/problem-drafts/{id}/revisions` | 创建者 | 完整版本快照 |
-| POST | `/api/problem-drafts/{id}/publish` | 创建者 | 仅发布通过质量门禁的草稿 |
+| Method         | Path                                 | 权限          | 说明                                             |
+| -------------- | ------------------------------------ | ------------- | ------------------------------------------------ |
+| GET            | `/api/ai/model-config`               | 登录          | 有效配置来源与状态；只返回本人配置的可编辑元数据 |
+| PUT            | `/api/ai/model-config`               | 登录          | 保存加密的兼容模型配置与价格                     |
+| DELETE         | `/api/ai/model-config`               | 登录          | 仅移除本人覆盖，回退系统默认；幂等               |
+| POST           | `/api/ai/problem-tasks/`             | 登录          | 创建流式命题任务                                 |
+| GET            | `/api/ai/problem-tasks/`             | 登录          | 最近 50 个本人任务、状态与费用                   |
+| GET            | `/api/ai/problem-tasks/{id}`         | 创建者/管理员 | 查询进度、结果、Token 与费用                     |
+| PUT            | `/api/ai/problem-tasks/{id}/cancel`  | 创建者/管理员 | 实际中断后台任务                                 |
+| GET/POST       | `/api/problem-drafts/`               | 登录          | 本人命题草稿列表/创建                            |
+| GET/PUT/DELETE | `/api/problem-drafts/{id}`           | 创建者        | 读取、部分草稿乐观锁更新、归档                   |
+| GET            | `/api/problem-drafts/{id}/revisions` | 创建者        | 完整版本快照                                     |
+| POST           | `/api/problem-drafts/{id}/publish`   | 创建者        | 仅发布通过质量门禁的草稿                         |
 
 `GET /api/ai/model-config` 返回 `source`（`personal/system/none`）、
 `system_configured`、`personal_configured` 和 `api_key_configured`。
@@ -86,8 +87,8 @@
 
 ## 做题草稿
 
-| Method | Path | 权限 | 说明 |
-| --- | --- | --- | --- |
+| Method         | Path                                            | 权限 | 说明                                       |
+| -------------- | ----------------------------------------------- | ---- | ------------------------------------------ |
 | GET/PUT/DELETE | `/api/workspace-drafts/{problem_id}/{language}` | 登录 | 按用户、题目、语言恢复、保存或删除源码草稿 |
 
 提供商需兼容 `POST {provider_url}/chat/completions` 的 OpenAI 流式协议。生产环境仅
@@ -95,4 +96,3 @@
 AI 完整质量门禁要求独立暴力解与确定性数据生成器；生成器在评测资源限制中运行，
 输出 20–100 组唯一输入。参考解与 oracle 全部对拍一致且 mutation score 为 100% 后，
 关联命题草稿才进入 `ready` 状态。
-

@@ -12,7 +12,7 @@ export function CodeEditor({
   value,
   onChange,
   language = "python",
-  size = 16,
+  size = 14,
   onSubmit,
 }: {
   value: string;
@@ -41,7 +41,7 @@ export function CodeEditor({
         scrollBeyondLastLine: false,
         automaticLayout: true,
         tabSize: 4,
-        padding: { top: 16 },
+        padding: { top: 10 },
         wordWrap: "on",
         accessibilitySupport: "on",
       }}
