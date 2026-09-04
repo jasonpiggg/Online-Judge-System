@@ -260,9 +260,9 @@ test("regular user manages experiment resources from the main navigation", async
     .getByRole("row", { name: /sum_2/ })
     .getByRole("button", { name: "查看详情", exact: true })
     .click();
-  await expect(
-    page.getByRole("region", { name: "题目详细信息" }),
-  ).toContainText("sum_2");
+  const problemDetails = page.getByRole("region", { name: "题目详细信息" });
+  await expect(problemDetails).toContainText("sum_2");
+  await expect(problemDetails).toBeFocused();
   await expect(
     page.getByRole("button", { name: "编辑题目", exact: true }),
   ).toBeVisible();
@@ -555,9 +555,9 @@ test("administrator manages problems, users, submissions and audit through the U
   await page.getByLabel("搜索用户").fill(username);
   const row = page.locator("tbody tr").filter({ hasText: username });
   await row.getByRole("link", { name: "资料", exact: true }).click();
-  await expect(page.getByRole("region", { name: "用户资料" })).toContainText(
-    uid,
-  );
+  const userProfile = page.getByRole("region", { name: "用户资料" });
+  await expect(userProfile).toContainText(uid);
+  await expect(userProfile).toBeFocused();
   await page.getByRole("link", { name: "查看此用户提交" }).click();
   await expect(page.locator("tbody tr")).toHaveCount(1);
   await expect(page.locator("tbody")).toContainText(username);
@@ -663,7 +663,7 @@ test("browser-like activity tabs close safely and reopen on navigation", async (
   await expect.poll(() => page.locator(".activity-tab > a span").allTextContents()).toEqual(before);
 });
 
-test("AI code review blocks snippets and stale edits, and supports undo", async ({ page }, testInfo) => {
+test("AI code review warns on snippets, blocks stale edits, and supports undo", async ({ page }, testInfo) => {
   await login(page);
   await page.goto("/problems/sum_2?tab=代码");
   const original = "import sys\na, b = map(int, sys.stdin.readline().split())\nprint(a - b)";
@@ -674,9 +674,10 @@ test("AI code review blocks snippets and stale edits, and supports undo", async 
   await page.getByLabel("你的问题").fill("分析本次评测的单行建议");
   await page.getByLabel("你的问题").press("Enter");
   await expect(page.getByText("回答已完成", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "审查回答中的代码" }).click();
+  await page.getByRole("button", { name: /查看代码候选 1 差异/ }).click();
   await expect(page.locator(".diff-remove").first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "应用完整代码" })).toHaveCount(0);
+  await expect(page.getByText(/代码较短，可能只是讲解片段/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "确认覆盖编辑器" })).toBeEnabled();
   await expect(page.locator(".view-lines")).toContainText("a - b");
   await page.getByRole("button", { name: "关闭审查" }).click();
   await page.getByRole("button", { name: "新对话", exact: true }).click();
@@ -684,8 +685,8 @@ test("AI code review blocks snippets and stale edits, and supports undo", async 
   await page.getByLabel("你的问题").fill("请给我完整代码用于代码审查验收");
   await page.getByLabel("你的问题").press("Enter");
   await expect(page.getByText("回答已完成", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "审查回答中的代码" }).click();
-  await expect(page.getByRole("button", { name: "应用完整代码" })).toBeEnabled();
+  await page.getByRole("button", { name: /查看代码候选 1 差异/ }).click();
+  await expect(page.getByRole("button", { name: "确认覆盖编辑器" })).toBeEnabled();
   for (const width of [1440, 1024, 390]) {
     await page.setViewportSize({ width, height: 950 });
     await page.locator(".code-review-card").scrollIntoViewIfNeeded();
@@ -694,23 +695,24 @@ test("AI code review blocks snippets and stale edits, and supports undo", async 
   }
   await page.setViewportSize({ width: 1440, height: 950 });
   await page.getByLabel("编程语言").selectOption("cpp");
-  await expect(page.getByRole("button", { name: "应用完整代码" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "确认覆盖编辑器" })).toBeDisabled();
   await page.getByLabel("编程语言").selectOption("python");
-  await expect(page.getByRole("button", { name: "应用完整代码" })).toBeEnabled();
-  await page.getByRole("button", { name: "应用完整代码" }).click();
+  await expect(page.getByRole("button", { name: "确认覆盖编辑器" })).toBeEnabled();
+  await page.getByRole("button", { name: "确认覆盖编辑器" }).click();
   await expect(page.locator(".view-lines")).toContainText("a + b");
   await page.getByRole("button", { name: "撤销 AI 替换" }).click();
   await expect(page.locator(".view-lines")).toContainText("a - b");
-  await page.getByRole("button", { name: "审查回答中的代码" }).click();
+  await page.getByRole("button", { name: /查看代码候选 1 差异/ }).click();
   await page.locator(".monaco-editor").click();
   await page.keyboard.press("ControlOrMeta+End");
   await page.keyboard.insertText("\n# keep my new edit");
-  await expect(page.getByRole("button", { name: "应用完整代码" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "确认覆盖编辑器" })).toBeDisabled();
 });
 
 test("content font and inset spacing remain readable across viewports", async ({ page }) => {
   await login(page);
   await page.goto("/problems/brackets?tab=代码");
+  await expect(page.getByLabel("代码字号")).toHaveValue("14");
   for (const width of [1440, 1024, 390]) {
     await page.setViewportSize({ width, height: 950 });
     expect(await page.locator(".statement .markdown p").first().evaluate(node => getComputedStyle(node).fontSize)).toBe("16px");
@@ -737,6 +739,29 @@ test("failed local verification returns to the draft without paid regeneration",
   await page.getByRole("link", { name: "返回草稿修正并检查" }).click();
   await expect(page).toHaveURL(new RegExp(`/authoring/drafts/${draftId}`));
   await expect(page.getByRole("button", { name: "运行基础检查", exact: true })).toBeEnabled();
+});
+
+test("authoring lists paginate independently, archive, and recover a failed candidate", async ({ page }) => {
+  await login(page);
+  for (let index = 0; index < 11; index += 1) {
+    const created = await page.request.post("/api/problem-drafts/", {
+      data: { problem: { id: `page_${index}`, title: `分页草稿 ${index}` } },
+    });
+    expect(created.status()).toBe(200);
+  }
+  await page.goto("/authoring");
+  await expect(page.getByRole("navigation", { name: "草稿分页" })).toBeVisible();
+  await page.getByRole("navigation", { name: "草稿分页" }).getByRole("button", { name: "第 2 页" }).click();
+  await expect(page).toHaveURL(/draft_page=2/);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator(".managed-row").filter({ has: page.getByText(/分页草稿/) }).first().getByRole("button", { name: "归档" }).click();
+
+  await page.getByLabel("命题需求").fill("创建一道验收失败恢复的简易计算器题目");
+  await page.getByRole("button", { name: "开始生成" }).click();
+  await expect(page.getByText("可恢复的命题成果")).toBeVisible({ timeout: 45000 });
+  await page.getByRole("button", { name: "将当前成果另存为草稿" }).click();
+  await expect(page.getByLabel("标题", { exact: true })).toHaveValue("浏览器验收求和题");
+  await expect(page.getByText(/发布前仍须重新通过/)).toHaveCount(0);
 });
 
 test("regular user can view public case logs without private submission data", async ({

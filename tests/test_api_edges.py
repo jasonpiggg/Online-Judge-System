@@ -136,9 +136,8 @@ async def test_filters_logs_visibility_and_private_summary(
     )
     assert audit_page.json()["data"]["total"] == 1
     assert len(audit_page.json()["data"]["logs"]) == 1
-    assert (await client.get("/api/logs/access/", params={"page": 2, "page_size": 1})).json()[
-        "data"
-    ] == []
+    blank_scope = await client.get("/api/logs/access/", params={"page": 2, "page_size": 1})
+    assert blank_scope.status_code == 400
     filtered = await client.get(
         "/api/submissions/",
         params={"user_id": 1, "problem_id": "sum_2", "status": "success", "page_size": 1},

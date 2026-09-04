@@ -25,7 +25,7 @@ async def list_problems(
                    THEN 1 ELSE 0 END) AS passed,
                MAX(CASE WHEN status='success' AND counts>0
                    THEN CAST(score AS REAL)/counts ELSE 0 END) AS best_ratio
-               FROM submissions WHERE user_id=? GROUP BY problem_id""",
+               FROM submissions WHERE user_id=? AND problem_deleted=0 GROUP BY problem_id""",
             (user.id,),
         )
         progress = {row["problem_id"]: dict(row) for row in rows}
@@ -99,8 +99,21 @@ async def delete_problem(
     problem_id: str,
     _admin: CurrentUser = Depends(require_admin),
 ) -> JSONResponse:
-    if not await request.app.state.problems.delete(problem_id):
-        raise APIError(404, "problem not found")
+    async with request.app.state.submissions.intake_lock:
+        problem = await request.app.state.problems.get(problem_id)
+        if problem is None:
+            raise APIError(404, "problem not found")
+        if not await request.app.state.problems.delete(problem_id):
+            raise APIError(404, "problem not found")
+        try:
+            await request.app.state.db.execute(
+                "UPDATE submissions SET problem_deleted=1 WHERE problem_id=?",
+                (problem_id,),
+            )
+        except Exception:
+            # Keep the file store and statistics coherent if the SQLite update fails.
+            await request.app.state.problems.create(problem)
+            raise
     return response(200, "delete success", {"id": problem_id})
 
 

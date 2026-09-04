@@ -41,7 +41,7 @@ Atelier OJ · 实验二 · v1.2.0 修复候选版
 
 每题一个 JSON 文件。安全题号只允许字母、数字、下划线和连字符；保存前经 Pydantic 校验。同目录临时文件写入、fsync、原子替换及异步锁保证写入完整性。输入、输出、代码和密码不自动 strip，保留有意义的空白。
 
-SQLite 在原有业务表外新增 workspace_drafts、problem_drafts、problem_draft_revisions 和 verification_runs。源码草稿按用户、题目和语言隔离；命题草稿采用 revision 乐观锁并保存完整快照。PRAGMA user_version 7 增加做题会话上下文代次；升级前生成 SQLite 备份，reset 不承担迁移职责。
+SQLite 在原有业务表外新增 workspace_drafts、problem_drafts、problem_draft_revisions 和 verification_runs。源码草稿按用户、题目和语言隔离；命题草稿采用 revision 乐观锁并保存完整快照。PRAGMA user_version 8 增加做题会话上下文代次、任务归档、失败成果恢复关联和删题提交标记；升级前生成 SQLite 备份，reset 不承担迁移职责。
 
 题目限制内部允许未设置，JSON 中保持省略。评测逐项使用“题目显式值、语言值、系统 3 秒/128 MB”的顺序。课程 GET 接口仍展示默认值，额外 limit_inheritance 字段供编辑器区分继承与显式配置，不猜测旧数据的原始意图。
 

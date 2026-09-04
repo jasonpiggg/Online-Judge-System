@@ -20,7 +20,9 @@ import { TaskProgress, terminal, useTask } from "../components/AI";
 import { BackLink } from "../components/BackLink";
 import { DiffView } from "../components/DiffView";
 import { ErrorNotice } from "../components/ErrorNotice";
-import { useRegisterActivity } from "../components/Activity";
+import { useActivity, useRegisterActivity } from "../components/Activity";
+import { Pagination } from "../components/Pagination";
+import { useActionReveal } from "../components/useActionReveal";
 type Draft = {
   id: string;
   base_problem_id: string | null;
@@ -101,20 +103,55 @@ function clean(p: Problem): FormProblem {
 }
 export function Authoring() {
   const navigate = useNavigate();
+  const { remove: removeActivity } = useActivity();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const draftPage = Math.max(1, Number(searchParams.get("draft_page")) || 1);
+  const taskPage = Math.max(1, Number(searchParams.get("task_page")) || 1);
   const [requirement, setRequirement] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const pending = useRef<{ text: string; key: string } | undefined>(undefined);
   const drafts = useQuery({
-    queryKey: ["drafts"],
-    queryFn: () => api<Draft[]>("/problem-drafts/"),
+    queryKey: ["drafts", draftPage],
+    queryFn: () => api<{ drafts: Draft[]; total: number; page: number; page_size: number }>(
+      `/problem-drafts/?page=${draftPage}&page_size=10&include_metadata=true&include_archived=false`,
+    ),
   });
   const tasks = useQuery({
-    queryKey: ["tasks"],
-    queryFn: () => api<Record<string, any>[]>("/ai/problem-tasks/"),
+    queryKey: ["tasks", taskPage],
+    queryFn: () => api<{ tasks: Record<string, any>[]; total: number; page: number; page_size: number }>(
+      `/ai/problem-tasks/?page=${taskPage}&page_size=10&include_metadata=true&include_archived=false`,
+    ),
     refetchInterval: (q) =>
-      q.state.data?.some((t) => !terminal(t.status)) ? 5000 : false,
+      q.state.data?.tasks.some((t) => !terminal(t.status)) ? 5000 : false,
   });
+  const changePage = (key: "draft_page" | "task_page", value: number) => {
+    const next = new URLSearchParams(searchParams);
+    next.set(key, String(value));
+    setSearchParams(next);
+  };
+  useEffect(() => {
+    if (drafts.data && draftPage > Math.max(1, Math.ceil(drafts.data.total / 10)))
+      changePage("draft_page", Math.max(1, Math.ceil(drafts.data.total / 10)));
+  }, [drafts.data?.total, draftPage]);
+  useEffect(() => {
+    if (tasks.data && taskPage > Math.max(1, Math.ceil(tasks.data.total / 10)))
+      changePage("task_page", Math.max(1, Math.ceil(tasks.data.total / 10)));
+  }, [tasks.data?.total, taskPage]);
+  const archive = async (kind: "draft" | "task", id: string) => {
+    if (!window.confirm(`确认归档这项${kind === "draft" ? "草稿" : "AI 任务"}？内容和费用记录会保留。`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(kind === "draft" ? `/problem-drafts/${id}` : `/ai/problem-tasks/${id}`, json("DELETE"));
+      removeActivity(`${kind === "draft" ? "draft" : "ai"}:${id}`);
+      await queryClient.invalidateQueries({ queryKey: [kind === "draft" ? "drafts" : "tasks"] });
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   const create = async () => {
     if (busy) return;
     setBusy(true);
@@ -196,16 +233,11 @@ export function Authoring() {
       {error && <ErrorNotice message={error} />}
       <h2>我的草稿</h2>
       <div className="draft-list">
-        {drafts.data
-          ?.filter((d) => d.status !== "archived")
-          .map((d) => (
-            <Link
-              className="draft-row"
-              key={d.id}
-              to={"/authoring/drafts/" + d.id}
-            >
-              <strong>{d.problem?.title || "未命名题目"}</strong>
-              <span className="muted">
+        {drafts.data?.drafts.map((d) => (
+            <div className="draft-row managed-row" key={d.id}>
+              <Link to={"/authoring/drafts/" + d.id}>
+                <strong>{d.problem?.title || "未命名题目"}</strong>
+                <span className="muted">
                 {
                   (
                     {
@@ -217,22 +249,28 @@ export function Authoring() {
                   )[d.status]
                 }{" "}
                 · {d.status === "ready" ? (d.verification_level === "full" ? "完整验证" : "基础检查") + " · " : ""}版本 {d.revision}
-              </span>
-            </Link>
+                </span>
+              </Link>
+              <Button variant="ghost" disabled={busy} onClick={() => void archive("draft", d.id)}>归档</Button>
+            </div>
           ))}
-        {drafts.data?.length === 0 && (
+        {drafts.data?.total === 0 && (
           <p className="muted">生成或创建一道题，草稿会保存在这里。</p>
         )}
       </div>
+      {drafts.data && drafts.data.total > 10 && <Pagination page={draftPage} totalPages={Math.ceil(drafts.data.total / 10)} label="草稿分页" onChange={(page) => changePage("draft_page", page)} />}
       <h2>AI 任务</h2>
-      {tasks.data?.map((t) => (
-        <Link className="draft-row" key={t.id} to={"/authoring/tasks/" + t.id}>
-          <span>{t.progress}</span>
-          <span className="muted">
-            {new Date(t.created_at).toLocaleString()}
-          </span>
-        </Link>
+      {tasks.data?.tasks.map((t) => (
+        <div className="draft-row managed-row" key={t.id}>
+          <Link to={"/authoring/tasks/" + t.id}>
+            <span>{t.progress}</span>
+            <span className="muted">{new Date(t.created_at).toLocaleString()}</span>
+          </Link>
+          <Button variant="ghost" disabled={busy} onClick={() => void archive("task", t.id)}>归档</Button>
+        </div>
       ))}
+      {tasks.data?.total === 0 && <p className="muted">还没有 AI 命题或验证任务。</p>}
+      {tasks.data && tasks.data.total > 10 && <Pagination page={taskPage} totalPages={Math.ceil(tasks.data.total / 10)} label="AI 任务分页" onChange={(page) => changePage("task_page", page)} />}
     </div>
   );
 }
@@ -255,6 +293,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const step = params.get("step") || "题面与样例";
+  const stepReveal = useActionReveal<HTMLFormElement>();
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
@@ -531,7 +570,10 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
           <Button
             key={t}
             variant={step === t ? "default" : "ghost"}
-            onClick={() => setParams({ step: t })}
+            onClick={() => {
+              setParams({ step: t });
+              stepReveal.reveal();
+            }}
             aria-current={step === t ? "step" : undefined}
           >
             <span className="step-number" aria-hidden="true">
@@ -578,8 +620,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
       {preview ? (
         <Statement problem={values as Problem} />
       ) : (
-        <form
-          className="form-grid"
+        <form ref={stepReveal.ref} className="form-grid reveal-target"
           onSubmit={async (event) => {
             event.preventDefault();
             setBusy(true);
@@ -816,12 +857,12 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                     <li className="skipped">Markdown 与数学公式语法：运行后确认</li>
                     <li className="skipped">{reference.trim() ? "待运行参考解的全部样例和测试" : "未提供参考解，将跳过自动输出核对"}</li>
                   </ul>
-                  {!schemaValid && <Button type="button" onClick={() => setParams({ step: "题面与样例" })}>补全题目字段</Button>}
+                  {!schemaValid && <Button type="button" onClick={() => { setParams({ step: "题面与样例" }); stepReveal.reveal(); }}>补全题目字段</Button>}
                 </section>
                 <section>
                   <span className="eyebrow"><Icon name="shield" /> 完整验证</span>
                   <h3>AI 命题质量资产</h3>
-                  {fullIssues.length ? <><p className="muted">还缺少：{fullIssues.join("、")}</p><Button type="button" onClick={() => setParams({ step: "测试与解法" })}>前往补充验证资产</Button></> : <p className="status-good">完整验证所需内容已填写。</p>}
+                  {fullIssues.length ? <><p className="muted">还缺少：{fullIssues.join("、")}</p><Button type="button" onClick={() => { setParams({ step: "测试与解法" }); stepReveal.reveal(); }}>前往补充验证资产</Button></> : <p className="status-good">完整验证所需内容已填写。</p>}
                 </section>
               </div>
               {draft.verification_summary && <VerificationReport report={draft.verification_summary} />}
@@ -979,6 +1020,19 @@ export function AuthoringTask() {
   if (!t) return <p className="skeleton">{error?.message || "读取任务…"}</p>;
   const result = t.result,
     preview = t.preview || {};
+  const saveRecoveryDraft = async () => {
+    setBusy(true);
+    setActionError("");
+    try {
+      const recovered = await api<{ draft_id: string }>(`/ai/problem-tasks/${t.task_id}/save-draft`, json("POST"));
+      await queryClient.invalidateQueries({ queryKey: ["task", t.task_id] });
+      navigate(`/authoring/drafts/${recovered.draft_id}`);
+    } catch (e) {
+      setActionError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   const accept = async () => {
     if (!result || !t.draft_id) return;
     setBusy(true);
@@ -1113,9 +1167,14 @@ export function AuthoringTask() {
           {t.action === "verify" ? (
             <Button asChild><Link to={t.draft_id ? `/authoring/drafts/${t.draft_id}?step=检查与发布` : "/authoring"}>返回草稿修正并检查</Link></Button>
           ) : (
-          <Button
-            disabled={busy}
-            onClick={async () => {
+          <div className="action-group">
+            {t.draft_id && <Button asChild><Link to={`/authoring/drafts/${t.draft_id}`}>返回原草稿</Link></Button>}
+            {t.recovery_draft_id ? (
+              <Button variant="default" asChild><Link to={`/authoring/drafts/${t.recovery_draft_id}`}>打开恢复草稿</Link></Button>
+            ) : (
+              <Button variant="default" disabled={busy} onClick={() => void saveRecoveryDraft()}>将当前成果另存为草稿</Button>
+            )}
+            <Button disabled={busy} onClick={async () => {
               setBusy(true);
               try {
                 const r = await api<{ task_id: string }>("/ai/problem-tasks/", {
@@ -1137,14 +1196,25 @@ export function AuthoringTask() {
               } finally {
                 setBusy(false);
               }
-            }}
-          >
+            }}>
             {result?.kind === "candidate" ? "从已完成阶段继续" : "重新生成"}
-          </Button>
+            </Button>
+          </div>
           )}
         </div>
       )}
       {actionError && <ErrorNotice message={actionError} />}
+      {t.status === "failed" && t.action !== "verify" && (
+        <section className="verification-report level-basic" aria-label="失败成果恢复说明">
+          <h3>可恢复的命题成果</h3>
+          <dl className="metadata-grid">
+            <div><dt>失败阶段</dt><dd>{result?.validation?.stage || t.stage || "生成"}</dd></div>
+            <div><dt>失败检查</dt><dd>{result?.validation?.message || t.error || "模型响应未通过结构或本地验证"}</dd></div>
+            <div><dt>已保存内容</dt><dd>{result?.problem ? "题面" : preview.title ? "部分题面" : "任务需求"}{result?.reference_solution ? "、参考解" : ""}{result?.generator_code ? "、生成器" : ""}</dd></div>
+          </dl>
+          <p className="muted">可以零费用另存为未验证草稿后人工修正；发布前仍须重新通过基础检查或完整验证。</p>
+        </section>
+      )}
     </div>
   );
 }

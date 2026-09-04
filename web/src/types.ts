@@ -42,6 +42,7 @@ export type Submission = {
   compile_info?: string;
   run_info?: string;
   error_info?: string;
+  problem_deleted?: boolean;
   evaluation?: Evaluation;
 };
 export type Evaluation = {

@@ -165,9 +165,11 @@ export function Records({
                         </td>
                       )}
                       <td>
-                        <Link to={`/problems/${s.problem_id}`}>
-                          {s.problem_id}
-                        </Link>
+                        {s.problem_deleted ? (
+                          <span>{s.problem_id} <small className="cell-note">题目已删除</small></span>
+                        ) : (
+                          <Link to={`/problems/${s.problem_id}`}>{s.problem_id}</Link>
+                        )}
                       </td>
                       <td>
                         <span className="language-tag">{s.language}</span>
@@ -238,15 +240,18 @@ export function SubmissionPage({ user }: { user: User }) {
             <span className="eyebrow">
               <Icon name="chart" /> 提交详情
             </span>
-            <Button asChild>
-              <Link to={`/problems/${s.problem_id}?submission=${id}&tab=代码`}>
-                返回题目继续修改
-              </Link>
-            </Button>
+            {!s.problem_deleted && (
+              <Button asChild>
+                <Link to={`/problems/${s.problem_id}?submission=${id}&tab=代码`}>
+                  返回题目继续修改
+                </Link>
+              </Button>
+            )}
           </div>
           <p className="muted">
             题号 {s.problem_id} · {s.username || `用户 ${s.user_id}`} ·{" "}
             {s.language} · {new Date(s.created_at).toLocaleString()}
+            {s.problem_deleted ? " · 题目已删除（保留此提交供审计）" : ""}
           </p>
           <ResultPanel id={id!} detailLink={false} />
           <details open>
@@ -255,7 +260,7 @@ export function SubmissionPage({ user }: { user: User }) {
           </details>
           {user.role === "admin" && (
             <Button
-              disabled={busy || s.status === "pending"}
+              disabled={busy || s.status === "pending" || s.problem_deleted}
               onClick={async () => {
                 if (busy) return;
                 setBusy(true);

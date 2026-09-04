@@ -30,8 +30,9 @@ async def _submit_locked(
 ) -> JSONResponse:
     one_minute_ago = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
     recent = await request.app.state.db.fetchone(
-        "SELECT COUNT(*) AS n FROM submissions WHERE user_id=? AND created_at>=?",
-        (user.id, one_minute_ago),
+        "SELECT COUNT(*) AS n FROM submissions "
+        "WHERE user_id=? AND problem_id=? AND created_at>=?",
+        (user.id, body.problem_id, one_minute_ago),
     )
     if recent["n"] >= 3:
         raise APIError(429, "submission rate limit exceeded")
@@ -160,10 +161,14 @@ async def rejudge(
     _admin: CurrentUser = Depends(require_admin),
 ) -> JSONResponse:
     row = await request.app.state.db.fetchone(
-        "SELECT id FROM submissions WHERE id=?", (submission_id,)
+        "SELECT id,problem_id,problem_deleted FROM submissions WHERE id=?", (submission_id,)
     )
     if row is None:
         raise APIError(404, "submission not found")
+    if row["problem_deleted"] or await request.app.state.problems.get(row["problem_id"]) is None:
+        raise APIError(
+            409, "the problem was deleted; this historical submission cannot be rejudged"
+        )
     await request.app.state.submissions.cancel_one(submission_id)
     async with request.app.state.db.connect() as db:
         await db.execute("DELETE FROM submission_cases WHERE submission_id=?", (submission_id,))

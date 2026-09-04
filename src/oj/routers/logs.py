@@ -90,6 +90,8 @@ async def access_logs(
     include_metadata: bool = False,
     _admin: CurrentUser = Depends(require_admin),
 ) -> JSONResponse:
+    if user_id is None and problem_id is None:
+        raise APIError(400, "user_id or problem_id is required")
     if page is not None and page_size is None:
         raise APIError(400, "page_size is required when page is provided")
     clauses: list[str] = []

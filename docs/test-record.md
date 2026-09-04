@@ -1,5 +1,14 @@
 # Atelier OJ v1.2.0 修复候选版测试记录
 
+## 2026-09-05 命题管理与实验合规回归
+
+- 后端 237 passed、10 skipped；行覆盖率 95.82%，分支覆盖率 88.58%。
+- Vitest 27 passed，TypeScript、ESLint 和 production build 通过；Playwright 24 passed。
+- Ruff、mypy、`git diff --check` 通过；pip-audit 未发现已知漏洞。
+- 隔离真实模型“简易计算器”完整门禁通过：12 个测试点、3 个错误解、60 组 oracle 对拍，9,007 Token，CNY 0.123424；未发布。
+- 详细证据见 [命题管理、代码覆盖与实验合规交付报告](authoring-compliance-delivery-2026-09-05.md)。
+
+
 记录日期：2026-09-04。以下数字来自实际命令输出，未把跳过项或 mock 结果改写成真实供应商结果。
 
 ## 自动测试

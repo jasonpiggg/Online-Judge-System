@@ -31,7 +31,11 @@ app = create_app(
 
 async def completion(config: Any, prompt: str, usage: Any = None) -> tuple[str, int, int, str]:
     data = json.loads(prompt)
-    if "programming tutor" in config["system_prompt"]:
+    if "验收失败恢复" in str(data.get("requirement", "")) and (
+        "candidate_schema" in data or "allowed_patch" in data
+    ):
+        text = '{"patch":'
+    elif "programming tutor" in config["system_prompt"]:
         text = (
             "### 输入提示\n\n先检查输入：两个整数需要相加。\n\n```python\n"
             "a, b = map(int, input().split())\nprint(a + b)\n```"

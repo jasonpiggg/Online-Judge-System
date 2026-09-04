@@ -5,11 +5,13 @@ import { Button } from "../components/ui/button";
 import { Icon } from "../components/Icon";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useActionReveal } from "../components/useActionReveal";
 
 export function Resources() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [submissionId, setSubmissionId] = useState("");
+  const panelReveal = useActionReveal<HTMLDivElement>();
   const tab = ["语言", "公开日志"].includes(params.get("tab") || "")
     ? params.get("tab")!
     : "题目";
@@ -31,12 +33,16 @@ export function Resources() {
           <Button
             key={value}
             variant={tab === value ? "default" : "ghost"}
-            onClick={() => setParams({ tab: value })}
+            onClick={() => {
+              setParams({ tab: value });
+              panelReveal.reveal();
+            }}
           >
             {value}
           </Button>
         ))}
       </div>
+      <div ref={panelReveal.ref} className="resource-tab-panel reveal-target">
       {tab === "题目" ? (
         <AdminProblems />
       ) : tab === "语言" ? (
@@ -54,6 +60,7 @@ export function Resources() {
           </form>
         </section>
       )}
+      </div>
     </div>
   );
 }

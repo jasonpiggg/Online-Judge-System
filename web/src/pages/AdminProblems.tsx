@@ -15,6 +15,7 @@ import { Pagination } from "../components/Pagination";
 import { Statement } from "../components/Statement";
 import { Code } from "../components/Markdown";
 import { createEditingDraft } from "../problem-actions";
+import { useActionReveal } from "../components/useActionReveal";
 
 export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
   const [params, setParams] = useSearchParams();
@@ -29,6 +30,7 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
     id: string;
     value: boolean;
   } | null>(null);
+  const detailReveal = useActionReveal<HTMLElement>();
   const problems = useQuery({
     queryKey: ["admin-problems"],
     queryFn: () => api<Problem[]>("/problems/?include_metadata=true"),
@@ -114,6 +116,7 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
                         variant="ghost"
                         onClick={() => {
                           setError("");
+                          detailReveal.reveal();
                           setParams({
                             ...Object.fromEntries(params),
                             problem_id: problem.id,
@@ -144,7 +147,7 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
       )}
       {id && detail.isPending && <p className="skeleton">正在读取题目详情…</p>}
       {p && (
-        <section className="admin-detail" aria-label="题目详细信息">
+        <section ref={detailReveal.ref} className="admin-detail reveal-target" aria-label="题目详细信息">
           <div className="section-heading">
             <div>
               <span className="eyebrow">题目详情</span>
