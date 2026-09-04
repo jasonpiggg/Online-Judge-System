@@ -71,7 +71,7 @@ export function Library() {
         </h1>
         <span className="muted">从一道题开始。</span>
       </div>
-      <div className="filters">
+      <div className="filters filter-panel">
         <SearchInput
           label="搜索题目"
           navigationKey={location.key}
@@ -108,9 +108,12 @@ export function Library() {
         <div className="skeleton">正在加载题目…</div>
       ) : (
         <>
-          <p className="muted">{filtered?.length} 道题目</p>
+          <p className="list-summary">
+            共 <strong>{filtered?.length}</strong> 道题目
+          </p>
           <div className="problem-list">
             <div className="list-head">
+              <span className="library-id">题号</span>
               <span>题目</span>
               <span>难度</span>
               <span>状态</span>
@@ -129,8 +132,8 @@ export function Library() {
                   scrollY: window.scrollY,
                 }}
               >
-                <div>
-                  <span className="problem-id">{p.id}</span>
+                <span className="problem-id library-id">{p.id}</span>
+                <div className="problem-title">
                   <strong>{p.title}</strong>
                   <div className="tags">
                     {p.tags?.slice(0, 3).map((t) => (
@@ -141,7 +144,9 @@ export function Library() {
                 <DifficultyBadge value={p.difficulty} />
                 <span
                   className={
-                    p.progress?.passed ? "badge tone-AC" : "badge tone-pending"
+                    p.progress?.passed
+                      ? "badge problem-progress tone-AC"
+                      : "badge problem-progress tone-pending"
                   }
                 >
                   {label(p)}

@@ -327,3 +327,194 @@ test("visual acceptance across pages and result panels", async ({
     }
   }
 });
+test("library columns stay aligned with long identifiers and mobile navigation", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  const source = (await (await page.request.get("/api/problems/sum_2")).json())
+    .data;
+  delete source.limit_inheritance;
+  const id = "long_identifier_".repeat(4);
+  expect(
+    (
+      await page.request.post("/api/problems/", {
+        data: { ...source, id, title: "较长题目标题与边界情况".repeat(5) },
+      })
+    ).status(),
+  ).toBe(200);
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 960 });
+    await page.goto("/problems");
+    await expect(
+      page.locator(".problem-row").filter({ hasText: id }),
+    ).toBeVisible();
+    const header = await page
+      .locator(".list-head")
+      .evaluate((e) =>
+        Array.from(e.children).map((c) => ({
+          x: c.getBoundingClientRect().x,
+          width: c.getBoundingClientRect().width,
+        })),
+      );
+    const row = await page
+      .locator(".problem-row")
+      .filter({ hasText: id })
+      .evaluate((e) =>
+        Array.from(e.children).map((c) => ({
+          x: c.getBoundingClientRect().x,
+          width: c.getBoundingClientRect().width,
+        })),
+      );
+    if (width > 760)
+      for (const i of [0, 1])
+        expect(Math.abs(header[i].x - row[i].x)).toBeLessThan(1);
+    for (const i of [2, 3])
+      expect(
+        Math.abs(
+          header[i].x + header[i].width / 2 - row[i].x - row[i].width / 2,
+        ),
+      ).toBeLessThan(1);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth + 1,
+      ),
+    ).toBeTruthy();
+    for (const item of await page
+      .getByRole("navigation", { name: "主导航" })
+      .getByRole("link")
+      .all())
+      expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await page.screenshot({
+      path: testInfo.outputPath(`alignment-${width}.png`),
+      fullPage: true,
+    });
+  }
+});
+
+test("administrator manages problems, users, submissions and audit through the UI", async ({
+  page,
+  playwright,
+}, testInfo) => {
+  await login(page);
+  const username = "managed_student";
+  const created = await page.request.post("/api/users/", {
+    data: { username, password: "test-student-password" },
+  });
+  expect(created.status()).toBe(200);
+  const uid = (await created.json()).data.user_id;
+  const student = await playwright.request.newContext({
+    baseURL: "http://127.0.0.1:8765",
+  });
+  await student.post("/api/auth/login", {
+    data: { username, password: "test-student-password" },
+  });
+  const submission = await student.post("/api/submissions/", {
+    data: {
+      problem_id: "sum_2",
+      language: "python",
+      code: "a,b=map(int,input().split());print(a+b)",
+    },
+  });
+  expect(submission.status()).toBe(200);
+  const sid = (await submission.json()).data.submission_id;
+  expect(
+    (
+      await student.get(
+        "/api/submissions/?all_users=true&include_metadata=true",
+      )
+    ).status(),
+  ).toBe(403);
+  expect((await student.get("/api/logs/roles/")).status()).toBe(403);
+  await page.goto("/admin");
+  await page.getByLabel("搜索用户").fill(username);
+  const row = page.locator("tbody tr").filter({ hasText: username });
+  await row.getByRole("link", { name: "资料", exact: true }).click();
+  await expect(page.getByRole("region", { name: "用户资料" })).toContainText(
+    uid,
+  );
+  await page.getByRole("link", { name: "查看此用户提交" }).click();
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await expect(page.locator("tbody")).toContainText(username);
+  await page.getByRole("link", { name: `#${sid}`, exact: true }).click();
+  await expect(
+    page.locator(".code-block").filter({ hasText: "print(a+b)" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "重新评测", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "重新评测", exact: true }).click();
+  await expect(page.locator(".case-tile").first()).toBeVisible();
+  await page.getByRole("link", { name: "← 返回提交列表", exact: true }).click();
+  await expect(page.getByLabel("提交用户 ID")).toHaveValue(uid);
+  await page.reload();
+  await expect(page.locator("tbody")).toContainText(username);
+  const source = (await (await page.request.get("/api/problems/sum_2")).json())
+    .data;
+  delete source.limit_inheritance;
+  expect(
+    (
+      await page.request.post("/api/problems/", {
+        data: {
+          ...source,
+          id: "admin_details_case",
+          time_limit: null,
+          memory_limit: null,
+        },
+      })
+    ).status(),
+  ).toBe(200);
+  await page.goto("/admin?tab=题目&problem_id=admin_details_case");
+  const info = page.getByRole("region", { name: "题目详细信息" });
+  await expect(info).toContainText("admin_details_case");
+  await info.getByLabel("公开日志", { exact: true }).check();
+  await expect
+    .poll(
+      async () =>
+        (
+          await (
+            await page.request.get("/api/problems/admin_details_case")
+          ).json()
+        ).data.public_cases,
+    )
+    .toBe(true);
+  await info.getByText("完整题面与样例", { exact: true }).click();
+  await expect(info.locator(".statement")).toContainText("输入格式");
+  await info.getByRole("button", { name: "编辑题目", exact: true }).click();
+  await expect(page.getByLabel("题号", { exact: true })).toHaveValue(
+    "admin_details_case",
+  );
+  await page.goto(`/admin?tab=用户&user_id=${uid}`);
+  const target = page.locator("tbody tr").filter({ hasText: username });
+  await target.getByLabel(`${username}的角色`).selectOption("banned");
+  await target.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(target.locator(".role-banned")).toHaveText("已禁用");
+  await page.getByRole("button", { name: "角色审计", exact: true }).click();
+  await expect(
+    page.locator("tbody tr").filter({ hasText: username }),
+  ).toContainText("已禁用");
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 960 });
+    for (const [name, url] of [
+      ["users", `/admin?tab=用户&user_id=${uid}`],
+      ["submissions", `/admin?tab=提交&user_id=${uid}`],
+      ["problems", "/admin?tab=题目&problem_id=admin_details_case"],
+      ["roles", "/admin?tab=角色审计"],
+    ]) {
+      await page.goto(url);
+      await expect(
+        page.getByRole("heading", { name: "管理中心", exact: true }),
+      ).toBeVisible();
+      await expect(page.locator("tbody tr").first()).toBeVisible();
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth + 1,
+        ),
+      ).toBeTruthy();
+      await page.screenshot({
+        path: testInfo.outputPath(`${name}-${width}.png`),
+        fullPage: true,
+      });
+    }
+  }
+  await student.dispose();
+});
