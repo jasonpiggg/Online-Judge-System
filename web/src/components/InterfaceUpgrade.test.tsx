@@ -8,6 +8,7 @@ import { ErrorNotice } from "./ErrorNotice";
 import { extractCodeSuggestion, extractCodeSuggestions } from "./AI";
 import { useActionReveal } from "./useActionReveal";
 import { DEFAULT_EDITOR_FONT_SIZE } from "../pages/Workspace";
+import { normalizeManagedPage } from "../pages/Authoring";
 
 afterEach(cleanup);
 beforeEach(() => localStorage.clear());
@@ -141,5 +142,28 @@ describe("action reveal", () => {
     render(<RevealFixture />);
     fireEvent.click(screen.getByRole("button", { name: "显示" }));
     expect(scroll).toHaveBeenCalledWith({ behavior: "auto", block: "start" });
+  });
+});
+
+describe("authoring list compatibility", () => {
+  it("normalizes a legacy array without crashing the authoring page", () => {
+    const rows = Array.from({ length: 12 }, (_, index) => ({ id: index }));
+    expect(normalizeManagedPage(rows, 2)).toEqual({
+      items: [{ id: 10 }, { id: 11 }],
+      total: 12,
+      page: 2,
+      pageSize: 10,
+      legacy: true,
+    });
+  });
+
+  it("normalizes the current metadata response", () => {
+    expect(normalizeManagedPage({ drafts: [{ id: 1 }], total: 21, page: 3, page_size: 10 }, 3)).toEqual({
+      items: [{ id: 1 }],
+      total: 21,
+      page: 3,
+      pageSize: 10,
+      legacy: false,
+    });
   });
 });
