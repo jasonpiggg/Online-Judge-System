@@ -22,10 +22,14 @@ export type Problem = {
   time_limit: number | null;
   memory_limit: number | null;
   public_cases: boolean;
+  author?: string;
+  source?: string;
   limit_inheritance?: Record<string, boolean>;
   progress?: { attempts: number; passed: number };
 };
 export type Submission = {
+  user_id?: string | number;
+  username?: string;
   submission_id: string;
   id?: string;
   problem_id: string;

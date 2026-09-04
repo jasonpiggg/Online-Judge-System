@@ -11,6 +11,23 @@ from oj.errors import APIError, response
 router = APIRouter(prefix="/api")
 
 
+@router.get("/logs/roles/")
+async def role_logs(
+    request: Request,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    _admin: CurrentUser = Depends(require_admin),
+) -> JSONResponse:
+    rows = await request.app.state.db.fetchall(
+        """SELECT l.id,l.actor_id,l.target_id,l.old_role,l.new_role,l.time,
+           a.username AS actor_name,t.username AS target_name
+           FROM role_change_logs l LEFT JOIN users a ON a.id=l.actor_id
+           LEFT JOIN users t ON t.id=l.target_id ORDER BY l.id DESC LIMIT ? OFFSET ?""",
+        (page_size, (page - 1) * page_size),
+    )
+    return response(data=[dict(row) for row in rows])
+
+
 async def _audit(request: Request, user_id: int, problem_id: str, status: int) -> None:
     await request.app.state.db.execute(
         """INSERT INTO access_logs(user_id,problem_id,action,time,status)
@@ -96,4 +113,3 @@ async def access_logs(
             for row in rows
         ]
     )
-

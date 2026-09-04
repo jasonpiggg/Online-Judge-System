@@ -1,3 +1,4 @@
+import { createEditingDraft } from "../problem-actions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -217,25 +218,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
         <Button
           onClick={async () => {
             try {
-              const editable = { ...p };
-              const limit_inheritance = p.limit_inheritance;
-              delete editable.limit_inheritance;
-              delete editable.progress;
-              const draft = await api<{ id: string }>(
-                "/problem-drafts/",
-                json("POST", {
-                  base_problem_id: p.id,
-                  problem: {
-                    ...editable,
-                    time_limit: limit_inheritance?.time_limit
-                      ? null
-                      : p.time_limit,
-                    memory_limit: limit_inheritance?.memory_limit
-                      ? null
-                      : p.memory_limit,
-                  },
-                }),
-              );
+              const draft = await createEditingDraft(p);
               navigate("/authoring/drafts/" + draft.id);
             } catch (e) {
               setError(errorText(e));
