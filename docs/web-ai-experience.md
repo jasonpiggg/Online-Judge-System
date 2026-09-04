@@ -66,7 +66,7 @@ SSE 包含带序号的 stage、preview、delta、usage 和终态事件；每条�
 单次验收不证明模型绝对稳定，有限对拍也不是数学正确性证明。
 
 本机运行 `pytest`、Ruff、mypy、前端类型检查/Lint/Vitest/构建与 Playwright；
-本机后端结果为 185 passed / 10 skipped，行覆盖率 96.16%，分支覆盖率 89.66%；
+最终本机后端结果为 186 passed / 10 skipped，行覆盖率 96.31%，分支覆盖率 89.63%；
 前端 5 项组件/备份测试，9 项浏览器流程测试。新增依赖固定版本，Monaco 的 DOMPurify
 通过精确 override 固定到 3.4.14，修复初次依赖审计发现的间接漏洞。
 CI 在 Ubuntu 执行相同门禁并补全 Windows 跳过的 Linux runner 检查。
