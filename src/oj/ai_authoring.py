@@ -22,6 +22,8 @@ from cryptography.fernet import Fernet, InvalidToken
 from pydantic import ValidationError
 
 from oj.ai_policy import environment_policy, public_pricing, select_phase_config
+from oj.ai_presentation import check_presentation
+from oj.ai_prompts import DISPLAY_RULES
 from oj.ai_sections import SECTION_FIELDS, merge_section, section_prompt
 from oj.ai_transport import PinnedTransport, bounded_sse_lines
 from oj.config import Settings
@@ -694,6 +696,10 @@ class AIAuthoringManager:
             "UPDATE ai_tasks SET result=? WHERE id=?", (generated.model_dump_json(), task_id)
         )
         await self._update(task_id, "running", "正在验证参考解的全部样例与测试点", "validation")
+        try:
+            check_presentation(generated.model_dump())
+        except ValueError as exc:
+            raise AuthoringError(str(exc)) from exc
         python = await get_language(self.db, "python")
         if python is None:
             raise AuthoringError("Python 评测语言未注册")
@@ -949,6 +955,8 @@ class AIAuthoringManager:
         api_key = self.cipher.decrypt(config["encrypted_api_key"]).decode()
         url = str(config["provider_url"]).rstrip("/") + "/chat/completions"
         system_prompt = config.get("system_prompt", SYSTEM_PROMPT)
+        if DISPLAY_RULES not in system_prompt:
+            system_prompt += DISPLAY_RULES
         body = {
             "model": config["model"],
             "stream": True,

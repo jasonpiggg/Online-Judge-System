@@ -1,3 +1,4 @@
+import { Icon } from "../components/Icon";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, json, errorText, queryClient } from "../api";
@@ -136,7 +137,10 @@ export function ModelSettings() {
 export function Account({ user }: { user: User }) {
   return (
     <div className="page narrow">
-      <h1>{user.username}</h1>
+      <h1>
+        <Icon name="chart" />
+        {user.username}
+      </h1>
       <p className="muted">
         加入于 {user.join_time} · {user.role === "admin" ? "管理员" : "学习者"}
       </p>

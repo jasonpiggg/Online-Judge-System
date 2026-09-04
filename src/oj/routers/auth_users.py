@@ -25,7 +25,7 @@ async def _user_data(db: object, user_id: int) -> dict[str, object] | None:
     row = await db.fetchone(  # type: ignore[attr-defined]
         """SELECT u.id, u.username, u.role, u.join_time,
            COUNT(s.id) AS submit_count,
-           COUNT(DISTINCT CASE WHEN s.status='success' AND s.score=s.counts
+           COUNT(DISTINCT CASE WHEN s.status='success' AND s.score=s.counts AND s.counts>0
                           THEN s.problem_id END) AS resolve_count
            FROM users u LEFT JOIN submissions s ON s.user_id=u.id
            WHERE u.id=? GROUP BY u.id""",

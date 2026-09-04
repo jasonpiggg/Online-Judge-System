@@ -13,6 +13,7 @@ from typing import Any
 
 import psutil
 
+from oj.evaluation import POINTS_PER_CASE
 from oj.languages import command_argv
 from oj.schemas import Language, Problem, TestCase
 
@@ -255,7 +256,7 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
                 return JudgeOutcome(
                     [CaseResult(1, "CE", COMPILE_TIMEOUT_SECONDS, 0, message)],
                     0,
-                    len(problem.testcases) * 10,
+                    len(problem.testcases) * POINTS_PER_CASE,
                     {"result": "error", "message": message},
                     {"result": "not_started", "message": ""},
                     "",
@@ -268,7 +269,7 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
                 return JudgeOutcome(
                     [CaseResult(1, "CE", 0, 0, compiler_message)],
                     0,
-                    len(problem.testcases) * 10,
+                    len(problem.testcases) * POINTS_PER_CASE,
                     {"result": "error", "message": compiler_message},
                     {"result": "not_started", "message": ""},
                     "",
@@ -282,11 +283,11 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
             await _run_case(argv, testcase, time_limit, memory_limit, index, directory)
             for index, testcase in enumerate(problem.testcases, start=1)
         ]
-        score = sum(10 for case in cases if case.result == "AC")
+        score = sum(POINTS_PER_CASE for case in cases if case.result == "AC")
         return JudgeOutcome(
             cases,
             score,
-            len(cases) * 10,
+            len(cases) * POINTS_PER_CASE,
             compile_info,
             {"result": "finished", "message": f"{len(cases)} test cases finished"},
             "",

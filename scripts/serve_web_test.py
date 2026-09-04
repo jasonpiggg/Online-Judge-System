@@ -33,7 +33,7 @@ async def completion(config: Any, prompt: str, usage: Any = None) -> tuple[str, 
     data = json.loads(prompt)
     if "programming tutor" in config["system_prompt"]:
         text = (
-            "先检查输入：两个整数需要相加。\n\n```python\n"
+            "### 输入提示\n\n先检查输入：两个整数需要相加。\n\n```python\n"
             "a, b = map(int, input().split())\nprint(a + b)\n```"
         )
     elif "Stage 1:" in config["system_prompt"]:

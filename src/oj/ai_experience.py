@@ -20,15 +20,18 @@ from oj.ai_authoring import (
     utcnow,
 )
 from oj.ai_policy import select_phase_config
+from oj.ai_presentation import check_presentation, presentation_issues
 from oj.ai_prompts import (
     ASSETS_PROMPT,
     ASSISTANT_PROMPT,
+    DISPLAY_RULES,
     PROMPT_VERSION,
     REVIEW_PROMPT,
     STATEMENT_PROMPT,
 )
 from oj.ai_sections import SECTION_FIELDS, merge_section, section_prompt
 from oj.errors import APIError
+from oj.evaluation import evaluation_summary
 from oj.schemas import GeneratedProblem, Problem
 
 
@@ -59,10 +62,16 @@ def complete_fields(text: str) -> dict[str, Any]:
                 value, _ = json.JSONDecoder().raw_decode(text[match.end() :])
             except ValueError:
                 continue
-            if (name == "samples" and isinstance(value, list) and all(
-                isinstance(item, dict) and isinstance(item.get("input"), str)
-                and isinstance(item.get("output"), str) for item in value
-            )) or (name != "samples" and isinstance(value, str)):
+            if (
+                name == "samples"
+                and isinstance(value, list)
+                and all(
+                    isinstance(item, dict)
+                    and isinstance(item.get("input"), str)
+                    and isinstance(item.get("output"), str)
+                    for item in value
+                )
+            ) or (name != "samples" and isinstance(value, str)):
                 fields[name] = value
     return fields
 
@@ -181,11 +190,13 @@ class AIExperience(AIAuthoringManager):
                         "samples",
                         "difficulty",
                         "tags",
+                        "time_limit",
+                        "memory_limit",
                     )
                 }
                 if payload.get("submission_id"):
                     submission = await self.db.fetchone(
-                        "SELECT user_id,problem_id,status,score,counts,compile_info,"
+                        "SELECT user_id,problem_id,language,code,status,score,counts,compile_info,"
                         "run_info,error_info "
                         "FROM submissions WHERE id=?",
                         (payload["submission_id"],),
@@ -194,16 +205,24 @@ class AIExperience(AIAuthoringManager):
                         raise APIError(404, "submission not found")
                     if submission["problem_id"] != problem_id:
                         raise APIError(400, "提交与当前题目不匹配")
+                    cases = await self.db.fetchall(
+                        "SELECT case_id AS id,result,time,memory FROM submission_cases "
+                        "WHERE submission_id=? ORDER BY case_id",
+                        (payload["submission_id"],),
+                    )
                     payload["submission"] = {
-                        k: submission[k]
-                        for k in (
-                            "status",
-                            "score",
-                            "counts",
-                            "compile_info",
-                            "run_info",
-                            "error_info",
-                        )
+                        "id": payload["submission_id"],
+                        "language": submission["language"],
+                        "code": submission["code"],
+                        "code_matches_current": submission["code"] == payload.get("code")
+                        and submission["language"] == payload.get("language"),
+                        "evaluation": evaluation_summary(
+                            dict(submission), [dict(c) for c in cases]
+                        ),
+                        "cases": [dict(c) for c in cases],
+                        "compile_info": submission["compile_info"],
+                        "run_info": submission["run_info"],
+                        "error_info": submission["error_info"],
                     }
                 if len(compact(payload).encode()) > 100000:
                     raise APIError(400, "当前题目与代码超过上下文容量，请选择较小的代码片段")
@@ -240,7 +259,20 @@ class AIExperience(AIAuthoringManager):
                 for row in history:
                     previous = json.loads(row["payload"])
                     answer = json.loads(row["result"] or "{}")
-                    turn = {"user": previous.get("message"), "assistant": answer.get("text", "")}
+                    turn = {
+                        "user": previous.get("message"),
+                        "assistant": answer.get("text", ""),
+                        "code_version": digest(previous.get("code", "")),
+                        "submission_id": previous.get("submission_id"),
+                        "evaluation": previous.get("submission", {}).get("evaluation"),
+                        "submission_code_matches_current": (
+                            previous.get("submission", {}).get("code") == payload.get("code")
+                            and previous.get("submission", {}).get("language")
+                            == payload.get("language")
+                        ),
+                        "same_as_current_code": previous.get("code") == payload.get("code")
+                        and previous.get("language") == payload.get("language"),
+                    }
                     budget -= len(compact(turn).encode())
                     if budget < 0:
                         break
@@ -363,7 +395,7 @@ class AIExperience(AIAuthoringManager):
             )
             selected.update(
                 {
-                    "system_prompt": system + "\nProtocol: " + PROMPT_VERSION,
+                    "system_prompt": system + DISPLAY_RULES + "\nProtocol: " + PROMPT_VERSION,
                     "json_mode": False if assistant else selected.get("json_mode", True),
                     "_task_id": task_id,
                 }
@@ -385,6 +417,7 @@ class AIExperience(AIAuthoringManager):
                 "assistant": "正在生成回答",
                 "section": "正在生成局部建议",
                 "section_review": "正在复审局部建议",
+                "section_repair": "正在定向修复局部建议（最多一次）",
                 "review_only": "正在审查草稿",
             }
             await self._update(task_id, "running", labels[phase], phase)
@@ -527,24 +560,55 @@ class AIExperience(AIAuthoringManager):
             text = await invoke(
                 "section_review",
                 system + "\nReview and correct the proposed edit.",
-                {"requirement": requirement, "problem": small_context, "proposal": first},
+                {
+                    "requirement": requirement,
+                    "problem": small_context,
+                    "proposal": first,
+                    "format_check": (
+                        "Check math delimiters, LaTeX syntax and JSON escapes; preserve literal IO."
+                    ),
+                },
             )
-            parsed = _extract_json(text)
-            if target in SECTION_FIELDS:
-                result = merge_section(model, target, parsed)
-            else:
-                if set(parsed) != {target, "review"} or not isinstance(parsed["review"], str):
-                    raise AuthoringError("局部修改结构不正确")
-                updated = model.model_dump()
-                updated.update({k: parsed[k] for k in fields})
-                result = {
-                    "kind": "section_patch",
-                    "target_section": target,
-                    "problem": Problem.model_validate(updated).model_dump(),
-                    "baseline": model.model_dump(),
-                    "review": parsed["review"],
-                    "verification": {"quality_gate_passed": False, "scope": "section_only"},
-                }
+
+            def parse_section(text: str) -> dict[str, Any]:
+                parsed = _extract_json(text)
+                check_presentation(parsed)
+                if target in SECTION_FIELDS:
+                    result = merge_section(model, target, parsed)
+                else:
+                    if set(parsed) != {target, "review"} or not isinstance(parsed["review"], str):
+                        raise AuthoringError("局部修改结构不正确")
+                    updated = model.model_dump()
+                    updated.update({k: parsed[k] for k in fields})
+                    result = {
+                        "kind": "section_patch",
+                        "target_section": target,
+                        "problem": Problem.model_validate(updated).model_dump(),
+                        "baseline": model.model_dump(),
+                        "review": parsed["review"],
+                        "verification": {"quality_gate_passed": False, "scope": "section_only"},
+                    }
+                return result
+
+            try:
+                result = parse_section(text)
+            except (ValueError, AuthoringError) as exc:
+                preview["repair_reason"] = str(exc)[:3000]
+                await self._preview(task_id, preview)
+                await self.db.execute(
+                    "UPDATE ai_task_context SET repair_used=1 WHERE task_id=?", (task_id,)
+                )
+                fixed = await invoke(
+                    "section_repair",
+                    system,
+                    {
+                        "requirement": requirement,
+                        "problem": small_context,
+                        "proposal": text,
+                        "local_feedback": str(exc)[:3000],
+                    },
+                )
+                result = parse_section(fixed)
             result.update(
                 {"reviewed": True, "source_draft_revision": payload.get("source_revision")}
             )
@@ -578,6 +642,18 @@ class AIExperience(AIAuthoringManager):
                 candidate = {
                     k: v for k, v in candidate.items() if k in {"problem", "reference_solution"}
                 }
+            # Recover a misplaced reference without letting model-only keys poison all
+            # subsequent patches (Problem's strict schema cannot accept or remove them).
+            if isinstance(candidate.get("problem"), dict):
+                misplaced = candidate["problem"].get("reference_solution")
+                if not candidate.get("reference_solution") and isinstance(misplaced, str):
+                    candidate["reference_solution"] = misplaced
+                extra = set(candidate["problem"]) - set(Problem.model_fields)
+                if extra:
+                    feedback += "Removed misplaced problem fields: " + ", ".join(sorted(extra))
+                    candidate["problem"] = {
+                        k: v for k, v in candidate["problem"].items() if k in Problem.model_fields
+                    }
             if not {"problem", "reference_solution"} <= set(candidate):
                 raise ValueError("Stage 1 must contain problem and reference_solution")
             if not isinstance(candidate["problem"], dict):
@@ -586,6 +662,7 @@ class AIExperience(AIAuthoringManager):
                 {"input": "", "output": ""}
             ]
             Problem.model_validate(candidate["problem"])
+            check_presentation(candidate)
             await self.db.execute(
                 "UPDATE ai_tasks SET result=? WHERE id=?",
                 (compact({"kind": "candidate", **candidate}), task_id),
@@ -612,8 +689,12 @@ class AIExperience(AIAuthoringManager):
             if assets:
                 values = _extract_json(assets)
                 if set(values) - {
-                    "testcases", "brute_solution", "generator_code", "wrong_solutions",
-                    "coverage", "review",
+                    "testcases",
+                    "brute_solution",
+                    "generator_code",
+                    "wrong_solutions",
+                    "coverage",
+                    "review",
                 }:
                     raise ValueError("Stage 2 may not rewrite problem or reference_solution")
                 tests = values.pop("testcases")
@@ -625,10 +706,20 @@ class AIExperience(AIAuthoringManager):
             "UPDATE ai_tasks SET result=? WHERE id=?",
             (compact({"kind": "candidate", **candidate}), task_id),
         )
+        try:
+            GeneratedProblem.model_validate(candidate)
+        except ValueError as exc:
+            feedback += "\nCandidate schema errors: " + self._schema_issues(exc)
         review_text = await invoke(
             "critique",
             REVIEW_PROMPT,
-            {"requirement": requirement, "candidate": candidate, "local_feedback": feedback},
+            {
+                "requirement": requirement,
+                "candidate": candidate,
+                "candidate_schema": GeneratedProblem.model_json_schema(),
+                "local_feedback": feedback
+                + "; ".join(presentation_issues(candidate.get("problem", {}))),
+            },
         )
         initial_problem = json.loads(compact(candidate.get("problem", {})))
         try:
@@ -654,6 +745,7 @@ class AIExperience(AIAuthoringManager):
                 {
                     "requirement": requirement,
                     "candidate": candidate,
+                    "candidate_schema": GeneratedProblem.model_json_schema(),
                     "local_feedback": str(exc)[:3000],
                 },
             )

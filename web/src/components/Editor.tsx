@@ -25,7 +25,7 @@ export function CodeEditor({
   submit.current = onSubmit;
   return (
     <Editor
-      height="420px"
+      height="var(--editor-height, 520px)"
       language={language.startsWith("py") ? "python" : "cpp"}
       theme="vs"
       value={value}

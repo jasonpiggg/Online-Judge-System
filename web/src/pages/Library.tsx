@@ -1,11 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { Link, useSearchParams, useNavigationType } from "react-router-dom";
+import {
+  Link,
+  useSearchParams,
+  useNavigationType,
+  useLocation,
+} from "react-router-dom";
 import { api } from "../api";
 import type { Problem } from "../types";
 import { Button } from "../components/ui/button";
+import { SearchInput } from "../components/SearchInput";
+import { Icon } from "../components/Icon";
 export function Library() {
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
   const navigation = useNavigationType();
   const scrollKey = "oj-library-scroll:" + params.toString();
   const { data: problems, error } = useQuery({
@@ -53,15 +61,19 @@ export function Library() {
   return (
     <div className="page">
       <div className="page-heading">
-        <h1>题库</h1>
+        <h1>
+          <Icon name="book" />
+          题库
+        </h1>
         <span className="muted">从一道题开始。</span>
       </div>
       <div className="filters">
-        <input
-          aria-label="搜索题目"
+        <SearchInput
+          label="搜索题目"
+          navigationKey={location.key}
           placeholder="搜索题号、标题或标签"
           value={q}
-          onChange={(e) => update("q", e.target.value)}
+          onCommit={(value) => update("q", value)}
         />
         <select
           aria-label="难度"
@@ -121,8 +133,14 @@ export function Library() {
                     ))}
                   </div>
                 </div>
-                <span className="muted">{p.difficulty || "未分级"}</span>
-                <span className={p.progress?.passed ? "success" : "muted"}>
+                <span className="badge difficulty">
+                  {p.difficulty || "未分级"}
+                </span>
+                <span
+                  className={
+                    p.progress?.passed ? "badge tone-AC" : "badge tone-pending"
+                  }
+                >
                   {label(p)}
                 </span>
               </Link>

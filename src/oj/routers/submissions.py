@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from oj.auth import CurrentUser, get_current_user, require_admin
 from oj.errors import APIError, response
+from oj.evaluation import evaluation_batch
 from oj.languages import get_language
 from oj.schemas import SubmissionCreate
 from oj.submissions import detail_from_row, now_iso, summary_from_row
@@ -99,11 +100,11 @@ async def list_submissions(
         clauses.append("status=?")
         params.append(status)
     if outcome == "passed":
-        clauses.append("status='success' AND score=counts")
+        clauses.append("status='success' AND score=counts AND counts>0")
     elif outcome == "not_passed":
         clauses.append(
             "(status='error' OR (status='success' AND "
-            "(score IS NULL OR counts IS NULL OR score<counts)))"
+            "(score IS NULL OR counts IS NULL OR counts=0 OR score<counts)))"
         )
     where = " AND ".join(clauses) or "1=1"
     total = await request.app.state.db.fetchone(
@@ -116,12 +117,14 @@ async def list_submissions(
         sql += " LIMIT ? OFFSET ?"
         params.extend((page_size, (page - 1) * page_size))
     rows = await request.app.state.db.fetchall(sql, params)
-    return response(
-        data={
-            "total": total["n"],
-            "submissions": [summary_from_row(row, include_metadata) for row in rows],
-        }
-    )
+    evaluations = await evaluation_batch(request.app.state.db, rows) if include_metadata else {}
+    items = []
+    for row in rows:
+        item = summary_from_row(row, include_metadata)
+        if include_metadata:
+            item["evaluation"] = evaluations[row["id"]]
+        items.append(item)
+    return response(data={"total": total["n"], "submissions": items})
 
 
 @router.get("/{submission_id}")
@@ -138,7 +141,10 @@ async def get_submission(
         raise APIError(404, "submission not found")
     if user.role != "admin" and row["user_id"] != user.id:
         raise APIError(403, "permission denied")
-    return response(data=detail_from_row(row, include_metadata))
+    data = detail_from_row(row, include_metadata)
+    if include_metadata:
+        data["evaluation"] = (await evaluation_batch(request.app.state.db, [row]))[submission_id]
+    return response(data=data)
 
 
 @router.put("/{submission_id}/rejudge")

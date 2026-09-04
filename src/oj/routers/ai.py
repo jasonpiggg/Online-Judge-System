@@ -115,6 +115,7 @@ async def get_problem_task(
                 "repair_used": bool(context["repair_used"]),
                 "code_snapshot": payload.get("code") if context["kind"] == "assistant" else None,
                 "language": payload.get("language"),
+                "submission_id": payload.get("submission_id"),
                 "workflow_version": payload.get("workflow_version", 1),
             }
         )
@@ -229,6 +230,8 @@ async def messages(
                     or json.loads(r["preview"]).get("text", "")
                 ),
                 "code_snapshot": json.loads(r["payload"]).get("code", ""),
+                "language": json.loads(r["payload"]).get("language"),
+                "submission_id": json.loads(r["payload"]).get("submission_id"),
                 "created_at": r["created_at"],
             }
             for r in reversed(rows)

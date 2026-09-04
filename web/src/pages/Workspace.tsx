@@ -7,62 +7,16 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { api, json, errorText, queryClient } from "../api";
-import type { Problem, User, Submission } from "../types";
+import { api, json, errorText } from "../api";
+import type { Problem, User } from "../types";
 import { Statement } from "../components/Statement";
 import { CodeEditor } from "../components/Editor";
-import { Code, logText } from "../components/Markdown";
+import { Code } from "../components/Markdown";
 import { Button } from "../components/ui/button";
 import { Assistant } from "../components/AI";
+import { ResultPanel } from "../components/Evaluation";
+import { Icon } from "../components/Icon";
 import { readBackup, writeBackup, clearBackup } from "../draft-backup";
-export function Result({ id }: { id: string }) {
-  const { data, error } = useQuery({
-    queryKey: ["submission", id],
-    queryFn: () => api<Submission>(`/submissions/${id}?include_metadata=true`),
-    refetchInterval: (q) => (q.state.data?.status === "pending" ? 1000 : false),
-  });
-  useEffect(() => {
-    if (data && data.status !== "pending") {
-      void queryClient.invalidateQueries({ queryKey: ["problems"] });
-      void queryClient.invalidateQueries({ queryKey: ["me"] });
-      void queryClient.invalidateQueries({ queryKey: ["records"] });
-    }
-  }, [data?.status]);
-  return (
-    <section className="result">
-      <h3>评测结果</h3>
-      {error ? (
-        <p role="alert">{error.message}</p>
-      ) : !data || data.status === "pending" ? (
-        <p role="status">正在评测…</p>
-      ) : (
-        <>
-          <strong
-            className={
-              data.score === data.counts && data.status === "success"
-                ? "success"
-                : "failure"
-            }
-          >
-            {data.status === "error"
-              ? "评测错误"
-              : data.score === data.counts
-                ? "全部通过"
-                : `通过 ${data.score} / ${data.counts}`}
-          </strong>
-          {["compile_info", "run_info", "error_info"].map((k) =>
-            data[k as keyof Submission] ? (
-              <Code key={k} text={logText(data[k as keyof Submission])} />
-            ) : null,
-          )}
-          <p>
-            <Link to={`/submissions/${id}`}>查看提交详情 →</Link>
-          </p>
-        </>
-      )}
-    </section>
-  );
-}
 export function Workspace({ user }: { user: User }) {
   const { id = "" } = useParams();
   const { data: p, error } = useQuery({
@@ -107,8 +61,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const inFlight = useRef(false);
   const [saveTick, setSaveTick] = useState(0);
   const submitting = useRef(false);
-  const [ratio, setRatio] = useState(48);
-  const split = useRef<HTMLDivElement>(null);
+  const assistantPanel = useRef<HTMLDetailsElement>(null);
   const backup = `oj-draft-${user.user_id}-${p.id}-${language}`;
   const tab = params.get("tab") || "题目";
   const submission = params.get("submission");
@@ -217,21 +170,16 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
       setBusy(false);
     }
   }, [ready, language, p.id, params, setParams]);
-  const drag = (e: React.PointerEvent) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const move = (event: PointerEvent) => {
-      const r = split.current!.getBoundingClientRect();
-      setRatio(
-        Math.max(30, Math.min(65, ((event.clientX - r.left) / r.width) * 100)),
-      );
-    };
-    const stop = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", stop);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", stop);
-  };
+  const jump = useCallback((target: string) => {
+    if (target === "AI" && assistantPanel.current)
+      assistantPanel.current.open = true;
+    document
+      .getElementById(`section-${target}`)
+      ?.scrollIntoView({ block: "start", behavior: "instant" });
+  }, []);
+  useEffect(() => {
+    if (params.get("tab")) requestAnimationFrame(() => jump(tab));
+  }, [tab, submission, jump, params]);
   return (
     <div className="workpage">
       <div className="work-nav">
@@ -255,6 +203,9 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
         </div>
       </div>
       <div className="work-heading">
+        <span className="eyebrow">
+          <Icon name="book" /> 编程练习
+        </span>
         <h1>{p.title}</h1>
         <p className="muted">
           {p.id} · {p.difficulty || "未分级"} · {p.time_limit} 秒 ·{" "}
@@ -313,47 +264,45 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
           </Button>
         )}
       </details>
-      <div className="mobile-tabs">
+      <nav className="section-nav" aria-label="做题快捷跳转">
         {["题目", "代码", "结果", "AI"].map((t) => (
           <Button
             key={t}
             variant={tab === t ? "default" : "ghost"}
-            onClick={() => setParams({ ...Object.fromEntries(params), tab: t })}
+            onClick={() => {
+              setParams(
+                { ...Object.fromEntries(params), tab: t },
+                { replace: true },
+              );
+              jump(t);
+            }}
           >
-            {t}
+            <Icon
+              name={
+                t === "题目"
+                  ? "book"
+                  : t === "代码"
+                    ? "code"
+                    : t === "结果"
+                      ? "chart"
+                      : "spark"
+              }
+            />
+            {t === "题目" ? "题面" : t}
           </Button>
         ))}
-      </div>
-      <div
-        className="workspace"
-        ref={split}
-        style={{
-          gridTemplateColumns: `minmax(0,${ratio}fr) 12px minmax(0,${100 - ratio}fr)`,
-        }}
-      >
-        <section
-          className={`statement-pane mobile-${tab === "题目" ? "show" : "hide"}`}
-        >
+      </nav>
+      <div className="workspace">
+        <section id="section-题目" className="statement-pane surface">
           <Statement problem={p} />
         </section>
-        <div
-          className="resize"
-          role="separator"
-          aria-label="调整题目与代码宽度"
-          aria-valuenow={ratio}
-          tabIndex={0}
-          onPointerDown={drag}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowLeft") setRatio(Math.max(30, ratio - 2));
-            if (e.key === "ArrowRight") setRatio(Math.min(65, ratio + 2));
-          }}
-        />
-        <section
-          className={`editor-pane mobile-${tab !== "题目" ? "show" : "hide"}`}
-        >
-          <div
-            className={`code-area mobile-${tab === "代码" ? "show" : "hide"}`}
-          >
+        <section className="editor-pane">
+          <div id="section-代码" className="code-area surface">
+            <div className="section-title">
+              <Icon name="code" />
+              <h2>编写代码</h2>
+              <span className="muted">Ctrl / ⌘ + Enter 提交</span>
+            </div>
             <div className="editor-toolbar">
               <select
                 aria-label="编程语言"
@@ -451,18 +400,22 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
               </Button>
             </div>
           )}
-          <div className={`mobile-${tab === "结果" ? "show" : "hide"}`}>
+          <div id="section-结果" className="surface result-surface">
             {submission ? (
-              <Result id={submission} />
+              <ResultPanel id={submission} />
             ) : (
               <p className="muted empty">提交后，评测结果会显示在这里。</p>
             )}
           </div>
           <details
-            className={`assistant-panel mobile-${tab === "AI" ? "show" : "hide"}`}
-            open={tab === "AI"}
+            id="section-AI"
+            ref={assistantPanel}
+            className="assistant-panel surface"
           >
-            <summary>AI 做题助手</summary>
+            <summary>
+              <Icon name="spark" /> AI 做题助手
+              <span className="muted">提示、解释与评测分析</span>
+            </summary>
             <Assistant
               problemId={p.id}
               code={code}

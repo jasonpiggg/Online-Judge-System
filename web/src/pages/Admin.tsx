@@ -1,3 +1,4 @@
+import { Icon } from "../components/Icon";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -47,7 +48,10 @@ export function Admin() {
   };
   return (
     <div className="page">
-      <h1>管理</h1>
+      <h1>
+        <Icon name="chart" />
+        管理
+      </h1>
       <div className="step-tabs">
         {["用户", "语言", "访问审计", "系统设置"].map((v) => (
           <Button
