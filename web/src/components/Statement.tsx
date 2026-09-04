@@ -15,21 +15,26 @@ export function Statement({ problem: p }: { problem: Problem }) {
       ))}
       <section>
         <h3>样例</h3>
-        {p.samples?.map((s, i) => (
-          <div key={i}>
-            <p className="muted">样例 {i + 1}</p>
-            <div className="samples">
-              <div>
-                <h4>输入</h4>
-                <Code text={s.input} />
-              </div>
-              <div>
-                <h4>输出</h4>
-                <Code text={s.output} />
+        {(Array.isArray(p.samples) ? p.samples : [])
+          .filter(
+            (s) =>
+              s && typeof s.input === "string" && typeof s.output === "string",
+          )
+          .map((s, i) => (
+            <div key={i}>
+              <p className="muted">样例 {i + 1}</p>
+              <div className="samples">
+                <div>
+                  <h4>输入</h4>
+                  <Code text={s.input} />
+                </div>
+                <div>
+                  <h4>输出</h4>
+                  <Code text={s.output} />
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
       </section>
       <section>
         <h3>数据范围</h3>

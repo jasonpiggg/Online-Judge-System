@@ -67,7 +67,7 @@ SSE 包含带序号的 stage、preview、delta、usage 和终态事件；每条�
 
 本机运行 `pytest`、Ruff、mypy、前端类型检查/Lint/Vitest/构建与 Playwright；
 最终本机后端结果为 186 passed / 10 skipped，行覆盖率 96.31%，分支覆盖率 89.63%；
-前端 5 项组件/备份测试，9 项浏览器流程测试。新增依赖固定版本，Monaco 的 DOMPurify
+前端 6 项组件/备份测试，9 项浏览器流程测试。新增依赖固定版本，Monaco 的 DOMPurify
 通过精确 override 固定到 3.4.14，修复初次依赖审计发现的间接漏洞。
 最后一次成功 npm 审计为 0 漏洞；随后 npm 审计接口持续超时。CI 改用
 [GitHub 官方 Dependency Review](https://github.com/actions/dependency-review-action)，
