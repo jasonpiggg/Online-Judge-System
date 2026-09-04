@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from oj.auth import CurrentUser, get_current_user
 from oj.difficulty import normalize_difficulty
 from oj.errors import APIError, response
-from oj.schemas import Problem, ProblemDraftCreate, ProblemDraftUpdate
+from oj.schemas import Problem, ProblemDraftCreate, ProblemDraftUpdate, ProblemDraftVerify
 from oj.submissions import now_iso
 
 router = APIRouter(prefix="/api/problem-drafts")
@@ -29,6 +29,11 @@ def _normalize_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
 
 
 def _decode(row: Any) -> dict[str, Any]:
+    review = json.loads(row["review_json"])
+    verification = review.get("verification", {}) if isinstance(review, dict) else {}
+    level = verification.get("level")
+    if not level and verification.get("quality_gate_passed"):
+        level = "full"
     return {
         "id": row["id"],
         "base_problem_id": row["base_problem_id"],
@@ -38,7 +43,9 @@ def _decode(row: Any) -> dict[str, Any]:
         "reference_solution": row["reference_solution"],
         "brute_solution": row["brute_solution"],
         "generator_code": row["generator_code"],
-        "review": json.loads(row["review_json"]),
+        "review": review,
+        "verification_level": level,
+        "verification_summary": verification or None,
         "revision": row["revision"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
@@ -83,6 +90,10 @@ async def create_problem_draft(
     draft_id = "draft-" + secrets.token_urlsafe(12)
     now = now_iso()
     problem = body.problem.model_dump() if body.problem else {}
+    review = dict(body.review)
+    # A report only applies to the exact revision that was checked. Keep editorial
+    # notes, but never carry a publishable verification onto modified content.
+    review.pop("verification", None)
     data = {
         "id": draft_id,
         "base_problem_id": body.base_problem_id,
@@ -92,7 +103,7 @@ async def create_problem_draft(
         "reference_solution": body.reference_solution,
         "brute_solution": body.brute_solution,
         "generator_code": body.generator_code,
-        "review": body.review,
+        "review": review,
         "revision": 1,
         "created_at": now,
         "updated_at": now,
@@ -113,7 +124,7 @@ async def create_problem_draft(
                 body.reference_solution,
                 body.brute_solution,
                 body.generator_code,
-                _snapshot(body.review),
+                _snapshot(review),
                 1,
                 now,
                 now,
@@ -147,6 +158,10 @@ async def update_problem_draft(
 ) -> JSONResponse:
     now = now_iso()
     problem = body.problem.model_dump() if body.problem else {}
+    review = dict(body.review)
+    # A report only applies to the exact revision that was checked. Keep editorial
+    # notes, but never carry a publishable verification onto modified content.
+    review.pop("verification", None)
     async with request.app.state.db.connect() as db:
         await db.execute("BEGIN IMMEDIATE")
         cursor = await db.execute(
@@ -169,7 +184,7 @@ async def update_problem_draft(
                 body.reference_solution,
                 body.brute_solution,
                 body.generator_code,
-                _snapshot(body.review),
+                _snapshot(review),
                 new_revision,
                 now,
                 draft_id,
@@ -184,7 +199,7 @@ async def update_problem_draft(
             "reference_solution": body.reference_solution,
             "brute_solution": body.brute_solution,
             "generator_code": body.generator_code,
-            "review": body.review,
+            "review": review,
             "revision": new_revision,
             "created_at": current["created_at"],
             "updated_at": now,
@@ -259,6 +274,7 @@ async def publish_problem_draft(
 async def verify_problem_draft(
     request: Request,
     draft_id: str,
+    body: ProblemDraftVerify | None = None,
     user: CurrentUser = Depends(get_current_user),
 ) -> JSONResponse:
     row = await _owned_draft(request, draft_id, user.id)
@@ -271,6 +287,7 @@ async def verify_problem_draft(
             "action": "verify",
             "target_section": "all",
             "workflow_version": 2,
+            "verification_mode": body.mode if body else "full",
         },
         request.headers.get("idempotency-key"),
     )
