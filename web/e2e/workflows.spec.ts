@@ -655,6 +655,8 @@ test("browser-like activity tabs close safely and reopen on navigation", async (
   await page.goto("/problems/sum_2");
   await expect(page.getByLabel("进行中的任务")).toContainText("sum_2");
   await page.goto("/problems/brackets");
+  await expect(page.locator(".activity-tab > a span")).toHaveCount(2);
+  await expect(page.getByLabel("进行中的任务")).toContainText("brackets");
   const before = await page.locator(".activity-tab > a span").allTextContents();
   await page.getByRole("link", { name: /sum_2 ·/ }).click();
   await expect(page).toHaveURL(/\/problems\/sum_2/);

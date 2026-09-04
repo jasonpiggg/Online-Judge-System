@@ -67,6 +67,8 @@
 
 本地实现提交：`e361907`（验证与 Prompt）、`758188b`（界面、代码审查与测试）。本报告与截图单独提交。自动审查重点包括代码替换的数据丢失边界、验证失败不转付费请求、旧题格式兼容范围、草稿 revision 与权限不变、差异计算的内存上限和截图可读性。
 
+首次 Linux CI 暴露了新增标签测试的等待竞态：题目数据尚未加载、第二个标签还没注册就保存了对比数组。补上“两个标签均已出现”的就绪断言后再比较切换顺序，不修改产品排序逻辑，也不通过重试隐藏失败。最终远端验证见 PR #28。
+
 截图见 `docs/screenshots/six-point-code-review-desktop.png`、`docs/screenshots/six-point-code-review-mobile.png`。它们来自本轮隔离浏览器测试，不包含真实用户数据。
 
 已知限制：现有 Monaco 构建仍有大 chunk 警告；Windows 下 Linux 专属评测用例按条件跳过，Linux CI 再执行。原生中文输入法无法由自动化完整模拟，沿用 composition 事件和 Enter 的浏览器回归。
