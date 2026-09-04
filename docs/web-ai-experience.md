@@ -80,3 +80,6 @@ CI 在 Ubuntu 执行相同门禁并补全 Windows 跳过的 Linux runner 检查�
 
 Monaco 本地打包并按路由加载，无 CDN 运行依赖；编辑器首开有较大的资源块。
 原生 Windows 资源限制与 Linux 不等价，正式评测隔离继续使用现有 Linux runner。
+
+
+后续视觉、纵向布局与 AI 评测/排版升级见 [视觉质量验收](visual-quality-upgrade.md)。

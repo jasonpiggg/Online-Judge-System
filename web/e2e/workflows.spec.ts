@@ -71,6 +71,9 @@ test("AI streams, restores after refresh and cancels without resubmission", asyn
   await page.getByRole("button", { name: "发送", exact: true }).click();
   await expect(page.getByText("回答已完成", { exact: true })).toBeVisible();
   await expect(page.getByText("先检查输入：两个整数需要相加。")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "输入提示", level: 3 }),
+  ).toBeVisible();
   await page.reload();
   await expect(page.getByText("先检查输入：两个整数需要相加。")).toBeVisible();
   await page.getByLabel("你的问题").fill("模拟慢速回答");

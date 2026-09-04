@@ -825,6 +825,7 @@ h1 > .icon {
 h1 {
   font-weight: 700;
   letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
 }
 .topbar {
   border-bottom-color: var(--border);
@@ -1310,7 +1311,7 @@ progress::-moz-progress-bar {
 .assistant {
   padding: 24px;
 }
-.assistant h3 {
+.assistant > h3 {
   display: none;
 }
 .messages section {
