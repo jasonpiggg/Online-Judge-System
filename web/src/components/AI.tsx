@@ -20,6 +20,8 @@ export type Task = {
   preview?: Record<string, any>;
   error?: string;
   code_snapshot?: string;
+  language?: string;
+  submission_id?: number;
   usage: {
     input_tokens: number;
     output_tokens: number;
@@ -140,6 +142,8 @@ type Message = {
   status: string;
   text: string;
   code_snapshot: string;
+  language?: string;
+  submission_id?: number;
 };
 export function Assistant({
   problemId,
@@ -230,15 +234,29 @@ export function Assistant({
       setBusy(false);
     }
   };
+  const submission = useQuery({
+    queryKey: ["submission", submissionId],
+    queryFn: () =>
+      api<import("../types").Submission>(
+        `/submissions/${submissionId}?include_metadata=true`,
+      ),
+    enabled: !!submissionId,
+    refetchInterval: (q) => (q.state.data?.status === "pending" ? 1000 : false),
+  });
   const answer = task?.result?.text || task?.preview?.text || "";
-  const showAnswer = (text: string, snapshot: string) => {
+  const showAnswer = (
+    text: string,
+    snapshot: string,
+    snapshotLanguage?: string,
+  ) => {
     const matches = [
       ...text.matchAll(/```(?:python|cpp|c\+\+|c)?\s*\n([\s\S]*?)```/g),
     ];
     return (
       <>
         <RichText text={text} />
-        {snapshot !== code && (
+        {(snapshot !== code ||
+          (snapshotLanguage && snapshotLanguage !== language)) && (
           <p className="muted">此回答基于较早的代码版本。</p>
         )}
         {matches.length > 0 && (
@@ -254,25 +272,43 @@ export function Assistant({
       <h3>AI 做题助手</h3>
       <p className="muted">先给提示。需要完整题解时，可以直接告诉我。</p>
       <div className="quick-actions">
-        {["给我一个渐进提示", "解释我当前的代码", "分析本次提交的问题"].map(
-          (t) => (
-            <Button
-              key={t}
-              disabled={busy || (!!task && !terminal(task.status))}
-              onClick={() => void send(t)}
-            >
-              {t}
-            </Button>
-          ),
-        )}
+        {["给我一个渐进提示", "解释我当前的代码", "分析本次评测"].map((t) => (
+          <Button
+            key={t}
+            disabled={busy || (!!task && !terminal(task.status))}
+            onClick={() => void send(t)}
+          >
+            {t}
+          </Button>
+        ))}
       </div>
+      {submission.data && (
+        <p className="context-summary">
+          评测依据：提交 #{submissionId} ·{" "}
+          {submission.data.evaluation?.all_passed
+            ? "全部通过"
+            : submission.data.status === "pending"
+              ? "评测中"
+              : "已记录评测结果"}
+          {submission.data.evaluation?.total_cases != null &&
+            ` · ${submission.data.evaluation.passed_cases ?? "—"} / ${submission.data.evaluation.total_cases} 个测试点通过`}
+          {submission.data.code !== code ||
+          submission.data.language !== language
+            ? "。当前代码或语言已有变化，AI 将区分提交版本与编辑版本。"
+            : "，对应当前代码。"}
+        </p>
+      )}
       <div className="messages">
         {history.data
           ?.filter((m) => m.task_id !== active)
           .map((m) => (
             <section key={m.task_id}>
               <p className="user-message">{m.message}</p>
-              {showAnswer(m.text, m.code_snapshot)}
+              <p className="muted">
+                {m.language || "代码快照"}
+                {m.submission_id ? ` · 提交 #${m.submission_id}` : ""}
+              </p>
+              {showAnswer(m.text, m.code_snapshot, m.language)}
             </section>
           ))}
         {task && (
@@ -280,7 +316,7 @@ export function Assistant({
             <p className="user-message">{task.requirement}</p>
             <TaskProgress task={task} disconnected={disconnected} />
             {answer
-              ? showAnswer(answer, task.code_snapshot || "")
+              ? showAnswer(answer, task.code_snapshot || "", task.language)
               : !terminal(task.status) && (
                   <p className="skeleton">
                     正在组织回答，内容生成后会显示在这里…

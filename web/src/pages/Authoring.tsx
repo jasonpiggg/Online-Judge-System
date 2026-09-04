@@ -1,3 +1,4 @@
+import { Icon } from "../components/Icon";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -127,7 +128,10 @@ export function Authoring() {
   return (
     <div className="page">
       <div className="row">
-        <h1>命题中心</h1>
+        <h1>
+          <Icon name="spark" />
+          命题中心
+        </h1>
         <Button onClick={() => void create()} disabled={busy}>
           手动创建题目
         </Button>
@@ -435,12 +439,16 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
         </Button>
       </div>
       <div className="step-tabs">
-        {["题面与样例", "测试与解法", "检查与发布"].map((t) => (
+        {["题面与样例", "测试与解法", "检查与发布"].map((t, index) => (
           <Button
             key={t}
             variant={step === t ? "default" : "ghost"}
             onClick={() => setParams({ step: t })}
+            aria-current={step === t ? "step" : undefined}
           >
+            <span className="step-number" aria-hidden="true">
+              {index + 1}
+            </span>
             {t}
           </Button>
         ))}
@@ -864,7 +872,10 @@ export function AuthoringTask() {
   return (
     <div className="page">
       <Link to="/authoring">← 命题中心</Link>
-      <h1>AI 命题</h1>
+      <h1>
+        <Icon name="spark" />
+        AI 命题
+      </h1>
       <p>{t.requirement}</p>
       <TaskProgress task={t} disconnected={disconnected} />
       {!terminal(t.status) && (

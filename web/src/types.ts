@@ -38,4 +38,22 @@ export type Submission = {
   compile_info?: string;
   run_info?: string;
   error_info?: string;
+  evaluation?: Evaluation;
+};
+export type Evaluation = {
+  status: string;
+  verdict: string;
+  score: number | null;
+  max_score: number | null;
+  executed_cases: number | null;
+  passed_cases: number | null;
+  total_cases: number | null;
+  all_passed: boolean;
+  result_counts: Record<string, number>;
+};
+export type CaseResult = {
+  id: number;
+  result: string;
+  time: number;
+  memory: number;
 };

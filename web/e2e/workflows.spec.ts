@@ -33,6 +33,35 @@ test("filter, navigate, edit, refresh, submit and inspect result", async ({
   await page.getByRole("link", { name: "返回题目继续修改" }).click();
   await expect(page.locator(".view-lines")).toContainText("print");
 });
+
+test("Chinese composition, URL restoration and vertical result controls", async ({
+  page,
+}) => {
+  await login(page);
+  const input = page.getByLabel("搜索题目");
+  await input.dispatchEvent("compositionstart");
+  await input.fill("kuohao");
+  await page.waitForTimeout(350);
+  expect(new URL(page.url()).searchParams.get("q")).toBeNull();
+  await input.fill("括号");
+  await input.dispatchEvent("compositionend", { data: "括号" });
+  await expect(page).toHaveURL(/q=/);
+  await expect(page.locator(".problem-row")).toHaveCount(1);
+  await page.getByLabel("清空搜索").click();
+  await expect(input).toHaveValue("");
+  await page.goto("/problems/sum_2");
+  const statement = await page.locator(".statement-pane").boundingBox();
+  const editor = await page.locator(".code-area").boundingBox();
+  expect(editor!.y).toBeGreaterThan(statement!.y + statement!.height);
+  await page.locator(".monaco-editor").click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.insertText("a,b=map(int,input().split());print(a-b)");
+  await page.getByRole("button", { name: "提交评测", exact: true }).click();
+  await expect(page.locator(".case-tile").first()).toBeVisible();
+  await page.locator(".case-tile").first().click();
+  await expect(page.locator(".case-detail")).toContainText("耗时");
+  await expect(page.locator(".evaluation-numbers")).toContainText("得分");
+});
 test("AI streams, restores after refresh and cancels without resubmission", async ({
   page,
 }) => {
@@ -190,6 +219,9 @@ for (const width of [1440, 1024, 390])
     await page.screenshot({
       path: testInfo.outputPath(`workspace-${width}.png`),
     });
+    const statementBox = await page.locator(".statement-pane").boundingBox();
+    const codeBox = await page.locator(".code-area").boundingBox();
+    expect(codeBox!.y).toBeGreaterThan(statementBox!.y + statementBox!.height);
     if (width === 390) {
       await page.getByRole("button", { name: "代码", exact: true }).click();
       await expect(
@@ -199,3 +231,46 @@ for (const width of [1440, 1024, 390])
       await expect(page.getByLabel("你的问题")).toBeVisible();
     }
   });
+
+test("visual acceptance across pages and result panels", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  const submitted = await page.request.post("/api/submissions/", {
+    data: {
+      problem_id: "sum_2",
+      language: "python",
+      code: "a,b=map(int,input().split());print(a+b)",
+    },
+  });
+  expect(submitted.status()).toBe(200);
+  const sid = (await submitted.json()).data.submission_id;
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 960 });
+    for (const [label, route] of [
+      ["library", "/problems"],
+      ["workspace", "/problems/sum_2"],
+      ["records", "/submissions"],
+      ["authoring", "/authoring"],
+      ["account", "/account"],
+      ["admin", "/admin"],
+      ["result", `/submissions/${sid}`],
+    ]) {
+      await page.goto(route);
+      await expect(page.locator("h1")).toBeVisible();
+      if (label === "result")
+        await expect(page.locator(".case-tile").first()).toBeVisible();
+      if (label === "workspace")
+        await expect(page.locator(".monaco-editor")).toBeVisible();
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth + 1,
+        ),
+      ).toBeTruthy();
+      await page.screenshot({
+        path: testInfo.outputPath(`${label}-${width}.png`),
+        fullPage: true,
+      });
+    }
+  }
+});
