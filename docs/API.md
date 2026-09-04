@@ -1,7 +1,9 @@
 # API reference
 
-所有 JSON 响应均为 `{"code": HTTP状态码, "msg": "...", "data": ...}`，Cookie
+所有 JSON 响应均保留 `{"code": HTTP状态码, "msg": "...", "data": ...}`，Cookie
 保存服务端 Session ID。除注册、登录、语言列表和健康检查外，业务接口均要求登录。
+失败响应可以额外包含 `error`，其中提供稳定错误标识、面向用户的标题、修复建议、
+是否适合重试及字段错误。旧客户端继续读取 `code/msg/data` 即可。
 
 ## 用户与会话
 
@@ -64,6 +66,7 @@
 | GET/POST       | `/api/problem-drafts/`                | 登录          | 本人命题草稿列表/创建                            |
 | GET/PUT/DELETE | `/api/problem-drafts/{id}`            | 创建者        | 读取、部分草稿乐观锁更新、归档                   |
 | GET            | `/api/problem-drafts/{id}/revisions`  | 创建者        | 完整版本快照                                     |
+| POST           | `/api/problem-drafts/{id}/verify`     | 创建者        | 本地检查；请求体可选 `basic` 或 `full`           |
 | POST           | `/api/problem-drafts/{id}/publish`    | 创建者        | 仅发布通过质量门禁的草稿                         |
 
 `GET /api/ai/model-config` 返回 `source`（`personal/system/none`）、
@@ -104,3 +107,10 @@
 AI 完整质量门禁要求独立暴力解与确定性数据生成器；生成器在评测资源限制中运行，
 输出 20–100 组唯一输入。参考解与 oracle 全部对拍一致且 mutation score 为 100% 后，
 关联命题草稿才进入 `ready` 状态。
+
+`POST /api/problem-drafts/{id}/verify` 的 `{"mode":"basic"}` 检查题目 Schema、题号、
+限制、样例、测试与 Markdown/LaTeX；有参考解时还会实际运行全部样例和测试点，未提供
+参考解时返回明确警告但允许发布手工题。`{"mode":"full"}` 继续执行错误解检测、独立
+oracle 和 20–100 组随机对拍。省略请求体保持旧客户端的 `full` 行为。草稿响应中的
+`verification_level` 与 `verification_summary` 只对应被检查的 revision；任何编辑都会清除
+旧验证结论并重新阻止发布。

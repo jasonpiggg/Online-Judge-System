@@ -138,7 +138,7 @@ def page(canvas, doc):
     canvas.setStrokeColor(colors.HexColor("#E2E8F2"))
     canvas.line(18 * mm, 282 * mm, 192 * mm, 282 * mm)
     canvas.setFillColor(MUTED)
-    canvas.drawString(18 * mm, 11 * mm, "jasonpiggg · 2026-09-04")
+    canvas.drawString(18 * mm, 11 * mm, "jasonpiggg · 2026-09-05")
     canvas.drawRightString(192 * mm, 11 * mm, str(doc.page))
     canvas.restoreState()
 
