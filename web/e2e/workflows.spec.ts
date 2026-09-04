@@ -654,6 +654,89 @@ test("browser-like activity tabs close safely and reopen on navigation", async (
   await expect(page.getByLabel("进行中的任务")).toHaveCount(0);
   await page.goto("/problems/sum_2");
   await expect(page.getByLabel("进行中的任务")).toContainText("sum_2");
+  await page.goto("/problems/brackets");
+  await expect(page.locator(".activity-tab > a span")).toHaveCount(2);
+  await expect(page.getByLabel("进行中的任务")).toContainText("brackets");
+  const before = await page.locator(".activity-tab > a span").allTextContents();
+  await page.getByRole("link", { name: /sum_2 ·/ }).click();
+  await expect(page).toHaveURL(/\/problems\/sum_2/);
+  await expect.poll(() => page.locator(".activity-tab > a span").allTextContents()).toEqual(before);
+});
+
+test("AI code review blocks snippets and stale edits, and supports undo", async ({ page }, testInfo) => {
+  await login(page);
+  await page.goto("/problems/sum_2?tab=代码");
+  const original = "import sys\na, b = map(int, sys.stdin.readline().split())\nprint(a - b)";
+  await page.locator(".monaco-editor").click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.insertText(original);
+  await page.getByRole("button", { name: "AI", exact: true }).click();
+  await page.getByLabel("你的问题").fill("分析本次评测的单行建议");
+  await page.getByLabel("你的问题").press("Enter");
+  await expect(page.getByText("回答已完成", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "审查回答中的代码" }).click();
+  await expect(page.locator(".diff-remove").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "应用完整代码" })).toHaveCount(0);
+  await expect(page.locator(".view-lines")).toContainText("a - b");
+  await page.getByRole("button", { name: "关闭审查" }).click();
+  await page.getByRole("button", { name: "新对话", exact: true }).click();
+  await expect(page.getByText("已开始新对话，后续回答不会携带此前对话内容。")).toBeVisible();
+  await page.getByLabel("你的问题").fill("请给我完整代码用于代码审查验收");
+  await page.getByLabel("你的问题").press("Enter");
+  await expect(page.getByText("回答已完成", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "审查回答中的代码" }).click();
+  await expect(page.getByRole("button", { name: "应用完整代码" })).toBeEnabled();
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 950 });
+    await page.locator(".code-review-card").scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
+    await page.screenshot({ path: testInfo.outputPath(`code-review-${width}.png`) });
+  }
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await page.getByLabel("编程语言").selectOption("cpp");
+  await expect(page.getByRole("button", { name: "应用完整代码" })).toBeDisabled();
+  await page.getByLabel("编程语言").selectOption("python");
+  await expect(page.getByRole("button", { name: "应用完整代码" })).toBeEnabled();
+  await page.getByRole("button", { name: "应用完整代码" }).click();
+  await expect(page.locator(".view-lines")).toContainText("a + b");
+  await page.getByRole("button", { name: "撤销 AI 替换" }).click();
+  await expect(page.locator(".view-lines")).toContainText("a - b");
+  await page.getByRole("button", { name: "审查回答中的代码" }).click();
+  await page.locator(".monaco-editor").click();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.insertText("\n# keep my new edit");
+  await expect(page.getByRole("button", { name: "应用完整代码" })).toBeDisabled();
+});
+
+test("content font and inset spacing remain readable across viewports", async ({ page }) => {
+  await login(page);
+  await page.goto("/problems/brackets?tab=代码");
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 950 });
+    expect(await page.locator(".statement .markdown p").first().evaluate(node => getComputedStyle(node).fontSize)).toBe("16px");
+    expect(await page.getByRole("button", { name: "提交评测", exact: true }).evaluate(node => getComputedStyle(node).fontSize)).toBe("14px");
+    for (const selector of [".editor-toolbar", ".editor-footer"]) {
+      const spacing = await page.locator(selector).evaluate(node => ({ padding: parseFloat(getComputedStyle(node).paddingLeft), gap: parseFloat(getComputedStyle(node).gap) }));
+      expect(spacing.padding).toBeGreaterThanOrEqual(15);
+      expect(spacing.gap).toBeGreaterThanOrEqual(12);
+    }
+  }
+});
+
+test("failed local verification returns to the draft without paid regeneration", async ({ page }) => {
+  await login(page);
+  const problem = (await (await page.request.get("/api/problems/sum_2")).json()).data;
+  delete problem.limit_inheritance;
+  const created = await page.request.post("/api/problem-drafts/", { data: { problem } });
+  const draftId = (await created.json()).data.id;
+  const started = await page.request.post(`/api/problem-drafts/${draftId}/verify`);
+  const taskId = (await started.json()).data.task_id;
+  await page.goto(`/authoring/tasks/${taskId}`);
+  await expect(page.getByText("本地验证未通过", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "重新生成", exact: true })).toHaveCount(0);
+  await page.getByRole("link", { name: "返回草稿修正并检查" }).click();
+  await expect(page).toHaveURL(new RegExp(`/authoring/drafts/${draftId}`));
+  await expect(page.getByRole("button", { name: "运行基础检查", exact: true })).toBeEnabled();
 });
 
 test("regular user can view public case logs without private submission data", async ({

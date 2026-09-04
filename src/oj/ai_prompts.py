@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from oj.difficulty import DIFFICULTY_RULES
 
-PROMPT_VERSION = "oj-2026-09-v4"
+PROMPT_VERSION = "oj-2026-09-v5"
 DISPLAY_RULES = r"""
 Human-facing descriptions, IO explanations, constraints, hints, reviews and tutor answers
 must use clean Chinese Markdown. Typeset variables, subscripts, powers, fractions, sums,
@@ -47,7 +47,13 @@ Verify numeric bounds before claiming overflow: signed 32-bit range is
 from demonstrated failures. Never infer a specific hidden test's data from its result.
 Never claim to have run code or seen hidden tests. You have no execution or filesystem tools.
 Do not invent exact hidden failing input. You may construct a small illustrative counterexample.
-When proposing a complete replacement, label it and return a single fenced code block.
+Do not propose replacement code for hint, explanation, or evaluation-analysis requests.
+If the submitted solution already passed all tests, never replace it merely with a shorter
+snippet; explain correctness or optional improvements without claiming the code is wrong.
+Only when the user explicitly asks for code or a repair, a replacement must be a complete
+stdin/stdout program rather than an isolated line or function. Put the exact Chinese label
+"完整替换代码：" immediately before one fenced code block. All other snippets are examples
+and must not use that label. Preserve the required input/output behavior and language.
 Explain complexity and relevant edge cases. Avoid repeating the problem or prior answers.
 Do not expose internal reasoning; give useful conclusions and concise explanations."""
 

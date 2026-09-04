@@ -20,6 +20,7 @@ import { Icon } from "../components/Icon";
 import { readBackup, writeBackup, clearBackup } from "../draft-backup";
 import { BackLink } from "../components/BackLink";
 import { useRegisterActivity } from "../components/Activity";
+import { ErrorNotice } from "../components/ErrorNotice";
 export function Workspace({ user }: { user: User }) {
   const { id = "" } = useParams();
   const { data: p, error } = useQuery({
@@ -27,7 +28,7 @@ export function Workspace({ user }: { user: User }) {
     queryFn: () => api<Problem>(`/problems/${id}`),
   });
   return error ? (
-    <p role="alert">{error.message}</p>
+    <ErrorNotice title="题目暂时无法打开" message={error.message} />
   ) : p ? (
     <Work key={id} problem={p} user={user} />
   ) : (
@@ -45,7 +46,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const [language, setLanguage] = useState(
     localStorage.getItem("oj-language") || "python",
   );
-  const [size, setSize] = useState(14);
+  const [size, setSize] = useState(16);
   const [code, setCode] = useState("");
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState("");
@@ -355,8 +356,8 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
             </div>
           </div>
           {error && (
-            <p role="alert">
-              {error}{" "}
+            <div className="error-recovery">
+              <ErrorNotice title={conflict ? "代码版本需要选择" : "代码草稿未能同步"} message={error} />
               {!conflict && ready && (
                 <Button
                   onClick={() => {
@@ -367,7 +368,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
                   重试保存
                 </Button>
               )}
-            </p>
+            </div>
           )}
           {conflict && (
             <div className="notice">

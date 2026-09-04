@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from pathlib import Path
 from typing import Any
 
+import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 
@@ -101,6 +104,39 @@ async def _wait_task(client: AsyncClient, task_id: str) -> dict[str, Any]:
     raise AssertionError("verification task did not finish")
 
 
+@pytest.mark.parametrize("problem_id", ["sum_2", "brackets", "prefix_sum"])
+async def test_seed_problem_basic_verification(client: AsyncClient, problem_id: str) -> None:
+    await _login(client, "seed-author")
+    problem = json.loads((Path("data/problem_seeds") / f"{problem_id}.json").read_text("utf-8"))
+    created = await client.post("/api/problem-drafts/", json={"problem": problem})
+    draft_id = created.json()["data"]["id"]
+    started = await client.post(f"/api/problem-drafts/{draft_id}/verify", json={"mode": "basic"})
+    task = await _wait_task(client, started.json()["data"]["task_id"])
+    assert task["status"] == "completed", task["error"]
+    assert task["usage"]["total_tokens"] == 0
+    assert task["result"]["problem"]["testcases"] == problem["testcases"]
+
+
+async def test_basic_verification_blocks_corrupted_math(
+    client: AsyncClient, problem_payload: dict[str, Any]
+) -> None:
+    await _login(client, "corrupt-math")
+    created = await client.post(
+        "/api/problem-drafts/",
+        json={
+            "problem": {
+                **problem_payload,
+                "description": "$\\frac{a}{b$",
+            }
+        },
+    )
+    draft_id = created.json()["data"]["id"]
+    started = await client.post(f"/api/problem-drafts/{draft_id}/verify", json={"mode": "basic"})
+    task = await _wait_task(client, started.json()["data"]["task_id"])
+    assert task["status"] == "failed"
+    assert "公式或文本转义" in task["error"]
+
+
 async def test_basic_verification_allows_manual_draft_without_ai_assets(
     client: AsyncClient, problem_payload: dict[str, Any]
 ) -> None:
@@ -110,9 +146,7 @@ async def test_basic_verification_allows_manual_draft_without_ai_assets(
         json={"requirement": "手工创建一份基础题", "problem": problem_payload},
     )
     draft_id = created.json()["data"]["id"]
-    started = await client.post(
-        f"/api/problem-drafts/{draft_id}/verify", json={"mode": "basic"}
-    )
+    started = await client.post(f"/api/problem-drafts/{draft_id}/verify", json={"mode": "basic"})
     task = await _wait_task(client, started.json()["data"]["task_id"])
     assert task["status"] == "completed"
     assert task["result"]["verification"]["level"] == "basic"
@@ -122,6 +156,32 @@ async def test_basic_verification_allows_manual_draft_without_ai_assets(
     assert draft["status"] == "ready"
     assert draft["verification_level"] == "basic"
     assert (await client.post(f"/api/problem-drafts/{draft_id}/publish")).status_code == 200
+
+
+async def test_basic_verification_warns_but_does_not_block_legacy_plaintext_math(
+    client: AsyncClient, problem_payload: dict[str, Any]
+) -> None:
+    await _login(client, "legacy-problem-author")
+    legacy = {
+        **problem_payload,
+        "id": "legacy_plaintext_math",
+        "description": "旧题把价格写成 $5，并没有使用数学公式。",
+    }
+    created = await client.post(
+        "/api/problem-drafts/",
+        json={"requirement": "编辑题库中的旧题", "problem": legacy},
+    )
+    draft_id = created.json()["data"]["id"]
+    started = await client.post(f"/api/problem-drafts/{draft_id}/verify", json={"mode": "basic"})
+    task = await _wait_task(client, started.json()["data"]["task_id"])
+    assert task["status"] == "completed"
+    report = task["result"]["verification"]
+    assert report["publishable"] is True
+    assert (
+        next(item for item in report["checks"] if item["id"] == "presentation")["status"]
+        == "skipped"
+    )
+    assert any("旧题排版提示" in warning for warning in report["warnings"])
 
 
 async def test_edit_invalidates_basic_verification(
@@ -136,9 +196,7 @@ async def test_edit_invalidates_basic_verification(
         },
     )
     draft_id = created.json()["data"]["id"]
-    started = await client.post(
-        f"/api/problem-drafts/{draft_id}/verify", json={"mode": "basic"}
-    )
+    started = await client.post(f"/api/problem-drafts/{draft_id}/verify", json={"mode": "basic"})
     await _wait_task(client, started.json()["data"]["task_id"])
     verified = (await client.get(f"/api/problem-drafts/{draft_id}")).json()["data"]
     assert verified["status"] == "ready"
@@ -176,9 +234,7 @@ async def test_basic_verification_rejects_incorrect_reference_solution(
         },
     )
     draft_id = created.json()["data"]["id"]
-    started = await client.post(
-        f"/api/problem-drafts/{draft_id}/verify", json={"mode": "basic"}
-    )
+    started = await client.post(f"/api/problem-drafts/{draft_id}/verify", json={"mode": "basic"})
     task = await _wait_task(client, started.json()["data"]["task_id"])
     assert task["status"] == "failed"
     assert "参考解没有通过" in task["error"]
@@ -200,3 +256,7 @@ async def test_legacy_verification_request_keeps_full_mode(
         (started.json()["data"]["task_id"],),
     )
     assert '"verification_mode":"full"' in context["payload"]
+    task = await _wait_task(client, started.json()["data"]["task_id"])
+    assert task["status"] == "failed"
+    assert "完整验证资料不完整" in task["error"]
+    assert task["progress"] == "本地验证未通过"

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, json, errorText, queryClient } from "../api";
-import { RichText, Code } from "./Markdown";
+import { RichText } from "./Markdown";
 import { Button } from "./ui/button";
 import { Pagination } from "./Pagination";
 import { ErrorNotice } from "./ErrorNotice";
+import { DiffView } from "./DiffView";
 export type Task = {
   task_id: string;
   action?: string;
@@ -35,6 +36,46 @@ export type Task = {
 };
 export const terminal = (status?: string) =>
   ["completed", "failed", "cancelled"].includes(status || "");
+
+export type CodeSuggestion = {
+  code: string;
+  language: string;
+  canApply: boolean;
+  reason: string;
+};
+
+export function extractCodeSuggestion(
+  answer: string,
+  currentCode: string,
+  request: string,
+): CodeSuggestion | null {
+  const matches = [...answer.matchAll(/```([^\n`]*)\n([\s\S]*?)```/g)].filter(
+    (match) => /^(?:python|py|cpp|c\+\+|c|java|javascript|js|typescript|ts|go|rust)\b/i.test(match[1].trim()),
+  );
+  const candidate = matches.at(-1);
+  if (!candidate) return null;
+  const code = candidate[2].trimEnd();
+  if (!code.trim()) return null;
+  const prefix = answer.slice(Math.max(0, (candidate.index || 0) - 120), candidate.index);
+  const explicitlyComplete = /(?:^|\n)(?:#{1,6}\s*)?(?:\*\*)?完整替换代码[：:](?:\*\*)?\s*$/.test(prefix);
+  const userRequestedCode = /完整.{0,8}(?:代码|题解|解法|实现)|(?:给|写|提供|生成|修复|修改|改正|重写).{0,8}(?:代码|程序)|直接.{0,6}(?:代码|实现)/i.test(request);
+  const lines = code.split(/\r?\n/).filter((line) => line.trim()).length;
+  const looksExecutable =
+    /\b(?:int\s+main|public\s+static\s+void\s+main)\b/.test(code) ||
+    ((/\b(?:input\s*\(|stdin|readline\s*\()/i.test(code) || /\bdef\s+main\s*\(/.test(code)) &&
+      /\bprint\s*\(|stdout|cout\s*<</i.test(code));
+  const substantial = lines >= (currentCode.trim() ? 3 : 2) &&
+    (!currentCode.trim() || code.length >= Math.min(120, currentCode.trim().length * 0.35));
+  const unchanged = code.trim() === currentCode.trim();
+  const canApply = explicitlyComplete && userRequestedCode && looksExecutable && substantial && !unchanged;
+  let reason = "模型标注为完整替换代码，尚未编译或评测；请先检查差异，应用后重新提交验证。";
+  if (unchanged) reason = "建议代码与当前代码相同，无需替换。";
+  else if (!userRequestedCode) reason = "你没有要求替换完整程序，此代码块按讲解片段展示，不会覆盖编辑器。";
+  else if (!explicitlyComplete || !looksExecutable || !substantial)
+    reason = "该代码块不像完整、可运行的解答，已禁止一键覆盖；可复制需要的片段手动修改。";
+  const fenceLanguage = candidate[1].trim().toLowerCase();
+  return { code, language: ({ py: "python", "c++": "cpp" } as Record<string, string>)[fenceLanguage] || fenceLanguage, canApply, reason };
+}
 export function useTask(id?: string) {
   const [disconnected, setDisconnected] = useState(false);
   const query = useQuery({
@@ -167,7 +208,9 @@ export function Assistant({
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [proposed, setProposed] = useState(""),
+    [proposed, setProposed] = useState<(CodeSuggestion & { baseline: string; editorLanguage: string }) | null>(null),
+    [applied, setApplied] = useState<{ before: string; after: string; language: string } | null>(null),
+    [copyMessage, setCopyMessage] = useState(""),
     [historyPage, setHistoryPage] = useState(1),
     [topicMessage, setTopicMessage] = useState("");
   const pending = useRef<{ hash: string; key: string } | undefined>(undefined);
@@ -264,7 +307,7 @@ export function Assistant({
       setActive(undefined);
       setContextGeneration(started.context_generation);
       setHistoryPage(1);
-      setProposed("");
+      setProposed(null);
       pending.current = undefined;
       setTopicMessage("已开始新对话，后续回答不会携带此前对话内容。");
       await queryClient.invalidateQueries({
@@ -290,20 +333,29 @@ export function Assistant({
     text: string,
     snapshot: string,
     snapshotLanguage?: string,
+    request = "",
+    status = "completed",
   ) => {
-    const matches = [
-      ...text.matchAll(/```(?:python|cpp|c\+\+|c)?\s*\n([\s\S]*?)```/g),
-    ];
+    const suggestion = extractCodeSuggestion(text, code, request);
     return (
       <>
-        <RichText text={text} />
+        <div className="ai-answer-card">
+          <span className="eyebrow">AI 回答</span>
+          <RichText text={text} />
+        </div>
         {(snapshot !== code ||
           (snapshotLanguage && snapshotLanguage !== language)) && (
-          <p className="muted">此回答基于较早的代码版本。</p>
+          <p className="version-note">此回答基于较早的代码版本，请勿把旧评测结论直接套用到当前代码。</p>
         )}
-        {matches.length > 0 && (
-          <Button onClick={() => setProposed(matches[matches.length - 1][1])}>
-            查看建议代码并比较
+        {suggestion && (
+          <Button disabled={status !== "completed"} onClick={() => {
+            const matchesSnapshot = snapshot === code && snapshotLanguage === language && suggestion.language === language;
+            setProposed({ ...suggestion, baseline: code, editorLanguage: language,
+              canApply: suggestion.canApply && matchesSnapshot,
+              reason: matchesSnapshot ? suggestion.reason : "当前代码或语言与回答快照不同，已禁止覆盖。请基于当前版本重新提问，或复制片段手动合并。",
+            });
+          }}>
+            审查回答中的代码
           </Button>
         )}
       </>
@@ -398,7 +450,7 @@ export function Assistant({
             <p className="user-message">{task.requirement}</p>
             <TaskProgress task={task} disconnected={disconnected} />
             {answer
-              ? showAnswer(answer, task.code_snapshot || "", task.language)
+              ? showAnswer(answer, task.code_snapshot || "", task.language, task.requirement, task.status)
               : !terminal(task.status) && (
                   <p className="skeleton">
                     正在组织回答，内容生成后会显示在这里…
@@ -428,7 +480,7 @@ export function Assistant({
                     </small>
                   </summary>
                   <div className="history-answer">
-                    {showAnswer(item.text, item.code_snapshot, item.language)}
+                    {showAnswer(item.text, item.code_snapshot, item.language, item.message, item.status)}
                   </div>
                 </details>
               ))}
@@ -444,30 +496,38 @@ export function Assistant({
         </details>
       )}
       {proposed && (
-        <div className="notice">
-          <h4>应用前比较</h4>
-          <div className="samples">
-            <div>
-              <h4>当前代码</h4>
-              <Code text={code} />
-            </div>
-            <div>
-              <h4>建议代码</h4>
-              <Code text={proposed} />
-            </div>
+        <section className="code-review-card">
+          <div className="section-heading">
+            <div><span className="eyebrow">代码审查</span><h3>应用前检查修改</h3></div>
           </div>
-          <Button
-            variant="default"
-            onClick={() => {
-              onApply(proposed);
-              setProposed("");
-            }}
-          >
-            应用到编辑器
-          </Button>
-          <Button onClick={() => setProposed("")}>取消</Button>
-        </div>
+          <p className={proposed.canApply ? "status-good" : "notice-inline"}>{proposed.reason}</p>
+          <DiffView before={{ code: proposed.baseline }} after={{ code: proposed.code }} />
+          {(code !== proposed.baseline || language !== proposed.editorLanguage) && <p className="notice-inline">审查打开后代码或语言已改变。请关闭并重新审查，当前内容不会被覆盖。</p>}
+          <div className="review-actions">
+            {proposed.canApply && (
+              <Button
+                variant="default"
+                disabled={code !== proposed.baseline || language !== proposed.editorLanguage}
+                onClick={() => {
+                  if (code !== proposed.baseline || language !== proposed.editorLanguage) return;
+                  setApplied({ before: code, after: proposed.code, language });
+                  onApply(proposed.code);
+                  setProposed(null);
+                }}
+              >
+                应用完整代码
+              </Button>
+            )}
+            <Button onClick={async () => {
+              try { await navigator.clipboard.writeText(proposed.code); setCopyMessage("建议代码已复制。"); }
+              catch { setCopyMessage("复制失败，请在差异区选中并手动复制代码。"); }
+            }}>复制建议代码</Button>
+            <Button onClick={() => setProposed(null)}>关闭审查</Button>
+          </div>
+        </section>
       )}
+      {copyMessage && <p role="status">{copyMessage}</p>}
+      {applied && <div className="notice"><p>AI 建议已应用，原代码仍保留，可撤销本次替换。</p><Button disabled={code !== applied.after || language !== applied.language} onClick={() => { onApply(applied.before); setApplied(null); }}>撤销 AI 替换</Button>{(code !== applied.after || language !== applied.language) && <p className="muted">代码已继续编辑或语言已切换，为保留新内容，已停用撤销。</p>}</div>}
     </div>
   );
 }
