@@ -15,7 +15,7 @@ React + TypeScript 提供默认浏览器工作台，Streamlit 保留为兼容入
 | Step 3 · 提交管理 | 后台评测、状态恢复、组合筛选、分页、限频、管理员重测 |
 | Step 4 · 用户管理 | bcrypt、服务端 Session、注册登录、角色与禁用、实时统计 |
 | Step 5 · 日志审计 | 测试点日志、公开策略、访问成功/拒绝审计、管理员筛选 |
-| Step 6 · Web UI | 白底 React 工作台、Monaco、Markdown/数学公式、移动端标签、版本草稿与 AI 做题助手 |
+| Step 6 · Web UI | 白底 React 工作台、Monaco、Markdown/数学公式、普通用户资源管理、版本草稿与可分话题 AI 助手 |
 | Advance · 命题中心 | 加密配置、流式任务、版本草稿、独立 oracle 对拍、mutation score、Token 计费 |
 
 所有业务响应统一为 `{"code": HTTP状态码, "msg": "...", "data": ...}`；

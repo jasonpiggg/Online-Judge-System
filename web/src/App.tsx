@@ -16,6 +16,7 @@ import { Records, SubmissionPage } from "./pages/Records";
 import { Account } from "./pages/Account";
 import { Admin } from "./pages/Admin";
 import { Authoring, DraftPage, AuthoringTask } from "./pages/Authoring";
+import { Resources } from "./pages/Resources";
 import "./style.css";
 import { Icon } from "./components/Icon";
 const Workspace = lazy(() =>
@@ -131,6 +132,10 @@ export default function App() {
               <Icon name="spark" />
               命题中心
             </NavLink>
+            <NavLink to="/resources">
+              <Icon name="code" />
+              资源
+            </NavLink>
             {user.role === "admin" && (
               <NavLink to="/admin">
                 <Icon name="shield" />
@@ -164,6 +169,7 @@ export default function App() {
               element={<SubmissionPage user={user} />}
             />
             <Route path="/account" element={<Account user={user} />} />
+            <Route path="/resources" element={<Resources />} />
             <Route
               path="/admin"
               element={

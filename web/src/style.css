@@ -2385,6 +2385,72 @@ textarea {
   margin: 16px 0;
   padding: 10px 0;
 }
+.assistant-intro,
+.assistant-send-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.assistant-intro {
+  margin-bottom: 10px;
+}
+.assistant-intro p,
+.assistant-send-row p {
+  margin: 0;
+}
+.assistant-composer {
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfdff;
+}
+.assistant-composer textarea {
+  min-height: 76px;
+  margin-top: 6px;
+}
+.assistant-send-row {
+  margin-top: 8px;
+}
+.current-answer > section {
+  padding: 14px 0;
+}
+.assistant-history {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.assistant-history > summary {
+  color: var(--muted);
+}
+.assistant-history .messages {
+  max-height: none;
+  overflow: visible;
+}
+.history-turn {
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+}
+.history-turn > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+}
+.history-turn > summary span {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-turn > summary small {
+  color: var(--muted);
+  font-weight: 400;
+}
+.history-answer {
+  padding: 4px 4px 14px;
+}
 details {
   padding: 10px 0;
 }
@@ -2409,6 +2475,21 @@ details {
 }
 .section-heading h2 {
   font-size: 18px;
+}
+@media (max-width: 640px) {
+  .assistant-intro,
+  .assistant-send-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .assistant-intro .button,
+  .assistant-send-row .button {
+    align-self: flex-start;
+  }
+  .history-turn > summary {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
 }
 .stats {
   gap: 12px;
