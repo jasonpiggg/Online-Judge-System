@@ -15,10 +15,12 @@ const suggestions: Array<[RegExp, string]> = [
 ];
 
 export function friendlyError(message: string) {
-  return (
-    suggestions.find(([pattern]) => pattern.test(message))?.[1] ||
-    "请检查填写内容与当前状态后重试；问题持续存在时可展开技术详情。"
-  );
+  const mapped = suggestions.find(([pattern]) => pattern.test(message))?.[1];
+  if (mapped) return mapped;
+  // Structured API errors are already written for end users. Preserve their
+  // concrete advice instead of replacing it with a generic second message.
+  if (/[一-鿿]/.test(message)) return message;
+  return "请检查填写内容与当前状态后重试；问题持续存在时可展开技术详情。";
 }
 
 export function ErrorNotice({

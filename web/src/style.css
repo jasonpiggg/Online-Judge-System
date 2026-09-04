@@ -2886,6 +2886,7 @@ summary,
 .diff-field { border-bottom: 1px solid #e5eaf0; }
 .diff-field:last-child { border-bottom: 0; }
 .diff-field > h3 { padding: 8px 12px; margin: 0; font-size: 14px; background: #fbfcfe; }
+.diff-field:not(.same) > h3 { background: #fff9e9; box-shadow: inset 3px 0 #dca841; }
 .diff-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .diff-side { min-width: 0; }
 .diff-columns .diff-side + .diff-side { border-left: 1px solid #dfe5ec; }

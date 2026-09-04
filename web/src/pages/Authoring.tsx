@@ -347,6 +347,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
           backup,
           JSON.stringify({ revision: version.current, ...JSON.parse(content) }),
         );
+        setBackupFailed(false);
       } catch {
         setBackupFailed(true);
         setError("本机备份失败，请保存草稿或复制内容。");

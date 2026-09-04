@@ -107,6 +107,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
     if (!ready || loadedBackup.current !== backup) return;
     try {
       if (code !== synced.current) writeBackup(backup, code, revision.current);
+      setBackupFailed(false);
     } catch {
       setBackupFailed(true);
       setError("本机存储空间不足，请下载或复制代码备份。");
