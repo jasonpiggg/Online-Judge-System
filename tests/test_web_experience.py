@@ -95,7 +95,7 @@ async def test_web_auth_origin_and_revision(
     ).status_code == 403
     assert (await client.get("/api/nonexistent")).status_code == 404
     assert (await client.get("/assets/missing.js")).status_code == 404
-    switched = await client.put(path, json={"code": "must not save"}, headers={"X-OJ-User":"2"})
+    switched = await client.put(path, json={"code": "must not save"}, headers={"X-OJ-User": "2"})
     assert switched.status_code == 401
     assert (await client.get(path)).json()["data"]["code"] == "z"
 
@@ -385,10 +385,20 @@ async def test_resume_reuses_completed_stage_and_rejects_changed_context(
         return await original(config, prompt, usage)
 
     manager._stream_completion = failing
-    body = {"workflow_version": 2, "requirement": "创建简单求和题目覆盖边界"}
+    body = {"workflow_version": 2, "requirement": "创建简单求和题目覆盖边界", "problem_id": "sum_2"}
+    problem = await manager.problems.get("sum_2")
+    await manager.problems.update(problem.model_copy(update={"difficulty": "简单"}))
     old = await manager.create_request(1, body)
     assert (await finish(manager, old))["status"] == "failed"
     assert len(calls) == 1
+    context = await manager.db.fetchone(
+        "SELECT payload FROM ai_task_context WHERE task_id=?", (old,)
+    )
+    legacy = json.loads(context["payload"])
+    legacy["base_problem"]["difficulty"] = "easy"
+    await manager.db.execute(
+        "UPDATE ai_task_context SET payload=? WHERE task_id=?", (json.dumps(legacy), old)
+    )
     manager._stream_completion = original
     resumed = await manager.create_request(1, {**body, "resume_task_id": old})
     assert (await finish(manager, resumed))["status"] == "completed"
@@ -431,7 +441,9 @@ async def test_snapshot_keeps_original_model_and_submission_permissions(
 
 
 async def test_malformed_first_stage_is_repaired_by_scheduled_review(
-    client: AsyncClient, app: FastAPI, problem_payload: dict[str, Any],
+    client: AsyncClient,
+    app: FastAPI,
+    problem_payload: dict[str, Any],
     generated: dict[str, Any],
 ) -> None:
     manager = await configured(client, app, problem_payload)

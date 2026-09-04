@@ -208,8 +208,8 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
         </span>
         <h1>{p.title}</h1>
         <p className="muted">
-          {p.id} · {p.difficulty || "未分级"} · {p.time_limit} 秒 ·{" "}
-          {p.memory_limit} MB
+          {p.id} · <DifficultyBadge value={p.difficulty} /> · {p.time_limit} 秒
+          · {p.memory_limit} MB
         </p>
       </div>
       <details className="problem-tools">
@@ -429,3 +429,4 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
     </div>
   );
 }
+import { DifficultyBadge } from "../components/Difficulty";

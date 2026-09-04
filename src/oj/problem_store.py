@@ -28,7 +28,7 @@ class ProblemStore:
                 if not target.exists():
                     shutil.copy2(source, target)
         for path in self.directory.glob("*.json"):
-            Problem.model_validate_json(path.read_text(encoding="utf-8"))
+            Problem.model_validate_json(path.read_text(encoding="utf-8"), context={"legacy": True})
 
     def _path(self, problem_id: str) -> Path:
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", problem_id):
@@ -41,7 +41,9 @@ class ProblemStore:
         def read_all() -> list[dict[str, object]]:
             result = []
             for path in sorted(self.directory.glob("*.json")):
-                problem = Problem.model_validate_json(path.read_text(encoding="utf-8"))
+                problem = Problem.model_validate_json(
+                    path.read_text(encoding="utf-8"), context={"legacy": True}
+                )
                 item: dict[str, object] = {"id": problem.id, "title": problem.title}
                 if include_metadata:
                     item.update(difficulty=problem.difficulty, tags=problem.tags)
@@ -58,7 +60,9 @@ class ProblemStore:
 
     @staticmethod
     def _read_problem(path: Path) -> Problem:
-        return Problem.model_validate_json(path.read_text(encoding="utf-8"))
+        return Problem.model_validate_json(
+            path.read_text(encoding="utf-8"), context={"legacy": True}
+        )
 
     async def create(self, problem: Problem) -> bool:
         async with self._lock:

@@ -28,6 +28,7 @@ from oj.ai_sections import SECTION_FIELDS, merge_section, section_prompt
 from oj.ai_transport import PinnedTransport, bounded_sse_lines
 from oj.config import Settings
 from oj.database import Database
+from oj.difficulty import DIFFICULTY_RULES
 from oj.judge import judge_code, normalize_output
 from oj.languages import get_language
 from oj.problem_store import ProblemStore
@@ -510,7 +511,7 @@ class AIAuthoringManager:
                 routing_context += " " + str(draft_problem.get("difficulty", ""))
                 routing_context += " " + " ".join(draft_problem.get("tags", []))
                 if draft_problem:
-                    base_problem = Problem.model_validate(draft_problem)
+                    base_problem = Problem.model_validate(draft_problem, context={"legacy": True})
         target = task_row["target_section"] or "all"
         scoped = task_row["action"] == "revise" and target in SECTION_FIELDS
         if scoped and base_problem is None:
@@ -955,6 +956,8 @@ class AIAuthoringManager:
         api_key = self.cipher.decrypt(config["encrypted_api_key"]).decode()
         url = str(config["provider_url"]).rstrip("/") + "/chat/completions"
         system_prompt = config.get("system_prompt", SYSTEM_PROMPT)
+        if DIFFICULTY_RULES not in system_prompt:
+            system_prompt += DIFFICULTY_RULES
         if DISPLAY_RULES not in system_prompt:
             system_prompt += DISPLAY_RULES
         body = {

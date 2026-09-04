@@ -8,11 +8,24 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from oj.auth import CurrentUser, get_current_user
+from oj.difficulty import normalize_difficulty
 from oj.errors import APIError, response
 from oj.schemas import Problem, ProblemDraftCreate, ProblemDraftUpdate
 from oj.submissions import now_iso
 
 router = APIRouter(prefix="/api/problem-drafts")
+
+
+def _normalize_problem(problem: dict[str, Any]) -> dict[str, Any]:
+    if "difficulty" in problem:
+        problem["difficulty"] = normalize_difficulty(problem["difficulty"])
+    return problem
+
+
+def _normalize_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    if isinstance(snapshot.get("problem"), dict):
+        _normalize_problem(snapshot["problem"])
+    return snapshot
 
 
 def _decode(row: Any) -> dict[str, Any]:
@@ -21,7 +34,7 @@ def _decode(row: Any) -> dict[str, Any]:
         "base_problem_id": row["base_problem_id"],
         "status": row["status"],
         "requirement": row["requirement"],
-        "problem": json.loads(row["problem_json"]),
+        "problem": _normalize_problem(json.loads(row["problem_json"])),
         "reference_solution": row["reference_solution"],
         "brute_solution": row["brute_solution"],
         "generator_code": row["generator_code"],
@@ -203,7 +216,7 @@ async def list_problem_draft_revisions(
             {
                 "revision": row["revision"],
                 "source": row["source"],
-                "snapshot": json.loads(row["snapshot_json"]),
+                "snapshot": _normalize_snapshot(json.loads(row["snapshot_json"])),
                 "change_summary": row["change_summary"],
                 "created_at": row["created_at"],
             }
@@ -221,7 +234,7 @@ async def publish_problem_draft(
     row = await _owned_draft(request, draft_id, user.id)
     if row["status"] != "ready":
         raise APIError(409, "draft must pass verification before publishing")
-    problem = Problem.model_validate_json(row["problem_json"])
+    problem = Problem.model_validate_json(row["problem_json"], context={"legacy": True})
     existing = await request.app.state.problems.get(problem.id)
     # Publishing a draft must obey the same log-visibility policy as direct edits.
     if user.role != "admin" and problem.public_cases != (

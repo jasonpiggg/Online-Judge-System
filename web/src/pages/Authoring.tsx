@@ -1,4 +1,6 @@
 import { Icon } from "../components/Icon";
+import { difficulties, difficultyLevel } from "../difficulty";
+import { DifficultyGuide } from "../components/Difficulty";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -72,6 +74,7 @@ function clean(p: Problem): FormProblem {
   return {
     ...empty,
     ...p,
+    difficulty: difficultyLevel(p.difficulty).value,
     time_limit: p.limit_inheritance?.time_limit ? null : (p.time_limit ?? null),
     memory_limit: p.limit_inheritance?.memory_limit
       ? null
@@ -466,7 +469,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
           <Button
             onClick={() => {
               const saved = JSON.parse(local.current!);
-              form.reset(saved.problem, { keepDefaultValues: true });
+              form.reset(clean(saved.problem), { keepDefaultValues: true });
               setReference(saved.reference ?? reference);
               setBrute(saved.brute ?? brute);
               setGenerator(saved.generator ?? generator);
@@ -522,7 +525,13 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
               <div className="samples">
                 <label>
                   难度
-                  <input {...form.register("difficulty")} />
+                  <select aria-label="难度" {...form.register("difficulty")}>
+                    {difficulties.map((level) => (
+                      <option key={level.value} value={level.value}>
+                        {level.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   标签（逗号分隔）
@@ -541,6 +550,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                   />
                 </label>
               </div>
+              <DifficultyGuide />
               {(
                 [
                   ["description", "题目描述"],

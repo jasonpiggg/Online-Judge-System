@@ -9,6 +9,7 @@ from streamlit_ace import st_ace
 
 from frontend.client import ApiClient
 from frontend.ui import call, heading, navigate, pager, pills
+from oj.difficulty import DIFFICULTIES
 
 BREAKPOINT_JS = """export default function(c) {
       const media = window.matchMedia('(max-width: 760px)');
@@ -45,7 +46,7 @@ def library_page(api: ApiClient) -> None:
     if not result:
         return
     problems = result["data"]
-    levels = sorted({p.get("difficulty", "") for p in problems} - {""})
+    levels = [level["value"] for level in DIFFICULTIES if level["value"]]
     if st.session_state.get("mobile"):
         query = st.text_input("搜索题目", placeholder="题号、标题或标签", key="library-search")
         with st.expander("筛选与题目管理"):
@@ -84,7 +85,7 @@ def library_page(api: ApiClient) -> None:
             with text:
                 st.markdown(
                     '<div class="oj-problem-row"><span class="oj-kicker">'
-                    f'{escape(item["id"])}</span>'
+                    f"{escape(item['id'])}</span>"
                     f"<h3>{escape(item['title'])}</h3></div>",
                     unsafe_allow_html=True,
                 )
@@ -93,9 +94,7 @@ def library_page(api: ApiClient) -> None:
             with progress_col:
                 label = progress_label(item)
                 css = "pass" if label == "已通过" else "wait" if label == "尝试中" else ""
-                st.markdown(
-                    f'<span class="oj-status {css}">{label}</span>', unsafe_allow_html=True
-                )
+                st.markdown(f'<span class="oj-status {css}">{label}</span>', unsafe_allow_html=True)
                 if progress.get("attempts"):
                     st.caption(f"{progress['attempts']} 次提交")
             if action.button("开始做题", key=f"open-{item['id']}", width="stretch"):

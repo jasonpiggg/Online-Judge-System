@@ -2,7 +2,17 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
+
+from oj.difficulty import DIFFICULTIES, normalize_difficulty
 
 
 class StrictModel(BaseModel):
@@ -39,8 +49,17 @@ class Problem(StrictModel):
     time_limit: float | None = Field(default=None, gt=0, le=30)
     memory_limit: int | None = Field(default=None, ge=16, le=2048)
     author: str = Field(default="", max_length=100)
-    difficulty: str = Field(default="", max_length=40)
+    difficulty: str = Field(
+        default="",
+        max_length=40,
+        json_schema_extra={"enum": [level["value"] for level in DIFFICULTIES]},
+    )
     public_cases: bool = False
+
+    @field_validator("difficulty")
+    @classmethod
+    def canonical_difficulty(cls, value: str, info: ValidationInfo) -> str:
+        return normalize_difficulty(value, legacy=bool((info.context or {}).get("legacy")))
 
 
 class Language(StrictModel):

@@ -1,0 +1,51 @@
+[
+  {
+    "value": "",
+    "label": "未分级",
+    "tone": "unrated",
+    "description": "尚未评定；不能仅凭测试点数、分数或题面长短推断难度。",
+    "aliases": ["未分级", "未评级", "unknown", "unrated"]
+  },
+  {
+    "value": "入门",
+    "label": "入门",
+    "tone": "intro",
+    "description": "直接输入输出、算术、条件判断或简单循环。",
+    "aliases": ["beginner", "intro", "入门级"]
+  },
+  {
+    "value": "简单",
+    "label": "简单",
+    "tone": "easy",
+    "description": "单一基础方法：顺序扫描、排序或基础数据结构，思路直接。",
+    "aliases": ["easy", "basic", "基础", "初级"]
+  },
+  {
+    "value": "中等",
+    "label": "中等",
+    "tone": "medium",
+    "description": "需要选择合适算法并处理边界，如二分、前缀和、栈、搜索或基础动态规划。",
+    "aliases": ["medium", "intermediate", "normal", "进阶", "中级"]
+  },
+  {
+    "value": "困难",
+    "label": "困难",
+    "tone": "hard",
+    "description": "需要组合算法、较复杂的证明或状态设计，如复杂动态规划、图算法或高级数据结构。",
+    "aliases": ["hard", "difficult", "advanced", "高级"]
+  },
+  {
+    "value": "挑战",
+    "label": "挑战",
+    "tone": "expert",
+    "description": "高阶竞赛问题，需要深入推导、多种方法结合或严格的性能优化。",
+    "aliases": [
+      "expert",
+      "expert+",
+      "very hard",
+      "challenge",
+      "challenging",
+      "极难"
+    ]
+  }
+]
