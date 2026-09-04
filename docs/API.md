@@ -13,6 +13,7 @@
 | POST   | `/api/users/admin`          | 管理员      | 创建管理员                |
 | POST   | `/api/auth/login`           | 公开        | 登录并设置 Session Cookie |
 | POST   | `/api/auth/logout`          | 登录        | 立即销毁 Session          |
+| GET    | `/api/auth/me`              | 登录        | 当前用户、角色与有效题目统计 |
 | GET    | `/api/users/{user_id}`      | 本人/管理员 | 用户信息与统计            |
 | PUT    | `/api/users/{user_id}/role` | 管理员      | 设置 `user/admin/banned`  |
 | GET    | `/api/users/`               | 管理员      | 分页用户列表              |
@@ -26,13 +27,15 @@
 | DELETE   | `/api/problems/{problem_id}`                | 管理员 | 删除题目                          |
 | PUT      | `/api/problems/{problem_id}/log_visibility` | 管理员 | 设置测例日志公开性                |
 | GET      | `/api/languages/`                           | 公开   | 查询语言                          |
-| POST     | `/api/languages/`                           | 登录   | 注册受限命令模板                  |
+| POST     | `/api/languages/`                           | 登录   | 登记受限命令模板；不会安装编译器  |
+
+语言注册只登记执行配置。服务器需事先安装相应工具；例如已有 `gcc` 时可以动态登记 C。
 
 ## 提交与日志
 
 | Method | Path                            | 权限                 | 说明                                                     |
 | ------ | ------------------------------- | -------------------- | -------------------------------------------------------- |
-| POST   | `/api/submissions/`             | 登录                 | 异步提交，每分钟最多三次                                 |
+| POST   | `/api/submissions/`             | 登录                 | 异步提交；同一用户同一道题每分钟最多三次                                 |
 | GET    | `/api/submissions/`             | 本人/管理员          | 按用户、题目、状态、是否全过筛选和分页                   |
 | GET    | `/api/submissions/{id}`         | 本人/管理员          | 总体评测结果                                             |
 | PUT    | `/api/submissions/{id}/rejudge` | 管理员               | 覆盖并重新评测                                           |
@@ -46,6 +49,10 @@
 
 管理员可用 `all_users=true` 查询全站提交；`include_metadata=true` 的列表/详情增加 `username`，
 列表仍不返回源码。管理员用户列表支持 `q` 按用户名子串（字面匹配）或精确用户 ID 搜索。
+访问审计同样要求 `user_id` 或 `problem_id` 至少一项，二者都为空返回 400。
+删除题目会给旧提交加上 `problem_deleted` 标记：记录和源码保留用于审计，但不再计入
+`submit_count`、`resolve_count` 或题库进度；重新创建同题号不会恢复旧成绩，旧提交禁止重测。
+
 新版网页对应入口与权限核对见 [管理员网页覆盖表](admin-web-coverage.md)。
 完整实验功能入口见 [实验功能与 React 网页覆盖核对](web-scoring-coverage.md)。
 
@@ -57,13 +64,15 @@
 | PUT            | `/api/ai/model-config`                | 登录          | 保存加密的兼容模型配置与价格                     |
 | DELETE         | `/api/ai/model-config`                | 登录          | 仅移除本人覆盖，回退系统默认；幂等               |
 | POST           | `/api/ai/problem-tasks/`              | 登录          | 创建流式命题任务                                 |
-| GET            | `/api/ai/problem-tasks/`              | 登录          | 最近 50 个本人任务、状态与费用                   |
+| GET            | `/api/ai/problem-tasks/`              | 登录          | 本人任务；可分页并排除已归档任务                 |
 | GET            | `/api/ai/problem-tasks/{id}`          | 创建者/管理员 | 查询进度、结果、Token 与费用                     |
 | PUT            | `/api/ai/problem-tasks/{id}/cancel`   | 创建者/管理员 | 实际中断后台任务                                 |
+| DELETE         | `/api/ai/problem-tasks/{id}`          | 创建者/管理员 | 取消运行任务后归档；重复操作幂等                 |
+| POST           | `/api/ai/problem-tasks/{id}/save-draft` | 创建者      | 零费用把失败/取消任务的可用成果另存为草稿        |
 | POST           | `/api/ai/conversations/`              | 登录          | 获取当前题目的本人做题会话                       |
 | GET/POST       | `/api/ai/conversations/{id}/messages` | 创建者        | 分页读取或发送做题助手消息                       |
 | POST           | `/api/ai/conversations/{id}/new`      | 创建者        | 开始不继承旧上下文的新话题                       |
-| GET/POST       | `/api/problem-drafts/`                | 登录          | 本人命题草稿列表/创建                            |
+| GET/POST       | `/api/problem-drafts/`                | 登录          | 本人草稿列表/创建；支持分页与归档筛选            |
 | GET/PUT/DELETE | `/api/problem-drafts/{id}`            | 创建者        | 读取、部分草稿乐观锁更新、归档                   |
 | GET            | `/api/problem-drafts/{id}/revisions`  | 创建者        | 完整版本快照                                     |
 | POST           | `/api/problem-drafts/{id}/verify`     | 创建者        | 本地检查；请求体可选 `basic` 或 `full`           |
@@ -114,3 +123,6 @@ AI 完整质量门禁要求独立暴力解与确定性数据生成器；生成�
 oracle 和 20–100 组随机对拍。省略请求体保持旧客户端的 `full` 行为。草稿响应中的
 `verification_level` 与 `verification_summary` 只对应被检查的 revision；任何编辑都会清除
 旧验证结论并重新阻止发布。
+
+
+命题草稿和任务列表不带 `include_metadata` 时保持旧数组响应。新版网页使用独立分页和归档筛选。命题验证前及失败后始终保留版本化 `candidate` 信封；失败成果可零费用另存为未验证草稿，恢复草稿仍须通过发布检查。
