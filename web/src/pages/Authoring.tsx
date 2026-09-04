@@ -926,7 +926,11 @@ export function AuthoringTask() {
       <div className="generated-preview">
         {result?.problem ? (
           <>
-            <h2>{result.problem.title}</h2>
+            <h2>
+              {typeof result.problem.title === "string"
+                ? result.problem.title
+                : "题目生成中"}
+            </h2>
             <Statement problem={result.problem} />
           </>
         ) : (

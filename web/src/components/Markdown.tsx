@@ -32,7 +32,8 @@ export function Copy({ text }: { text: string }) {
     </button>
   );
 }
-export function Code({ text }: { text: string }) {
+export function Code({ text: raw }: { text: unknown }) {
+  const text = logText(raw);
   return (
     <div className="code-block">
       <Copy text={text} />
@@ -49,7 +50,7 @@ function textOf(node: ReactNode): string {
     return textOf((node.props as { children?: ReactNode }).children);
   return "";
 }
-export function RichText({ text }: { text: string }) {
+export function RichText({ text }: { text: unknown }) {
   return (
     <div className="markdown">
       <Markdown
@@ -70,7 +71,7 @@ export function RichText({ text }: { text: string }) {
           ),
         }}
       >
-        {text}
+        {typeof text === "string" ? text : ""}
       </Markdown>
     </div>
   );
