@@ -450,10 +450,28 @@ class AIExperience(AIAuthoringManager):
     ) -> None:
         """Validate a publishable manual draft without requiring AI quality assets."""
         await self._update(task_id, "running", "正在检查题目结构与排版", "basic_structure")
-        check_presentation({"problem": problem.model_dump()})
+        prose_issues = presentation_issues(problem.model_dump())
+        # A literal dollar in legacy prose is readable, but corrupted commands are not.
+        blocking_issues = [
+            issue for issue in prose_issues if "unclosed math delimiter" not in issue
+        ]
+        if blocking_issues:
+            raise AuthoringError(
+                "题面公式或文本转义有错误。请在“题面与样例”检查公式括号与分隔符，"
+                "重新输入损坏的数学符号后再检查。"
+            )
         checks: list[dict[str, Any]] = [
             {"id": "schema", "label": "题目字段与限制", "status": "passed"},
-            {"id": "presentation", "label": "Markdown 与数学公式", "status": "passed"},
+            {
+                "id": "presentation",
+                "label": "Markdown 与数学公式",
+                "status": "passed" if not prose_issues else "skipped",
+                "detail": (
+                    "排版语法正常"
+                    if not prose_issues
+                    else "发现旧格式排版问题，内容仍可阅读；建议编辑时修正"
+                ),
+            },
             {
                 "id": "cases",
                 "label": "样例与测试点格式",
@@ -461,7 +479,19 @@ class AIExperience(AIAuthoringManager):
                 "detail": f"{len(problem.samples)} 个样例，{len(problem.testcases)} 个测试点",
             },
         ]
-        warnings: list[str] = []
+        field_names = {
+            "description": "题目描述",
+            "input_description": "输入格式",
+            "output_description": "输出格式",
+            "constraints": "数据范围",
+            "hint": "提示",
+        }
+        warnings: list[str] = [
+            "旧题排版提示："
+            + field_names.get(issue.split(":")[0], "题面")
+            + "含未闭合的美元符号。公式请补全 $...$；普通美元符号请写成 \\$。"
+            for issue in prose_issues
+        ]
         reference_passed: bool | None = None
         if reference_solution.strip():
             await self._update(
@@ -691,24 +721,36 @@ class AIExperience(AIAuthoringManager):
                 )
                 return
             assets = payload.get("assets", {})
-            generated = GeneratedProblem.model_validate(
-                {
-                    "problem": base,
-                    **{
-                        k: assets.get(
-                            k, "" if k.endswith("solution") or k == "generator_code" else None
-                        )
-                        for k in (
-                            "reference_solution",
-                            "brute_solution",
-                            "generator_code",
-                            "review",
-                            "coverage",
-                            "wrong_solutions",
-                        )
-                    },
-                }
-            )
+            try:
+                generated = GeneratedProblem.model_validate(
+                    {
+                        "problem": base,
+                        **{
+                            k: assets.get(
+                                k,
+                                "" if k.endswith("solution") or k == "generator_code" else None,
+                            )
+                            for k in (
+                                "reference_solution",
+                                "brute_solution",
+                                "generator_code",
+                                "review",
+                                "coverage",
+                                "wrong_solutions",
+                            )
+                        },
+                    }
+                )
+            except ValidationError as exc:
+                missing = sorted(
+                    {str(issue["loc"][0]) for issue in exc.errors() if issue.get("loc")}
+                )
+                raise AuthoringError(
+                    "完整验证资料不完整："
+                    + "、".join(missing)
+                    + "。请返回草稿的“测试与解法”步骤，补充参考解、错误解、独立 "
+                    "oracle 和随机生成器；手工旧题可以先运行基础检查。"
+                ) from exc
             await self._validate_generated(
                 task_id, generated, task_row, payload.get("source_revision")
             )

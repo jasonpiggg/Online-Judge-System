@@ -445,7 +445,9 @@ class AIAuthoringManager:
             else:
                 message = "AI 生成或验证失败。请检查服务连接、JSON 格式和模型配置后手动重试。"
             await self.db.execute(
-                "UPDATE ai_tasks SET status='failed',progress='命题失败',error=?,updated_at=? "
+                "UPDATE ai_tasks SET status='failed',progress="
+                "CASE WHEN action='verify' THEN '本地验证未通过' ELSE '命题失败' END,"
+                "error=?,updated_at=? "
                 "WHERE id=?",
                 (message, utcnow(), task_id),
             )

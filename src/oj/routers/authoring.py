@@ -278,16 +278,21 @@ async def verify_problem_draft(
     user: CurrentUser = Depends(get_current_user),
 ) -> JSONResponse:
     row = await _owned_draft(request, draft_id, user.id)
+    mode = body.mode if body else "full"
     task_id = await request.app.state.ai_authoring.create_request(
         user.id,
         {
             "draft_id": draft_id,
             "problem_id": row["base_problem_id"],
-            "requirement": "验证当前草稿的参考解、测试与独立对拍资产",
+            "requirement": (
+                "检查当前草稿的字段、排版、样例与可运行性"
+                if mode == "basic"
+                else "验证当前草稿的参考解、测试与独立对拍资产"
+            ),
             "action": "verify",
             "target_section": "all",
             "workflow_version": 2,
-            "verification_mode": body.mode if body else "full",
+            "verification_mode": mode,
         },
         request.headers.get("idempotency-key"),
     )
