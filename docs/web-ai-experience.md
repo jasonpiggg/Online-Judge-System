@@ -69,6 +69,9 @@ SSE 包含带序号的 stage、preview、delta、usage 和终态事件；每条�
 最终本机后端结果为 186 passed / 10 skipped，行覆盖率 96.31%，分支覆盖率 89.63%；
 前端 5 项组件/备份测试，9 项浏览器流程测试。新增依赖固定版本，Monaco 的 DOMPurify
 通过精确 override 固定到 3.4.14，修复初次依赖审计发现的间接漏洞。
+最后一次成功 npm 审计为 0 漏洞；随后 npm 审计接口持续超时。CI 改用
+[GitHub 官方 Dependency Review](https://github.com/actions/dependency-review-action)，
+覆盖生产与开发依赖，低危及以上均阻断；本轮依赖比较接口确认 399 项变更无已知漏洞。
 CI 在 Ubuntu 执行相同门禁并补全 Windows 跳过的 Linux runner 检查。
 测试覆盖来源校验、静态深链接、旧数据库迁移、草稿冲突、会话越权、隐藏测试隔离、
 重复请求、活动任务限制、流式预览、取消/重启、三阶段与有界修复、局部字段协议、无模型验证和阶段恢复。
