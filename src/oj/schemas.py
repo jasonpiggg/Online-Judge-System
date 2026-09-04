@@ -164,6 +164,10 @@ class ProblemDraftUpdate(ProblemDraftCreate):
     change_summary: str = Field(default="人工保存", max_length=500)
 
 
+class ProblemDraftVerify(StrictModel):
+    mode: Literal["basic", "full"] = "full"
+
+
 class Coverage(StrictModel):
     basic: str = Field(min_length=5, max_length=5000)
     boundary: str = Field(min_length=5, max_length=5000)

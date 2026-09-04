@@ -16,7 +16,7 @@ test("standard difficulty aliases, filtering, guide and draft persistence", asyn
     await page
       .locator("body")
       .evaluate((node) => getComputedStyle(node).fontSize),
-  ).toBe("14px");
+  ).toBe("16px");
   const expected = [
     "全部难度",
     "入门",
@@ -129,7 +129,7 @@ test("AI streams, restores after refresh and cancels without resubmission", asyn
   await login(page);
   await page.goto("/problems/sum_2?tab=AI");
   await page.getByLabel("你的问题").fill("给我提示");
-  await page.getByRole("button", { name: "发送", exact: true }).click();
+  await page.getByLabel("你的问题").press("Enter");
   await expect(page.getByText("回答已完成", { exact: true })).toBeVisible();
   await expect(page.getByText("先检查输入：两个整数需要相加。")).toBeVisible();
   await expect(
@@ -205,6 +205,31 @@ test("incomplete draft saves and AI completes it", async ({ page }) => {
   await expect(page.getByRole("link", { name: "打开已验证草稿" })).toBeVisible({
     timeout: 45000,
   });
+});
+test("manual draft uses repair links and basic verification without a reference", async ({
+  page,
+}) => {
+  await login(page);
+  const problem = (await (await page.request.get("/api/problems/sum_2")).json()).data;
+  delete problem.limit_inheritance;
+  const created = await page.request.post("/api/problem-drafts/", {
+    data: {
+      requirement: "手工题基础检查",
+      problem: { ...problem, id: "basic_browser", title: "基础检查浏览器题" },
+    },
+  });
+  expect(created.status()).toBe(200);
+  const draftId = (await created.json()).data.id;
+  await page.goto(`/authoring/drafts/${draftId}?step=${encodeURIComponent("检查与发布")}`);
+  await expect(page.getByText(/还缺少：/)).toContainText("参考解");
+  await page.getByRole("button", { name: "前往补充验证资产" }).click();
+  await expect(page.getByRole("button", { name: "测试与解法", exact: true })).toHaveAttribute("aria-current", "step");
+  await page.getByRole("button", { name: "检查与发布", exact: true }).click();
+  await page.getByRole("button", { name: "运行基础检查", exact: true }).click();
+  await expect(page.getByRole("link", { name: "打开已验证草稿" })).toBeVisible({ timeout: 45000 });
+  await page.getByRole("link", { name: "打开已验证草稿" }).click();
+  await expect(page.getByRole("heading", { name: "基础检查报告" })).toBeVisible();
+  await expect(page.locator(".notice-inline").filter({ hasText: "未提供参考解" })).toBeVisible();
 });
 test("regular user manages experiment resources from the main navigation", async ({
   page,
@@ -334,6 +359,9 @@ test("edit existing problem and accept a scoped AI suggestion", async ({
   await expect(page.getByRole("button", { name: "采纳到草稿" })).toBeEnabled({
     timeout: 15000,
   });
+  await expect(page.locator(".diff-view")).toBeVisible();
+  await page.getByRole("button", { name: "单列", exact: true }).click();
+  await expect(page.locator(".diff-unified")).toBeVisible();
   await page.getByRole("button", { name: "采纳到草稿" }).click();
   await page.getByRole("button", { name: "预览题面", exact: true }).click();
   await expect(page.locator(".statement")).toContainText("3 4");
@@ -542,7 +570,7 @@ test("administrator manages problems, users, submissions and audit through the U
   ).toBeEnabled();
   await page.getByRole("button", { name: "重新评测", exact: true }).click();
   await expect(page.locator(".case-tile").first()).toBeVisible();
-  await page.getByRole("link", { name: "← 返回提交列表", exact: true }).click();
+  await page.getByRole("link", { name: "返回提交列表", exact: true }).click();
   await expect(page.getByLabel("提交用户 ID")).toHaveValue(uid);
   await page.reload();
   await expect(page.locator("tbody")).toContainText(username);
@@ -615,6 +643,38 @@ test("administrator manages problems, users, submissions and audit through the U
     }
   }
   await student.dispose();
+});
+
+test("browser-like activity tabs close safely and reopen on navigation", async ({ page }) => {
+  await login(page);
+  await page.goto("/problems/sum_2");
+  await expect(page.getByLabel("进行中的任务")).toContainText("sum_2");
+  await page.getByRole("button", { name: /关闭 sum_2/ }).click();
+  await expect(page).toHaveURL(/\/problems$/);
+  await expect(page.getByLabel("进行中的任务")).toHaveCount(0);
+  await page.goto("/problems/sum_2");
+  await expect(page.getByLabel("进行中的任务")).toContainText("sum_2");
+});
+
+test("regular user can view public case logs without private submission data", async ({
+  page,
+  playwright,
+}) => {
+  await login(page);
+  expect((await page.request.put("/api/problems/sum_2/log_visibility", { data: { public_cases: true } })).status()).toBe(200);
+  const author = await playwright.request.newContext({ baseURL: "http://127.0.0.1:8765" });
+  await author.post("/api/users/", { data: { username: "public_log_author", password: "public-log-password" } });
+  await author.post("/api/auth/login", { data: { username: "public_log_author", password: "public-log-password" } });
+  const submitted = await author.post("/api/submissions/", { data: { problem_id: "sum_2", language: "python", code: "a,b=map(int,input().split());print(a+b)" } });
+  const sid = (await submitted.json()).data.submission_id;
+  await expect.poll(async () => (await (await author.get(`/api/submissions/${sid}`)).json()).data.status).not.toBe("pending");
+  await page.request.post("/api/users/", { data: { username: "public_log_viewer", password: "public-log-password" } });
+  await page.request.post("/api/auth/login", { data: { username: "public_log_viewer", password: "public-log-password" } });
+  await page.goto(`/logs/submissions/${sid}`);
+  await expect(page.locator(".case-tile").first()).toBeVisible();
+  await expect(page.getByText("提交代码", { exact: true })).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText("print(a+b)");
+  await author.dispose();
 });
 
 test("administrator pagination preserves a deep-linked page while data loads", async ({

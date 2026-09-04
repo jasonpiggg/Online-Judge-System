@@ -745,6 +745,9 @@ class AIAuthoringManager:
         result = {
             **generated.model_dump(),
             "verification": {
+                "level": "full",
+                "draft_revision": draft_revision,
+                "publishable": True,
                 "reference_passed": True,
                 "samples": len(generated.problem.samples),
                 "testcases": len(generated.problem.testcases),
@@ -752,6 +755,17 @@ class AIAuthoringManager:
                 "independent_oracle": differential,
                 "mutation_score": mutation_score,
                 "quality_gate_passed": differential["status"] == "passed" and mutation_score == 100,
+                "checks": [
+                    {"id": "schema", "label": "题目字段与排版", "status": "passed"},
+                    {"id": "reference", "label": "参考解试跑", "status": "passed"},
+                    {"id": "wrong_solutions", "label": "典型错误解检测", "status": "passed"},
+                    {
+                        "id": "oracle",
+                        "label": "独立 oracle 随机对拍",
+                        "status": differential["status"],
+                    },
+                ],
+                "warnings": [],
                 "note": "有限测试是质量证据，不是复杂度正确性的数学证明。",
             },
         }
@@ -826,6 +840,9 @@ class AIAuthoringManager:
     async def _save_ready_draft(
         self, task_row: Any, task_id: str, result: dict[str, Any], source_revision: int | None
     ) -> None:
+        # Keep the paid model result immutable if the compare-and-swap below detects
+        # a concurrent edit. The task must retain exactly what the model produced.
+        result = json.loads(json.dumps(result))
         now = utcnow()
         draft_id = task_row["draft_id"] or "draft-" + secrets.token_urlsafe(12)
         current = await self.db.fetchone("SELECT * FROM problem_drafts WHERE id=?", (draft_id,))
@@ -838,6 +855,7 @@ class AIAuthoringManager:
         ):
             raise AuthoringError(conflict_message)
         revision = int(current["revision"]) + 1 if current else 1
+        result["verification"]["draft_revision"] = revision
         created_at = current["created_at"] if current else now
         reference_solution = result["reference_solution"]
         # Persist exactly the assets that were verified, never reuse an older oracle.
@@ -943,10 +961,10 @@ class AIAuthoringManager:
             )
             # Expose completion only once the matching draft and verification are committed.
             await db.execute(
-                """UPDATE ai_tasks SET draft_id=?,status='completed',
+                """UPDATE ai_tasks SET draft_id=?,result=?,status='completed',
                    progress='命题完成并通过参考解法验证',stage='completed',
                    updated_at=? WHERE id=?""",
-                (draft_id, now, task_id),
+                (draft_id, json.dumps(result, ensure_ascii=False), now, task_id),
             )
             await db.commit()
 

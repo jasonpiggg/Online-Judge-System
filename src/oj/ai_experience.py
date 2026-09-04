@@ -33,6 +33,8 @@ from oj.ai_sections import SECTION_FIELDS, merge_section, section_prompt
 from oj.difficulty import normalize_difficulty
 from oj.errors import APIError
 from oj.evaluation import evaluation_summary
+from oj.judge import judge_code
+from oj.languages import get_language
 from oj.schemas import GeneratedProblem, Problem
 
 ASSISTANT_HISTORY_TURNS = 4
@@ -351,10 +353,13 @@ class AIExperience(AIAuthoringManager):
             task_id, now = "ai-" + secrets.token_urlsafe(12), utcnow()
             async with self.db.connect() as db:
                 await db.execute("BEGIN IMMEDIATE")
+                initial_progress = (
+                    "等待本地验证" if payload.get("action") == "verify" else "等待模型连接"
+                )
                 await db.execute(
                     "INSERT INTO ai_tasks(id,user_id,requirement,problem_id,draft_id,action,"
                     "target_section,status,progress,stage,created_at,updated_at) "
-                    "VALUES(?,?,?,?,?,?,?,'pending','等待模型连接','queued',?,?)",
+                    "VALUES(?,?,?,?,?,?,?,'pending',?,'queued',?,?)",
                     (
                         task_id,
                         user_id,
@@ -363,6 +368,7 @@ class AIExperience(AIAuthoringManager):
                         payload.get("draft_id"),
                         payload.get("action", "assist"),
                         payload.get("target_section", "all"),
+                        initial_progress,
                         now,
                         now,
                     ),
@@ -433,6 +439,114 @@ class AIExperience(AIAuthoringManager):
             "UPDATE ai_task_context SET preview=?,version=version+1 WHERE task_id=?",
             (compact(data), task_id),
         )
+
+    async def _validate_basic(
+        self,
+        task_id: str,
+        problem: Problem,
+        reference_solution: str,
+        task_row: Any,
+        source_revision: int | None,
+    ) -> None:
+        """Validate a publishable manual draft without requiring AI quality assets."""
+        await self._update(task_id, "running", "正在检查题目结构与排版", "basic_structure")
+        check_presentation({"problem": problem.model_dump()})
+        checks: list[dict[str, Any]] = [
+            {"id": "schema", "label": "题目字段与限制", "status": "passed"},
+            {"id": "presentation", "label": "Markdown 与数学公式", "status": "passed"},
+            {
+                "id": "cases",
+                "label": "样例与测试点格式",
+                "status": "passed",
+                "detail": f"{len(problem.samples)} 个样例，{len(problem.testcases)} 个测试点",
+            },
+        ]
+        warnings: list[str] = []
+        reference_passed: bool | None = None
+        if reference_solution.strip():
+            await self._update(
+                task_id, "running", "正在运行参考解的全部样例与测试点", "basic_reference"
+            )
+            python = await get_language(self.db, "python")
+            if python is None:
+                raise AuthoringError("Python 评测语言未注册，无法运行参考解")
+            validation_problem = problem.model_copy(
+                update={"testcases": [*problem.samples, *problem.testcases]}
+            )
+            outcome = await asyncio.wait_for(
+                judge_code(validation_problem, python, reference_solution),
+                self.settings.ai_stage_timeout_seconds,
+            )
+            if outcome.score != outcome.counts:
+                failures = ", ".join(
+                    f"#{case.id} {case.result}" for case in outcome.cases if case.result != "AC"
+                )
+                raise AuthoringError(
+                    "参考解没有通过全部样例和测试点："
+                    f"{failures}。请检查参考解、输入格式和预期输出。"
+                )
+            reference_passed = True
+            checks.append(
+                {
+                    "id": "reference",
+                    "label": "参考解试跑",
+                    "status": "passed",
+                    "detail": f"全部 {len(outcome.cases)} 组通过",
+                }
+            )
+        else:
+            warnings.append("未提供参考解，因此没有自动核对样例和测试点输出。")
+            checks.append(
+                {
+                    "id": "reference",
+                    "label": "参考解试跑",
+                    "status": "skipped",
+                    "detail": warnings[-1],
+                }
+            )
+        report = {
+            "level": "basic",
+            "draft_revision": source_revision,
+            "quality_gate_passed": False,
+            "publishable": True,
+            "reference_passed": reference_passed,
+            "checks": checks,
+            "warnings": warnings,
+            "note": "基础检查证明字段可用；未执行的完整质量门禁不影响手工题发布。",
+        }
+        now = utcnow()
+        result = {"kind": "verification", "problem": problem.model_dump(), "verification": report}
+        verification_id = "verify-" + secrets.token_urlsafe(12)
+        async with self.db.connect() as db:
+            await db.execute("BEGIN IMMEDIATE")
+            cursor = await db.execute(
+                "SELECT review_json,status FROM problem_drafts "
+                "WHERE id=? AND owner_id=? AND revision=?",
+                (task_row["draft_id"], task_row["user_id"], source_revision),
+            )
+            current = await cursor.fetchone()
+            if current is None or current["status"] in {"archived", "published"}:
+                raise AuthoringError(
+                    "草稿已修改、归档或发布；本次检查结果已保留，请对最新版本重新检查。"
+                )
+            review = json.loads(current["review_json"] or "{}")
+            review["verification"] = report
+            await db.execute(
+                "UPDATE problem_drafts SET status='ready',review_json=?,updated_at=? "
+                "WHERE id=? AND owner_id=? AND revision=?",
+                (compact(review), now, task_row["draft_id"], task_row["user_id"], source_revision),
+            )
+            await db.execute(
+                "INSERT INTO verification_runs "
+                "(id,draft_id,status,report_json,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+                (verification_id, task_row["draft_id"], "passed", compact(report), now, now),
+            )
+            await db.execute(
+                "UPDATE ai_tasks SET result=?,draft_id=?,status='completed',"
+                "progress='基础检查通过，可以发布',stage='completed',updated_at=? WHERE id=?",
+                (compact(result), task_row["draft_id"], now, task_id),
+            )
+            await db.commit()
 
     async def _author(self, task_id: str) -> None:
         context = await self.db.fetchone(
@@ -567,6 +681,15 @@ class AIExperience(AIAuthoringManager):
         action = payload.get("action", "generate")
         requirement = payload["requirement"]
         if action == "verify":
+            if payload.get("verification_mode", "full") == "basic":
+                await self._validate_basic(
+                    task_id,
+                    Problem.model_validate(base),
+                    payload.get("assets", {}).get("reference_solution", ""),
+                    task_row,
+                    payload.get("source_revision"),
+                )
+                return
             assets = payload.get("assets", {})
             generated = GeneratedProblem.model_validate(
                 {

@@ -18,6 +18,8 @@ import { Assistant } from "../components/AI";
 import { ResultPanel } from "../components/Evaluation";
 import { Icon } from "../components/Icon";
 import { readBackup, writeBackup, clearBackup } from "../draft-backup";
+import { BackLink } from "../components/BackLink";
+import { useRegisterActivity } from "../components/Activity";
 export function Workspace({ user }: { user: User }) {
   const { id = "" } = useParams();
   const { data: p, error } = useQuery({
@@ -49,6 +51,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const [saving, setSaving] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [backupFailed, setBackupFailed] = useState(false);
   const [conflict, setConflict] = useState<{
     code: string;
     revision: number;
@@ -104,7 +107,9 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
     if (!ready || loadedBackup.current !== backup) return;
     try {
       if (code !== synced.current) writeBackup(backup, code, revision.current);
+      setBackupFailed(false);
     } catch {
+      setBackupFailed(true);
       setError("本机存储空间不足，请下载或复制代码备份。");
     }
     if (code === synced.current) {
@@ -149,6 +154,17 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
       clearTimeout(timer);
     };
   }, [code, ready, backup, p.id, language, conflict, saveTick]);
+  useRegisterActivity({
+    id: `problem:${p.id}`,
+    kind: "problem",
+    title: `${p.id} · ${p.title}`,
+    path: `/problems/${p.id}${location.search}`,
+    status: busy ? "提交中" : saving || "编辑中",
+    unsafeToClose: backupFailed || !!conflict,
+    closeMessage: conflict
+      ? "代码草稿存在尚未解决的版本冲突，确认关闭任务入口？内容仍会保留。"
+      : "本机代码备份失败，请先复制代码。仍要关闭任务入口吗？",
+  });
   const submit = useCallback(async () => {
     if (submitting.current || !ready || !latest.current.trim()) return;
     submitting.current = true;
@@ -184,12 +200,12 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
   return (
     <div className="workpage">
       <div className="work-nav">
-        <Link
+        <BackLink
           to={"/problems" + (state?.listSearch ? "?" + state.listSearch : "")}
           onClick={() => sessionStorage.setItem("oj-return-library", "1")}
         >
-          ← 题库
-        </Link>
+          返回题库
+        </BackLink>
         <div>
           {index > 0 && (
             <Link to={`/problems/${state!.ids![index - 1]}`} state={state}>

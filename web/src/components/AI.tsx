@@ -4,6 +4,7 @@ import { api, json, errorText, queryClient } from "../api";
 import { RichText, Code } from "./Markdown";
 import { Button } from "./ui/button";
 import { Pagination } from "./Pagination";
+import { ErrorNotice } from "./ErrorNotice";
 export type Task = {
   task_id: string;
   action?: string;
@@ -123,7 +124,7 @@ export function TaskProgress({
       <p className="muted">
         {elapsed} 秒{disconnected ? " · 连接恢复中，正在读取已保存进度" : ""}
       </p>
-      {(task.error || error) && <p role="alert">{task.error || error}</p>}
+      {(task.error || error) && <ErrorNotice title="任务没有完成" message={task.error || error} />}
       <details>
         <summary>用量与费用</summary>
         <p className="muted">
@@ -364,6 +365,12 @@ export function Assistant({
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="例如：为什么边界情况会出错？"
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                void send();
+              }
+            }}
           />
         </label>
         <div className="assistant-send-row">
@@ -384,7 +391,7 @@ export function Assistant({
           </Button>
         </div>
       </form>
-      {error && <p role="alert">{error}</p>}
+      {error && <ErrorNotice message={error} />}
       <div className="current-answer">
         {task && (
           <section>

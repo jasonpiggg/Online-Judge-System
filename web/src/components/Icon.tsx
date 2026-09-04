@@ -11,6 +11,13 @@ const paths: Record<string, string> = {
   spark: "m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z",
   search: "m21 21-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z",
   chart: "M4 3v17h17M8 15v-3m5 3V8m5 7V5",
+  chevronLeft: "m15 18-6-6 6-6",
+  close: "m7 7 10 10M17 7 7 17",
+  file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Zm0 0v6h6M8 13h8M8 17h6",
+  play: "m8 5 11 7-11 7V5Z",
+  bot: "M12 3v3M8 3h8M5 9h14a2 2 0 0 1 2 2v8H3v-8a2 2 0 0 1 2-2Zm3 4h.01M16 13h.01M8 17h8",
+  more: "M5 12h.01M12 12h.01M19 12h.01",
+  info: "M12 17v-6m0-4h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
 };
 export function Icon({ name = "spark" }: { name?: string }) {
   return (
