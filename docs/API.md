@@ -36,10 +36,15 @@
 | PUT | `/api/submissions/{id}/rejudge` | 管理员 | 覆盖并重新评测 |
 | GET | `/api/submissions/{id}/log` | 本人/管理员/公开题目 | 测试点明细 |
 | GET | `/api/logs/access/` | 管理员 | 日志访问审计 |
+| GET | `/api/logs/roles/` | 管理员 | 角色变更审计，支持 `page/page_size`，每页最多 100 条 |
 | POST | `/api/reset/` | 管理员 | 恢复确定的测试初始状态 |
 
 提交列表至少提供 `user_id` 或 `problem_id`。若提供 `page`，必须同时提供
 `page_size`；只有 `page_size` 时默认第一页；两者均省略时返回全部结果。
+
+管理员可用 `all_users=true` 查询全站提交；`include_metadata=true` 的列表/详情增加 `username`，
+列表仍不返回源码。管理员用户列表支持 `q` 按用户名子串（字面匹配）或精确用户 ID 搜索。
+新版网页对应入口与权限核对见 [管理员网页覆盖表](admin-web-coverage.md)。
 
 ## AI 智能命题
 

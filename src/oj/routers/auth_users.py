@@ -160,19 +160,28 @@ async def update_role(
 @router.get("/users/")
 async def list_users(
     request: Request,
+    q: str = Query(default="", max_length=80),
     page: int | None = Query(default=None, ge=1),
     page_size: int | None = Query(default=None, ge=1, le=100),
     _admin: CurrentUser = Depends(require_admin),
 ) -> JSONResponse:
     if page is not None and page_size is None:
         raise APIError(400, "page_size is required when page is provided")
-    total_row = await request.app.state.db.fetchone("SELECT COUNT(*) AS n FROM users")
-    sql = "SELECT id FROM users ORDER BY id"
-    params: tuple[int, ...] = ()
+    values: tuple[str, str] = (q.strip(), q.strip())
+    total_row = await request.app.state.db.fetchone(
+        "SELECT COUNT(*) AS n FROM users WHERE instr(lower(username),lower(?))>0 "
+        "OR CAST(id AS TEXT)=?",
+        values,
+    )
+    sql = (
+        "SELECT id FROM users WHERE instr(lower(username),lower(?))>0 "
+        "OR CAST(id AS TEXT)=? ORDER BY id"
+    )
+    params: tuple[object, ...] = values
     if page_size is not None:
         page = page or 1
         sql += " LIMIT ? OFFSET ?"
-        params = (page_size, (page - 1) * page_size)
+        params += (page_size, (page - 1) * page_size)
     rows = await request.app.state.db.fetchall(sql, params)
     users = [await _user_data(request.app.state.db, row["id"]) for row in rows]
     return response(data={"total": total_row["n"], "users": users})

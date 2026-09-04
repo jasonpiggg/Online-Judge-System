@@ -13,20 +13,30 @@ import { Button } from "../components/ui/button";
 import { ResultPanel, VerdictBadge } from "../components/Evaluation";
 import { SearchInput } from "../components/SearchInput";
 import { Icon } from "../components/Icon";
-export function Records({ user }: { user: User }) {
+export function Records({
+  user,
+  adminView = false,
+}: {
+  user: User;
+  adminView?: boolean;
+}) {
   const location = useLocation();
   const [params, setParams] = useSearchParams();
+  const isAdmin = adminView && user.role === "admin";
+  const Heading = adminView ? "h2" : "h1";
   const page = Math.max(1, Number(params.get("page")) || 1);
   const query = new URLSearchParams({
-    user_id: user.user_id,
     page: String(page),
     page_size: "20",
     include_metadata: "true",
   });
-  if (params.get("outcome")) query.set("outcome", params.get("outcome")!);
-  if (params.get("problem_id"))
-    query.set("problem_id", params.get("problem_id")!);
-  const { data, error } = useQuery({
+  if (isAdmin) {
+    query.set("all_users", "true");
+    if (params.get("user_id")) query.set("user_id", params.get("user_id")!);
+  } else query.set("user_id", String(user.user_id));
+  for (const key of ["outcome", "problem_id", "status"])
+    if (params.get(key)) query.set(key, params.get(key)!);
+  const { data, error, isPending } = useQuery({
     queryKey: ["records", query.toString()],
     queryFn: () =>
       api<{ total: number; submissions: Submission[] }>(
@@ -37,103 +47,184 @@ export function Records({ user }: { user: User }) {
         ? 2000
         : false,
   });
+  const update = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    next.delete("page");
+    setParams(next, { replace: key === "user_id" || key === "problem_id" });
+  };
+  const returnTo = location.pathname + location.search;
   return (
-    <div className="page">
-      <h1>
-        <Icon name="chart" />
-        我的提交
-      </h1>
-      <div className="filters">
+    <div className={adminView ? "records-section" : "page"}>
+      <div className="page-heading">
+        <div>
+          <Heading>
+            <Icon name="chart" />
+            {isAdmin ? "全站提交" : "我的提交"}
+          </Heading>
+          <p className="muted">
+            {isAdmin
+              ? "查看用户代码、评测明细，或按用户与题号定位记录。"
+              : "每一次尝试，都离答案更近一步。"}
+          </p>
+        </div>
+        {!adminView && user.role === "admin" && (
+          <Button asChild>
+            <Link to="/admin?tab=提交">
+              查看全站提交 <Icon name="arrow" />
+            </Link>
+          </Button>
+        )}
+      </div>
+      <div className="filters filter-panel">
+        {isAdmin && (
+          <SearchInput
+            label="提交用户 ID"
+            navigationKey={location.key}
+            placeholder="用户 ID（留空查看全部）"
+            value={params.get("user_id") || ""}
+            onCommit={(value) => update("user_id", value)}
+          />
+        )}
         <SearchInput
           label="按题号筛选"
           navigationKey={location.key}
           placeholder="按题号筛选"
           value={params.get("problem_id") || ""}
-          onCommit={(value) =>
-            setParams(
-              {
-                ...Object.fromEntries(params),
-                problem_id: value,
-                page: "1",
-              },
-              { replace: true },
-            )
-          }
+          onCommit={(value) => update("problem_id", value)}
         />
         <select
           aria-label="提交结果"
           value={params.get("outcome") || ""}
-          onChange={(e) =>
-            setParams({
-              ...Object.fromEntries(params),
-              outcome: e.target.value,
-              page: "1",
-            })
-          }
+          onChange={(e) => update("outcome", e.target.value)}
         >
           <option value="">全部结果</option>
           <option value="passed">已通过</option>
           <option value="not_passed">未通过</option>
         </select>
+        <select
+          aria-label="评测状态"
+          value={params.get("status") || ""}
+          onChange={(e) => update("status", e.target.value)}
+        >
+          <option value="">全部状态</option>
+          <option value="pending">评测中</option>
+          <option value="success">评测完成</option>
+          <option value="error">系统错误</option>
+        </select>
       </div>
       {error && <p role="alert">{error.message}</p>}
-      <div className="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>结果</th>
-              <th>题目</th>
-              <th>语言</th>
-              <th>提交时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data?.submissions.map((s) => (
-              <tr key={s.submission_id}>
-                <td>
-                  <Link to={`/submissions/${s.submission_id}`}>
-                    <VerdictBadge submission={s} />
-                  </Link>
-                </td>
-                <td>
-                  <Link to={`/problems/${s.problem_id}`}>{s.problem_id}</Link>
-                </td>
-                <td>{s.language}</td>
-                <td>{new Date(s.created_at).toLocaleString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {data?.total === 0 && (
-        <p className="empty">
-          还没有提交记录。<Link to="/problems">去做一道题 →</Link>
-        </p>
+      {isPending ? (
+        <div className="skeleton">正在读取提交记录…</div>
+      ) : (
+        data && (
+          <>
+            <p className="list-summary">
+              共 <strong>{data.total}</strong> 条记录
+            </p>
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>提交编号</th>
+                    <th>结果</th>
+                    {isAdmin && <th>提交用户</th>}
+                    <th>题号</th>
+                    <th>语言</th>
+                    <th>提交时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.submissions.map((s) => (
+                    <tr key={s.submission_id}>
+                      <td>
+                        <Link
+                          to={`/submissions/${s.submission_id}?${new URLSearchParams({ from: returnTo })}`}
+                        >
+                          #{s.submission_id}
+                        </Link>
+                      </td>
+                      <td>
+                        <Link
+                          to={`/submissions/${s.submission_id}?${new URLSearchParams({ from: returnTo })}`}
+                        >
+                          <VerdictBadge submission={s} />
+                        </Link>
+                      </td>
+                      {isAdmin && (
+                        <td>
+                          <Link to={`/admin?tab=用户&user_id=${s.user_id}`}>
+                            {s.username || `用户 ${s.user_id}`}
+                          </Link>
+                          <small className="cell-note">ID {s.user_id}</small>
+                        </td>
+                      )}
+                      <td>
+                        <Link to={`/problems/${s.problem_id}`}>
+                          {s.problem_id}
+                        </Link>
+                      </td>
+                      <td>
+                        <span className="language-tag">{s.language}</span>
+                      </td>
+                      <td className="time-cell">
+                        {new Date(s.created_at).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {data.total === 0 && (
+              <p className="empty">
+                没有匹配的提交记录。
+                {!isAdmin && <Link to="/problems">去做一道题 →</Link>}
+              </p>
+            )}
+            <div className="pagination">
+              <Button
+                disabled={page === 1}
+                onClick={() =>
+                  setParams({
+                    ...Object.fromEntries(params),
+                    page: String(page - 1),
+                  })
+                }
+              >
+                上一页
+              </Button>
+              <span>
+                第 {page} / {Math.max(1, Math.ceil(data.total / 20))} 页
+              </span>
+              <Button
+                disabled={page * 20 >= data.total}
+                onClick={() =>
+                  setParams({
+                    ...Object.fromEntries(params),
+                    page: String(page + 1),
+                  })
+                }
+              >
+                下一页
+              </Button>
+            </div>
+          </>
+        )
       )}
-      <div className="pagination">
-        <Button
-          disabled={page === 1}
-          onClick={() =>
-            setParams({ ...Object.fromEntries(params), page: String(page - 1) })
-          }
-        >
-          上一页
-        </Button>
-        <span>第 {page} 页</span>
-        <Button
-          disabled={page * 20 >= (data?.total || 0)}
-          onClick={() =>
-            setParams({ ...Object.fromEntries(params), page: String(page + 1) })
-          }
-        >
-          下一页
-        </Button>
-      </div>
     </div>
   );
 }
 export function SubmissionPage({ user }: { user: User }) {
   const { id } = useParams();
+  const [params] = useSearchParams();
+  const from = params.get("from") || "";
+  const back =
+    from.startsWith("/submissions?") ||
+    (user.role === "admin" && from.startsWith("/admin?"))
+      ? from
+      : "/submissions";
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const { data: s, error: loadError } = useQuery({
     queryKey: ["submission", id],
@@ -142,7 +233,9 @@ export function SubmissionPage({ user }: { user: User }) {
   });
   return (
     <div className="page">
-      <Link to="/submissions">← 我的提交</Link>
+      <Link className="back-link" to={back}>
+        ← 返回提交列表
+      </Link>
       <h1>提交 #{id}</h1>
       {loadError && <p role="alert">{loadError.message}</p>}
       {s && (
@@ -158,8 +251,8 @@ export function SubmissionPage({ user }: { user: User }) {
             </Button>
           </div>
           <p className="muted">
-            {s.problem_id} · {s.language} ·{" "}
-            {new Date(s.created_at).toLocaleString()}
+            题号 {s.problem_id} · {s.username || `用户 ${s.user_id}`} ·{" "}
+            {s.language} · {new Date(s.created_at).toLocaleString()}
           </p>
           <ResultPanel id={id!} detailLink={false} />
           <details open>
@@ -168,7 +261,11 @@ export function SubmissionPage({ user }: { user: User }) {
           </details>
           {user.role === "admin" && (
             <Button
+              disabled={busy || s.status === "pending"}
               onClick={async () => {
+                if (busy) return;
+                setBusy(true);
+                setError("");
                 try {
                   await api(`/submissions/${id}/rejudge`, json("PUT"));
                   await queryClient.invalidateQueries({
@@ -176,10 +273,12 @@ export function SubmissionPage({ user }: { user: User }) {
                   });
                 } catch (e) {
                   setError(errorText(e));
+                } finally {
+                  setBusy(false);
                 }
               }}
             >
-              重新评测
+              {busy ? "正在发起…" : "重新评测"}
             </Button>
           )}
         </>

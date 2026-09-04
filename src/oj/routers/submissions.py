@@ -111,7 +111,10 @@ async def list_submissions(
         f"SELECT COUNT(*) AS n FROM submissions WHERE {where}",  # noqa: S608
         params,
     )
-    sql = f"SELECT * FROM submissions WHERE {where} ORDER BY id DESC"  # noqa: S608
+    sql = (
+        "SELECT s.*,u.username FROM submissions s LEFT JOIN users u ON u.id=s.user_id "  # noqa: S608
+        f"WHERE {where} ORDER BY s.id DESC"
+    )
     if page_size is not None:
         page = page or 1
         sql += " LIMIT ? OFFSET ?"
@@ -123,6 +126,7 @@ async def list_submissions(
         item = summary_from_row(row, include_metadata)
         if include_metadata:
             item["evaluation"] = evaluations[row["id"]]
+            item["username"] = row["username"]
         items.append(item)
     return response(data={"total": total["n"], "submissions": items})
 
@@ -135,7 +139,8 @@ async def get_submission(
     user: CurrentUser = Depends(get_current_user),
 ) -> JSONResponse:
     row = await request.app.state.db.fetchone(
-        "SELECT * FROM submissions WHERE id=?", (submission_id,)
+        "SELECT s.*,u.username FROM submissions s LEFT JOIN users u ON u.id=s.user_id WHERE s.id=?",
+        (submission_id,),
     )
     if row is None:
         raise APIError(404, "submission not found")
@@ -144,6 +149,7 @@ async def get_submission(
     data = detail_from_row(row, include_metadata)
     if include_metadata:
         data["evaluation"] = (await evaluation_batch(request.app.state.db, [row]))[submission_id]
+        data["username"] = row["username"]
     return response(data=data)
 
 

@@ -17,6 +17,7 @@ import { Account } from "./pages/Account";
 import { Admin } from "./pages/Admin";
 import { Authoring, DraftPage, AuthoringTask } from "./pages/Authoring";
 import "./style.css";
+import { Icon } from "./components/Icon";
 const Workspace = lazy(() =>
   import("./pages/Workspace").then((m) => ({ default: m.Workspace })),
 );
@@ -107,18 +108,50 @@ export default function App() {
   return (
     <>
       <header className="topbar">
-        <Link className="brand" to="/problems">
-          Atelier <span>OJ</span>
-        </Link>
-        <nav aria-label="主导航">
-          <NavLink to="/problems">题库</NavLink>
-          <NavLink to="/submissions">我的提交</NavLink>
-          <NavLink to="/authoring">命题中心</NavLink>
-          {user.role === "admin" && <NavLink to="/admin">管理</NavLink>}
-        </nav>
-        <Link className="account-link" to="/account">
-          {user.username}
-        </Link>
+        <div className="topbar-inner">
+          <Link className="brand" to="/problems">
+            <span className="brand-mark">
+              <Icon name="code" />
+            </span>
+            <span className="brand-wordmark">
+              Atelier <b>OJ</b>
+              <small>编程练习空间</small>
+            </span>
+          </Link>
+          <nav aria-label="主导航">
+            <NavLink to="/problems">
+              <Icon name="book" />
+              题库
+            </NavLink>
+            <NavLink to="/submissions">
+              <Icon name="chart" />
+              我的提交
+            </NavLink>
+            <NavLink to="/authoring">
+              <Icon name="spark" />
+              命题中心
+            </NavLink>
+            {user.role === "admin" && (
+              <NavLink to="/admin">
+                <Icon name="shield" />
+                管理
+              </NavLink>
+            )}
+          </nav>
+          <NavLink
+            className="account-link"
+            to="/account"
+            aria-label={`${user.username}的账户`}
+          >
+            <span className="avatar" aria-hidden="true">
+              {user.username.slice(0, 1).toUpperCase()}
+            </span>
+            <span className="account-name">
+              {user.username}
+              <small>{user.role === "admin" ? "管理员" : "学习者"}</small>
+            </span>
+          </NavLink>
+        </div>
       </header>
       <main>
         <Suspense fallback={<div className="skeleton">正在打开页面…</div>}>
@@ -135,7 +168,7 @@ export default function App() {
               path="/admin"
               element={
                 user.role === "admin" ? (
-                  <Admin />
+                  <Admin user={user} />
                 ) : (
                   <Navigate to="/problems" replace />
                 )
