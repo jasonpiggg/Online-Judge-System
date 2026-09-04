@@ -428,3 +428,37 @@ async def test_snapshot_keeps_original_model_and_submission_permissions(
     assert captured[0][0] == "mock"
     assert "submission" in captured[0][1]
     assert "testcases" not in captured[0][1]
+
+
+async def test_malformed_first_stage_is_repaired_by_scheduled_review(
+    client: AsyncClient, app: FastAPI, problem_payload: dict[str, Any],
+    generated: dict[str, Any],
+) -> None:
+    manager = await configured(client, app, problem_payload)
+    calls: list[str] = []
+    value = full_payload(generated)
+
+    async def completion(config: Any, prompt: str, usage: Any = None) -> Any:
+        calls.append(config["system_prompt"])
+        if "Stage 1:" in calls[-1]:
+            result = {"problem": None, "reference_solution": "print(0)"}
+        elif "Stage 2:" in calls[-1]:
+            result = {"problem": {"id": "unexpected"}, "testcases": []}
+        else:
+            result = {"patch": value, "review": value["review"]}
+        return json.dumps(result), 10, 20, "provider"
+
+    manager._stream_completion = completion
+    task_id = await manager.create_request(
+        1, {"workflow_version": 2, "requirement": "创建一道简单求和入门题目"}
+    )
+    row = await finish(manager, task_id)
+    assert row["status"] == "completed", row["error"]
+    assert len(calls) == 3
+    draft_id = row["draft_id"]
+    await manager.db.execute("UPDATE problem_drafts SET status='published' WHERE id=?", (draft_id,))
+    with pytest.raises(Exception, match="已归档或发布"):
+        await manager.create_request(
+            1, {"workflow_version": 2, "draft_id": draft_id, "requirement": "继续修改此已发布草稿"}
+        )
+    assert len(calls) == 3

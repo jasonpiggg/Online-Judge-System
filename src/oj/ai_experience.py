@@ -153,6 +153,8 @@ class AIExperience(AIAuthoringManager):
                 )
                 if not draft:
                     raise APIError(404, "problem draft not found")
+                if draft["status"] in {"archived", "published"}:
+                    raise APIError(409, "此草稿已归档或发布，请从题目创建新的编辑草稿")
                 payload["base_problem"] = json.loads(draft["problem_json"])
                 payload["source_revision"] = draft["revision"]
                 payload["assets"] = {
@@ -573,8 +575,13 @@ class AIExperience(AIAuthoringManager):
                     },
                 )
                 candidate = _extract_json(first)
+                candidate = {
+                    k: v for k, v in candidate.items() if k in {"problem", "reference_solution"}
+                }
             if not {"problem", "reference_solution"} <= set(candidate):
                 raise ValueError("Stage 1 must contain problem and reference_solution")
+            if not isinstance(candidate["problem"], dict):
+                raise ValueError("Stage 1 problem must be an object")
             candidate["problem"]["testcases"] = candidate["problem"].get("testcases") or [
                 {"input": "", "output": ""}
             ]
@@ -585,6 +592,8 @@ class AIExperience(AIAuthoringManager):
             )
         except (ValueError, ValidationError) as exc:
             feedback = str(exc)[:1500]
+            if not isinstance(candidate.get("problem"), dict):
+                candidate["problem"] = {}
         assets = ""
         if not all(
             candidate.get(k)
@@ -602,6 +611,11 @@ class AIExperience(AIAuthoringManager):
         try:
             if assets:
                 values = _extract_json(assets)
+                if set(values) - {
+                    "testcases", "brute_solution", "generator_code", "wrong_solutions",
+                    "coverage", "review",
+                }:
+                    raise ValueError("Stage 2 may not rewrite problem or reference_solution")
                 tests = values.pop("testcases")
                 candidate.setdefault("problem", {})["testcases"] = tests
                 candidate.update(values)
