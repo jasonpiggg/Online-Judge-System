@@ -73,6 +73,14 @@ export function Admin({ user }: { user: User }) {
         : tab === "角色审计"
           ? roleLogs.error
           : null;
+  const paginationTotal =
+    tab === "用户"
+      ? users.data?.total
+      : tab === "角色审计"
+        ? roleLogs.data?.total
+        : tab === "访问审计"
+          ? logs.data?.total
+          : undefined;
   return (
     <div className="page">
       <div className="page-heading">
@@ -392,16 +400,10 @@ export function Admin({ user }: { user: User }) {
           </div>
         </>
       )}
-      {["用户", "访问审计", "角色审计"].includes(tab) && (
+      {paginationTotal !== undefined && (
         <Pagination
           page={page}
-          totalPages={Math.ceil(
-            ((tab === "用户"
-              ? users.data?.total
-              : tab === "角色审计"
-                ? roleLogs.data?.total
-                : logs.data?.total) || 0) / 20,
-          )}
+          totalPages={Math.ceil(paginationTotal / 20)}
           label={`${tab}分页`}
           onChange={(next) =>
             setParams({

@@ -571,3 +571,26 @@ test("administrator manages problems, users, submissions and audit through the U
   }
   await student.dispose();
 });
+
+test("administrator pagination preserves a deep-linked page while data loads", async ({
+  page,
+}) => {
+  await login(page);
+  const prefix = `page_${Date.now()}`;
+  for (let index = 0; index < 21; index += 1) {
+    const response = await page.request.post("/api/users/", {
+      data: {
+        username: `${prefix}_${String(index).padStart(2, "0")}`,
+        password: "test-pagination-password",
+      },
+    });
+    expect(response.status()).toBe(200);
+  }
+
+  await page.goto("/admin?tab=用户&page=2");
+  await expect(page.getByRole("button", { name: "第 2 页" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(page).toHaveURL(/(?:\?|&)page=2(?:&|$)/);
+});
