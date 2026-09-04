@@ -74,7 +74,7 @@ def test_failed_frontend_preserves_existing_backend(runtime: Path, monkeypatch: 
     monkeypatch.setattr(launch, "port_busy", lambda _: True)
     monkeypatch.setattr(launch, "stop_owned", lambda *_: pytest.fail("existing service stopped"))
     with pytest.raises(RuntimeError, match="8501.*unmanaged"):
-        launch.start_services(state, timeout=1)
+        launch.start_services(state, timeout=1, legacy=True)
     assert launch.read_state() == state
 
 

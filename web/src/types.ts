@@ -1,0 +1,41 @@
+export type User = {
+  user_id: string;
+  username: string;
+  role: string;
+  submit_count: number;
+  resolve_count: number;
+  join_time: string;
+};
+export type Sample = { input: string; output: string };
+export type Problem = {
+  id: string;
+  title: string;
+  description: string;
+  input_description: string;
+  output_description: string;
+  constraints: string;
+  hint?: string;
+  difficulty?: string;
+  tags: string[];
+  samples: Sample[];
+  testcases: Sample[];
+  time_limit: number | null;
+  memory_limit: number | null;
+  public_cases: boolean;
+  limit_inheritance?: Record<string, boolean>;
+  progress?: { attempts: number; passed: number };
+};
+export type Submission = {
+  submission_id: string;
+  id?: string;
+  problem_id: string;
+  language: string;
+  code?: string;
+  status: string;
+  score: number;
+  counts: number;
+  created_at: string;
+  compile_info?: string;
+  run_info?: string;
+  error_info?: string;
+};

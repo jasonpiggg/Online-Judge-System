@@ -1,7 +1,8 @@
 param(
     [ValidateSet("start", "stop", "status")]
     [string]$Action = "start",
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$Legacy
 )
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -11,6 +12,7 @@ if (-not (Test-Path -LiteralPath $pythonPath)) {
 }
 $launchArgs = @((Join-Path $PSScriptRoot "launch.py"), $Action)
 if ($NoBrowser) { $launchArgs += "--no-browser" }
+if ($Legacy) { $launchArgs += "--legacy" }
 & $pythonPath @launchArgs
 exit $LASTEXITCODE
 
