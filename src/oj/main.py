@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from oj.ai_authoring import AIAuthoringManager
+from oj.ai_experience import AIExperience
 from oj.config import Settings
 from oj.database import Database
 from oj.errors import install_error_handlers
@@ -21,6 +21,7 @@ from oj.routers.submissions import router as submissions_router
 from oj.routers.system import router as system_router
 from oj.routers.workspace import router as workspace_router
 from oj.submissions import SubmissionManager
+from oj.web import install_web
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -28,7 +29,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     db = Database(app_settings.database_path)
     problems = ProblemStore(app_settings.problem_dir, app_settings.seed_problem_dir)
     submissions = SubmissionManager(db, problems)
-    ai_authoring = AIAuthoringManager(db, problems, app_settings)
+    ai_authoring = AIExperience(db, problems, app_settings)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -63,6 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    install_web(app)
     return app
 
 

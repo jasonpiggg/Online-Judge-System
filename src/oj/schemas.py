@@ -60,6 +60,7 @@ class SubmissionCreate(StrictModel):
 
 class WorkspaceDraftUpdate(StrictModel):
     code: str = Field(max_length=200_000)
+    expected_revision: int | None = Field(default=None, ge=0)
 
 
 class LogVisibility(StrictModel):
@@ -78,6 +79,8 @@ class AIModelConfig(StrictModel):
 
 
 class AIProblemTaskCreate(StrictModel):
+    workflow_version: Literal[1, 2] = 1
+    resume_task_id: str | None = Field(default=None, pattern=r"^ai-[A-Za-z0-9_-]{8,64}$")
     requirement: str = Field(min_length=10, max_length=20_000)
     problem_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
     draft_id: str | None = Field(default=None, pattern=r"^draft-[A-Za-z0-9_-]{8,64}$")
@@ -85,6 +88,18 @@ class AIProblemTaskCreate(StrictModel):
     target_section: Literal["all", "statement", "constraints", "samples", "testcases", "review"] = (
         "all"
     )
+
+
+class AssistantConversationCreate(StrictModel):
+    problem_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+
+
+class AssistantMessageCreate(StrictModel):
+    message: str = Field(min_length=1, max_length=20000)
+    code: str = Field(default="", max_length=200000)
+    language: str = Field(default="python", pattern=r"^[a-z][a-z0-9_+-]{0,31}$")
+    submission_id: int | None = Field(default=None, ge=1)
+    full_solution: bool = False
 
 
 class ProblemDraftCreate(StrictModel):

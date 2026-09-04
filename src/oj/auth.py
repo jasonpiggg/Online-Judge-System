@@ -48,6 +48,9 @@ async def get_current_user(request: Request) -> CurrentUser:
         raise APIError(401, "authentication required")
     if row["role"] == "banned":
         raise APIError(403, "user is banned")
+    expected_user = request.headers.get("x-oj-user")
+    if expected_user is not None and expected_user != str(row["id"]):
+        raise APIError(401, "账户已在其他页面切换，请重新登录或刷新页面")
     return CurrentUser(id=row["id"], username=row["username"], role=row["role"])
 
 

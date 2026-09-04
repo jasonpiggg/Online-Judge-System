@@ -40,20 +40,29 @@ async def save_workspace_draft(
     if problem is None or registered is None:
         raise APIError(404, "problem or language not found")
     updated_at = now_iso()
-    await request.app.state.db.execute(
-        """INSERT INTO workspace_drafts
+    async with request.app.state.db.connect() as db:
+        await db.execute("BEGIN IMMEDIATE")
+        cursor = await db.execute(
+            "SELECT revision FROM workspace_drafts WHERE user_id=? AND problem_id=? AND language=?",
+            (user.id, problem_id, language),
+        )
+        current = await cursor.fetchone()
+        actual_revision = current["revision"] if current else 0
+        if body.expected_revision is not None and body.expected_revision != actual_revision:
+            raise APIError(409, "草稿在其他页面已更新，请选择要保留的版本")
+        await db.execute(
+            """INSERT INTO workspace_drafts
            (user_id,problem_id,language,code,revision,updated_at) VALUES(?,?,?,?,1,?)
            ON CONFLICT(user_id,problem_id,language) DO UPDATE SET
            code=excluded.code,revision=workspace_drafts.revision+1,
            updated_at=excluded.updated_at""",
-        (user.id, problem_id, language, body.code, updated_at),
-    )
-    row = await request.app.state.db.fetchone(
-        """SELECT problem_id,language,code,revision,updated_at FROM workspace_drafts
-           WHERE user_id=? AND problem_id=? AND language=?""",
-        (user.id, problem_id, language),
-    )
-    return response(200, "draft saved", dict(row))
+            (user.id, problem_id, language, body.code, updated_at),
+        )
+        await db.commit()
+    return response(200, "draft saved", {
+        "problem_id": problem_id, "language": language, "code": body.code,
+        "revision": actual_revision + 1, "updated_at": updated_at,
+    })
 
 
 @router.delete("/{problem_id}/{language}")

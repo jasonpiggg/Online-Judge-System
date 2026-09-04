@@ -17,7 +17,7 @@ async def test_legacy_database_backup_and_idempotent_migration(tmp_path: Path) -
     await db.initialize()
     row = await db.fetchone("SELECT username FROM users WHERE id=1")
     assert row["username"] == "preserved"
-    assert (await db.fetchone("PRAGMA user_version"))[0] == 5
+    assert (await db.fetchone("PRAGMA user_version"))[0] == 6
     columns = await db.fetchall("PRAGMA table_info(ai_tasks)")
     assert {"draft_id", "parent_task_id", "action", "target_section"} <= {
         row["name"] for row in columns
@@ -46,7 +46,7 @@ async def test_v3_upgrade_preserves_personal_config_and_backs_up(tmp_path: Path)
     )
     await db.initialize()
     await db.initialize()
-    assert (await db.fetchone("PRAGMA user_version"))[0] == 5
+    assert (await db.fetchone("PRAGMA user_version"))[0] == 6
     assert (await db.fetchone("SELECT encrypted_api_key FROM ai_configs"))[0] == b"\x01\x02"
     assert await db.fetchone("SELECT * FROM ai_system_config") is None
     backups = await asyncio.to_thread(lambda: list(tmp_path.glob("oj.pre-v3-*.db")))
