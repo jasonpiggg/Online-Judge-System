@@ -223,6 +223,11 @@ async def publish_problem_draft(
         raise APIError(409, "draft must pass verification before publishing")
     problem = Problem.model_validate_json(row["problem_json"])
     existing = await request.app.state.problems.get(problem.id)
+    # Publishing a draft must obey the same log-visibility policy as direct edits.
+    if user.role != "admin" and problem.public_cases != (
+        existing.public_cases if existing else False
+    ):
+        raise APIError(403, "only administrators may change log visibility")
     succeeded = (
         await request.app.state.problems.update(problem)
         if existing

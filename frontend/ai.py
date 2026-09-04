@@ -196,6 +196,8 @@ def ai_result(
                 update=bool(target),
                 assets={
                     "reference_solution": result["reference_solution"],
+                    "brute_solution": result.get("brute_solution", ""),
+                    "generator_code": result.get("generator_code", ""),
                     "review": {
                         "review": result["review"],
                         "coverage": result["coverage"],

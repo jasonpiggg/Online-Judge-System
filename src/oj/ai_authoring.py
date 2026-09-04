@@ -738,11 +738,10 @@ class AIAuthoringManager:
             },
         }
         await self.db.execute(
-            """UPDATE ai_tasks SET status='completed',progress='命题完成并通过参考解法验证',
-                   stage='completed',result=?,updated_at=? WHERE id=?""",
+            "UPDATE ai_tasks SET result=?,updated_at=? WHERE id=?",
             (json.dumps(result, ensure_ascii=False), utcnow(), task_id),
         )
-        await self._save_ready_draft(task_row, task_id, result)
+        await self._save_ready_draft(task_row, task_id, result, draft_revision)
 
     async def _verify_differential(
         self, generated: GeneratedProblem, python: Any, task_id: str
@@ -804,19 +803,26 @@ class AIAuthoringManager:
             "message": "参考解与独立暴力解在受限随机输入上输出一致。",
         }
 
-    async def _save_ready_draft(self, task_row: Any, task_id: str, result: dict[str, Any]) -> None:
+    async def _save_ready_draft(
+        self, task_row: Any, task_id: str, result: dict[str, Any], source_revision: int | None
+    ) -> None:
         now = utcnow()
         draft_id = task_row["draft_id"] or "draft-" + secrets.token_urlsafe(12)
         current = await self.db.fetchone("SELECT * FROM problem_drafts WHERE id=?", (draft_id,))
+        conflict_message = "草稿已修改、归档或发布；AI 结果和用量已保留，请人工检查后另存。"
+        if task_row["draft_id"] and (
+            current is None
+            or current["owner_id"] != task_row["user_id"]
+            or current["revision"] != source_revision
+            or current["status"] in {"archived", "published"}
+        ):
+            raise AuthoringError(conflict_message)
         revision = int(current["revision"]) + 1 if current else 1
         created_at = current["created_at"] if current else now
         reference_solution = result["reference_solution"]
-        brute_solution = result.get("brute_solution") or (
-            current["brute_solution"] if current else ""
-        )
-        generator_code = result.get("generator_code") or (
-            current["generator_code"] if current else ""
-        )
+        # Persist exactly the assets that were verified, never reuse an older oracle.
+        brute_solution = result.get("brute_solution", "")
+        generator_code = result.get("generator_code", "")
         review = {
             "review": result["review"],
             "coverage": result["coverage"],
@@ -842,22 +848,31 @@ class AIAuthoringManager:
         verification_id = "verify-" + secrets.token_urlsafe(12)
         async with self.db.connect() as db:
             if current:
-                await db.execute(
+                cursor = await db.execute(
                     """UPDATE problem_drafts SET base_problem_id=?,status=?,
-                       requirement=?,problem_json=?,reference_solution=?,review_json=?,
-                       revision=?,updated_at=? WHERE id=?""",
+                       requirement=?,problem_json=?,reference_solution=?,brute_solution=?,
+                       generator_code=?,review_json=?,revision=?,updated_at=?
+                       WHERE id=? AND owner_id=? AND revision=?
+                       AND status NOT IN ('archived','published')""",
                     (
                         task_row["problem_id"],
                         draft_status,
                         task_row["requirement"],
                         json.dumps(result["problem"], ensure_ascii=False),
                         reference_solution,
+                        brute_solution,
+                        generator_code,
                         json.dumps(review, ensure_ascii=False),
                         revision,
                         now,
                         draft_id,
+                        task_row["user_id"],
+                        source_revision,
                     ),
                 )
+                # Compare-and-swap also protects changes between the read and this write.
+                if cursor.rowcount != 1:
+                    raise AuthoringError(conflict_message)
             else:
                 await db.execute(
                     """INSERT INTO problem_drafts
@@ -906,7 +921,13 @@ class AIAuthoringManager:
                     now,
                 ),
             )
-            await db.execute("UPDATE ai_tasks SET draft_id=? WHERE id=?", (draft_id, task_id))
+            # Expose completion only once the matching draft and verification are committed.
+            await db.execute(
+                """UPDATE ai_tasks SET draft_id=?,status='completed',
+                   progress='命题完成并通过参考解法验证',stage='completed',
+                   updated_at=? WHERE id=?""",
+                (draft_id, now, task_id),
+            )
             await db.commit()
 
     async def _stream_completion(

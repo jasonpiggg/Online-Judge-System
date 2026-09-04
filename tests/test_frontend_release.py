@@ -94,6 +94,35 @@ if st.button("load"):
     assert bool(targets[0][1]["editing_problem"]) == update
 
 
+def test_ai_result_passes_all_verification_assets_to_editor(
+    monkeypatch: Any, problem_payload: dict[str, Any]
+) -> None:
+    import frontend.ai as ai
+
+    loaded = []
+    monkeypatch.setattr(ai, "load_editor", lambda *args, **kwargs: loaded.append(kwargs))
+    app = AppTest.from_string("""
+import streamlit as st
+from frontend.ai import ai_result
+from frontend.client import ApiClient
+ai_result(ApiClient(), st.session_state.result, ready=True)
+""")
+    app.session_state.result = {
+        "problem": problem_payload,
+        "reference_solution": "print(3)",
+        "brute_solution": "print(1 + 2)",
+        "generator_code": "print('[]')",
+        "review": "test review",
+        "coverage": {"basic": "basic", "boundary": "boundary", "scale": "scale"},
+        "wrong_solutions": [],
+    }
+    app.run().checkbox(key="ai-review-confirm").check().run()
+    next(button for button in app.button if button.label == "载入编辑器").click().run()
+    assert not app.exception
+    for field in ("reference_solution", "brute_solution", "generator_code"):
+        assert loaded[0]["assets"][field] == app.session_state.result[field]
+
+
 def test_401_preserves_non_sensitive_draft(monkeypatch: Any) -> None:
     from frontend.client import ApiError
 
