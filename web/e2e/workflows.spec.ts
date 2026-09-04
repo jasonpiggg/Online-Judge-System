@@ -8,6 +8,56 @@ async function login(page: Page) {
     page.getByRole("heading", { name: "题库", exact: true }),
   ).toBeVisible();
 }
+test("standard difficulty aliases, filtering, guide and draft persistence", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  const expected = [
+    "全部难度",
+    "入门",
+    "简单",
+    "中等",
+    "困难",
+    "挑战",
+    "未分级",
+  ];
+  await expect(
+    page.getByLabel("难度", { exact: true }).locator("option"),
+  ).toHaveText(expected);
+  await page.goto("/problems?difficulty=easy");
+  await expect(page.getByLabel("难度", { exact: true })).toHaveValue("简单");
+  await expect(page.locator(".problem-row")).toHaveCount(1);
+  await expect(page.locator(".problem-row .difficulty")).toHaveText("简单");
+  await page.getByLabel("难度", { exact: true }).selectOption("中等");
+  await expect(page.locator(".problem-row .difficulty")).toHaveText("中等");
+  await page.goBack();
+  await expect(page.getByLabel("难度", { exact: true })).toHaveValue("简单");
+  await page.locator(".difficulty-guide summary").click();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 950 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth + 1,
+      ),
+    ).toBeTruthy();
+    await page.screenshot({
+      path: testInfo.outputPath(`difficulty-${width}.png`),
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await page.locator(".problem-row").click();
+  await expect(page.locator(".work-heading .difficulty")).toHaveText("简单");
+  await page.getByText("题目操作", { exact: true }).click();
+  await page.getByRole("button", { name: "编辑题目", exact: true }).click();
+  const difficulty = page.getByLabel("难度", { exact: true });
+  await expect(difficulty).toHaveValue("简单");
+  await difficulty.selectOption("困难");
+  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+  await expect(page.locator(".sticky-actions")).toContainText("已同步");
+  await page.reload();
+  await expect(difficulty).toHaveValue("困难");
+});
+
 test("filter, navigate, edit, refresh, submit and inspect result", async ({
   page,
 }) => {

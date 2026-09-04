@@ -11,6 +11,8 @@ import type { Problem } from "../types";
 import { Button } from "../components/ui/button";
 import { SearchInput } from "../components/SearchInput";
 import { Icon } from "../components/Icon";
+import { difficulties, difficultyLevel } from "../difficulty";
+import { DifficultyBadge, DifficultyGuide } from "../components/Difficulty";
 export function Library() {
   const [params, setParams] = useSearchParams();
   const location = useLocation();
@@ -22,7 +24,9 @@ export function Library() {
       api<Problem[]>("/problems/?include_metadata=true&include_progress=true"),
   });
   const q = params.get("q") || "",
-    difficulty = params.get("difficulty") || "",
+    difficulty = params.get("difficulty")
+      ? difficultyLevel(params.get("difficulty") || "").label
+      : "",
     status = params.get("status") || "";
   const page = Math.max(1, Number(params.get("page")) || 1);
   const update = (key: string, value: string) => {
@@ -39,7 +43,7 @@ export function Library() {
       (p.id + p.title + (p.tags || []).join(" "))
         .toLowerCase()
         .includes(q.toLowerCase()) &&
-      (!difficulty || p.difficulty === difficulty) &&
+      (!difficulty || difficultyLevel(p.difficulty).label === difficulty) &&
       (!status || label(p) === status),
   );
   useEffect(() => {
@@ -81,11 +85,11 @@ export function Library() {
           onChange={(e) => update("difficulty", e.target.value)}
         >
           <option value="">全部难度</option>
-          {[...new Set(problems?.map((p) => p.difficulty).filter(Boolean))].map(
-            (v) => (
-              <option key={v}>{v}</option>
-            ),
-          )}
+          {[...difficulties.slice(1), difficulties[0]].map((level) => (
+            <option key={level.label} value={level.label}>
+              {level.label}
+            </option>
+          ))}
         </select>
         <select
           aria-label="学习状态"
@@ -98,6 +102,7 @@ export function Library() {
           ))}
         </select>
       </div>
+      <DifficultyGuide />
       {error && <p role="alert">{error.message}</p>}
       {!problems && !error ? (
         <div className="skeleton">正在加载题目…</div>
@@ -133,9 +138,7 @@ export function Library() {
                     ))}
                   </div>
                 </div>
-                <span className="badge difficulty">
-                  {p.difficulty || "未分级"}
-                </span>
+                <DifficultyBadge value={p.difficulty} />
                 <span
                   className={
                     p.progress?.passed ? "badge tone-AC" : "badge tone-pending"

@@ -1495,3 +1495,67 @@ progress::-moz-progress-bar {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.difficulty-intro {
+  color: #24643c;
+  background: #edf8ef;
+  border-color: #cae8d2;
+}
+.difficulty-easy {
+  color: #126775;
+  background: #edf9fb;
+  border-color: #c6e8ee;
+}
+.difficulty-medium {
+  color: #946014;
+  background: #fff8e9;
+  border-color: #efddb1;
+}
+.difficulty-hard {
+  color: #ae3942;
+  background: #fff0f1;
+  border-color: #f0ccd0;
+}
+.difficulty-expert {
+  color: #7942a8;
+  background: #f7f0ff;
+  border-color: #e3d1f5;
+}
+.difficulty-unrated {
+  color: #586579;
+  background: #f4f6f8;
+  border-color: #dce2e9;
+}
+.difficulty-guide {
+  margin: 12px 0 20px;
+  font-size: 14px;
+  color: #586579;
+}
+.difficulty-guide summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.difficulty-guide summary::before {
+  content: "+";
+  font-size: 18px;
+}
+.difficulty-guide[open] summary::before {
+  content: "−";
+}
+.difficulty-guide dl {
+  padding: 16px;
+  border: 1px solid #e1e8f0;
+  border-radius: 12px;
+}
+.difficulty-guide dl > div {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  margin: 10px 0;
+}
+.difficulty-guide dd {
+  margin: 0;
+}

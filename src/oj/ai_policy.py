@@ -50,7 +50,7 @@ def select_phase_config(
         return config
     content = (requirement + " " + context).lower()
     hard = re.search(
-        r"困难|难题|复杂|高质量|竞赛|提高|动态规划|图论|最短路|网络流|线段树|证明|"
+        r"困难|挑战|难题|复杂|高质量|竞赛|提高|动态规划|图论|最短路|网络流|线段树|证明|"
         r"hard|expert|advanced|complex|dynamic.programming|graph|segment.tree|proof|"
         r"数论|莫比乌斯|持久化|树形|树链|博弈|计算几何|number.theory|\bdp\b",
         content,
