@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+from html import escape
 from typing import Any
 
 import streamlit as st
@@ -34,14 +36,12 @@ def breakpoint(**kwargs: Any) -> Any:
 
 
 def library_page(api: ApiClient) -> None:
-    heading("题库", note="找到下一道值得解决的问题。阅读、编写、验证，在一个工作区完成。")
-    if not st.session_state.get("mobile"):
-        st.markdown(
-            '<div class="oj-hero"><h2>让每一次提交，都有清晰的反馈。</h2>'
-            "<p>Python 与 C++14 · 逐测试点评测 · 可追溯的运行记录</p></div>",
-            unsafe_allow_html=True,
+    heading("题库", note="按状态继续练习，或搜索下一道题。")
+    result = call(
+        lambda: api.get(
+            "/api/problems/", params={"include_metadata": True, "include_progress": True}
         )
-    result = call(lambda: api.get("/api/problems/", params={"include_metadata": True}))
+    )
     if not result:
         return
     problems = result["data"]
@@ -50,19 +50,29 @@ def library_page(api: ApiClient) -> None:
         query = st.text_input("搜索题目", placeholder="题号、标题或标签", key="library-search")
         with st.expander("筛选与题目管理"):
             level = st.selectbox("难度", ["全部难度", *levels])
+            progress_filter = st.selectbox("学习状态", ["全部状态", "未开始", "尝试中", "已通过"])
             if st.button("新建题目", icon=":material/add:", width="stretch"):
                 navigate("editor", editing_problem=None)
     else:
-        a, b, c = st.columns([3, 1.2, 1.2], vertical_alignment="bottom")
+        a, b, c, d = st.columns([3, 1.1, 1.1, 1.2], vertical_alignment="bottom")
         query = a.text_input("搜索题目", placeholder="题号、标题或标签", key="library-search")
         level = b.selectbox("难度", ["全部难度", *levels])
-        if c.button("新建题目", icon=":material/add:", type="primary", width="stretch"):
+        progress_filter = c.selectbox("学习状态", ["全部状态", "未开始", "尝试中", "已通过"])
+        if d.button("新建题目", icon=":material/add:", type="primary", width="stretch"):
             navigate("editor", editing_problem=None)
+
+    def progress_label(item: dict[str, Any]) -> str:
+        progress = item.get("progress", {})
+        if progress.get("passed"):
+            return "已通过"
+        return "尝试中" if progress.get("attempts", 0) else "未开始"
+
     items = [
         p
         for p in problems
         if query.casefold() in (p["id"] + p["title"] + " ".join(p.get("tags", []))).casefold()
         and (level == "全部难度" or p.get("difficulty") == level)
+        and (progress_filter == "全部状态" or progress_label(p) == progress_filter)
     ]
     st.caption(f"共 {len(items)} 道题目")
     page = pager("library-page", len(items))
@@ -70,11 +80,24 @@ def library_page(api: ApiClient) -> None:
         st.info("没有找到匹配的题目。试试其他关键词，或创建第一道题。")
     for item in items[(page - 1) * 10 : page * 10]:
         with st.container(border=True):
-            text, action = st.columns([4, 1], vertical_alignment="center")
+            text, progress_col, action = st.columns([4, 1.1, 1], vertical_alignment="center")
             with text:
-                st.caption(item["id"])
-                st.subheader(item["title"])
+                st.markdown(
+                    '<div class="oj-problem-row"><span class="oj-kicker">'
+                    f'{escape(item["id"])}</span>'
+                    f"<h3>{escape(item['title'])}</h3></div>",
+                    unsafe_allow_html=True,
+                )
                 pills([item.get("difficulty") or "未分级", *item.get("tags", [])])
+            progress = item.get("progress", {})
+            with progress_col:
+                label = progress_label(item)
+                css = "pass" if label == "已通过" else "wait" if label == "尝试中" else ""
+                st.markdown(
+                    f'<span class="oj-status {css}">{label}</span>', unsafe_allow_html=True
+                )
+                if progress.get("attempts"):
+                    st.caption(f"{progress['attempts']} 次提交")
             if action.button("开始做题", key=f"open-{item['id']}", width="stretch"):
                 navigate("workspace", current_problem=item["id"])
 
@@ -100,6 +123,33 @@ def statement(problem: dict[str, Any]) -> None:
             st.write(problem["hint"])
 
 
+@st.fragment(run_every=1)
+def autosave_workspace_draft(api: ApiClient, problem_id: str, language: str) -> None:
+    draft_key = f"draft-{problem_id}-{language}"
+    synced_key = f"draft-synced-{problem_id}-{language}"
+    dirty_key = f"draft-dirty-at-{problem_id}-{language}"
+    code = st.session_state.get(draft_key, "")
+    synced = st.session_state.get(synced_key)
+    if synced is not None and code == synced:
+        st.caption("已保存 · 每分钟最多提交 3 次")
+        return
+    dirty_at = float(st.session_state.get(dirty_key, time.monotonic()))
+    if time.monotonic() - dirty_at < 0.8:
+        st.caption("正在保存草稿… · 每分钟最多提交 3 次")
+        return
+    saved = call(
+        lambda: api.put(
+            f"/api/workspace-drafts/{problem_id}/{language}",
+            json={"code": code},
+        )
+    )
+    if saved:
+        st.session_state[synced_key] = code
+        st.caption("已保存 · 每分钟最多提交 3 次")
+    else:
+        st.caption("草稿待保存 · 每分钟最多提交 3 次")
+
+
 def code_panel(api: ApiClient, problem: dict[str, Any]) -> None:
     result = call(lambda: api.get("/api/languages/"))
     if not result:
@@ -116,9 +166,23 @@ def code_panel(api: ApiClient, problem: dict[str, Any]) -> None:
         ),
     )
     draft_key = f"draft-{problem['id']}-{language}"
+    loaded_key = f"draft-loaded-{problem['id']}-{language}"
+    synced_key = f"draft-synced-{problem['id']}-{language}"
+    dirty_key = f"draft-dirty-at-{problem['id']}-{language}"
     starter = "# 在这里编写解法\n" if language.startswith("py") else "// 在这里编写解法\n"
+    if not st.session_state.get(loaded_key):
+        remote = call(lambda: api.get(f"/api/workspace-drafts/{problem['id']}/{language}"))
+        if remote is None:
+            return
+        remote_code = remote["data"]["code"] if remote["data"] else starter
+        if draft_key not in st.session_state:
+            st.session_state[draft_key] = remote_code
+        st.session_state[synced_key] = remote["data"]["code"] if remote["data"] else None
+        if st.session_state[draft_key] != st.session_state[synced_key]:
+            st.session_state[dirty_key] = time.monotonic()
+        st.session_state[loaded_key] = True
     code = st_ace(
-        value=st.session_state.get(draft_key, starter),
+        value=st.session_state[draft_key],
         language="python" if language.startswith("py") else "c_cpp",
         theme="tomorrow",
         height=380,
@@ -127,9 +191,10 @@ def code_panel(api: ApiClient, problem: dict[str, Any]) -> None:
         auto_update=True,
         key=f"ace-{problem['id']}-{language}",
     )
-    if code is not None:
+    if code is not None and code != st.session_state.get(draft_key):
         st.session_state[draft_key] = code
-    st.caption("草稿自动保留在当前会话 · 每分钟最多提交 3 次")
+        st.session_state[dirty_key] = time.monotonic()
+    autosave_workspace_draft(api, problem["id"], language)
     if st.button("提交评测", icon=":material/play_arrow:", type="primary", width="stretch"):
         if not st.session_state.get(draft_key, "").strip():
             st.warning("请先编写代码。")
@@ -145,6 +210,14 @@ def code_panel(api: ApiClient, problem: dict[str, Any]) -> None:
             )
         )
         if submitted:
+            saved = call(
+                lambda: api.put(
+                    f"/api/workspace-drafts/{problem['id']}/{language}",
+                    json={"code": st.session_state[draft_key]},
+                )
+            )
+            if saved:
+                st.session_state[synced_key] = st.session_state[draft_key]
             st.session_state[f"last-{problem['id']}"] = submitted["data"]["submission_id"]
             st.rerun()
 
@@ -162,6 +235,24 @@ def workspace_page(api: ApiClient) -> None:
     if not result:
         return
     problem = result["data"]
+    listing = call(lambda: api.get("/api/problems/"))
+    problem_ids = [item["id"] for item in listing["data"]] if listing else [problem["id"]]
+    current_index = problem_ids.index(problem["id"]) if problem["id"] in problem_ids else 0
+    back, previous, following, spacer = st.columns([1, 1, 1, 4], vertical_alignment="center")
+    if back.button("返回题库", icon=":material/arrow_back:", width="stretch"):
+        navigate("library")
+    if previous.button(
+        "上一题", disabled=current_index == 0, key=f"prev-{problem['id']}", width="stretch"
+    ):
+        navigate("workspace", current_problem=problem_ids[current_index - 1])
+    if following.button(
+        "下一题",
+        disabled=current_index >= len(problem_ids) - 1,
+        key=f"next-{problem['id']}",
+        width="stretch",
+    ):
+        navigate("workspace", current_problem=problem_ids[current_index + 1])
+    spacer.caption("草稿跨刷新保存")
     top, actions = st.columns([3, 1], vertical_alignment="center")
     with top:
         heading(problem["title"], note=f"{problem['id']} · 阅读题目，编写并提交你的解法")

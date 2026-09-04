@@ -28,6 +28,7 @@ class CaseResult:
     time: float
     memory: float
     message: str = ""
+    output: str = ""
 
 
 @dataclass(frozen=True)
@@ -202,6 +203,7 @@ async def _run_case(
     message = stderr.decode(errors="replace")[:4000]
     if directory:
         message = message.replace(str(directory), "<workspace>")
+    actual_output = stdout.decode(errors="replace") if not timed_out else ""
     if timed_out:
         result = "TLE"
     elif output_exceeded:
@@ -212,11 +214,18 @@ async def _run_case(
         result, message = "RE", "process limit exceeded"
     elif proc.returncode != 0:
         result = "RE"
-    elif normalize_output(stdout.decode(errors="replace")) == normalize_output(testcase.output):
+    elif normalize_output(actual_output) == normalize_output(testcase.output):
         result = "AC"
     else:
         result = "WA"
-    return CaseResult(case_id, result, round(elapsed, 4), round(peak, 3), message)
+    return CaseResult(
+        case_id,
+        result,
+        round(elapsed, 4),
+        round(peak, 3),
+        message,
+        actual_output,
+    )
 
 
 async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOutcome:

@@ -5,7 +5,7 @@ from html import escape
 import streamlit as st
 
 from frontend.client import ApiClient
-from frontend.ui import call, heading, pager
+from frontend.ui import call, heading, navigate, pager
 
 
 def submission_result(api: ApiClient, submission_id: str) -> None:
@@ -61,6 +61,35 @@ def submission_result(api: ApiClient, submission_id: str) -> None:
                 st.code(
                     data["code"], language="python" if data.get("language") == "python" else "cpp"
                 )
+            confirm_key = f"confirm-load-{submission_id}"
+            if st.button(
+                "载入到做题工作区",
+                icon=":material/file_open:",
+                key=f"load-code-{submission_id}",
+            ):
+                st.session_state[confirm_key] = True
+            if st.session_state.get(confirm_key):
+                st.warning("这会覆盖该题目与语言在当前工作区中的草稿。")
+                yes, no = st.columns(2)
+                if yes.button("确认覆盖", type="primary", key=f"load-code-yes-{submission_id}"):
+                    problem_id = str(data["problem_id"])
+                    language = str(data["language"])
+                    code = str(data["code"])
+                    saved = call(
+                        lambda: api.put(
+                            f"/api/workspace-drafts/{problem_id}/{language}",
+                            json={"code": code},
+                        )
+                    )
+                    if saved:
+                        st.session_state[f"draft-{problem_id}-{language}"] = code
+                        st.session_state[f"draft-synced-{problem_id}-{language}"] = code
+                        st.session_state[f"draft-loaded-{problem_id}-{language}"] = True
+                        st.session_state.pop(confirm_key, None)
+                        navigate("workspace", current_problem=problem_id)
+                if no.button("取消", key=f"load-code-no-{submission_id}"):
+                    st.session_state.pop(confirm_key, None)
+                    st.rerun()
         if st.session_state.user["role"] == "admin":
             if st.button("重新评测", icon=":material/replay:", key=f"rejudge-{submission_id}"):
                 if call(lambda: api.put(f"/api/submissions/{submission_id}/rejudge")):
@@ -76,7 +105,7 @@ def records_page(api: ApiClient) -> None:
     if not problems:
         return
     options = {"全部题目": None} | {f"{p['id']} · {p['title']}": p["id"] for p in problems["data"]}
-    a, b, c = st.columns(3)
+    a, b, c, d = st.columns(4)
     problem = a.selectbox("题目", list(options))
     status = b.selectbox(
         "评测状态",
@@ -85,11 +114,14 @@ def records_page(api: ApiClient) -> None:
             x, x
         ),
     )
+    outcome = c.selectbox("完成结果", ["全部结果", "全部通过", "未全部通过"])
     uid = st.session_state.user["user_id"]
     admin = st.session_state.user["role"] == "admin"
     if admin:
-        uid = c.number_input("用户 ID（0 为全部用户）", min_value=0, value=0, step=1)
-    signature = (problem, status, uid)
+        uid = d.number_input("用户 ID（0 为全部用户）", min_value=0, value=0, step=1)
+    else:
+        d.caption("可从任一记录恢复源码")
+    signature = (problem, status, outcome, uid)
     if st.session_state.get("records-filter") != signature:
         st.session_state["records-page"] = 1
         st.session_state["records-filter"] = signature
@@ -103,6 +135,8 @@ def records_page(api: ApiClient) -> None:
         params["problem_id"] = options[problem]
     if status != "全部":
         params["status"] = status
+    if outcome != "全部结果":
+        params["outcome"] = "passed" if outcome == "全部通过" else "not_passed"
     result = call(lambda: api.get("/api/submissions/", params=params))
     if not result:
         return
@@ -135,9 +169,11 @@ def records_page(api: ApiClient) -> None:
     selected = records[rows[0]] if rows else records[0]
     st.subheader(f"提交 #{selected['submission_id']}")
     submission_result(api, str(selected["submission_id"]))
-    with st.expander("查看已公开的其他提交测试点日志"):
-        public_id = st.text_input("提交 ID", key="public-log-id")
-        if st.button("查询公开日志"):
-            public = call(lambda: api.get(f"/api/submissions/{public_id}/log"))
-            if public:
-                st.dataframe(public["data"]["details"], width="stretch", hide_index=True)
+    st.divider()
+    st.caption("已知其他提交 ID 时，可查询题目已公开的测试点日志。")
+    public_input, public_action = st.columns([3, 1], vertical_alignment="bottom")
+    public_id = public_input.text_input("公开提交 ID", key="public-log-id")
+    if public_action.button("查询公开日志", width="stretch") and public_id:
+        public = call(lambda: api.get(f"/api/submissions/{public_id}/log"))
+        if public:
+            st.dataframe(public["data"]["details"], width="stretch", hide_index=True)

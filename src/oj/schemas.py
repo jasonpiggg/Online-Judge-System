@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
@@ -58,11 +58,17 @@ class SubmissionCreate(StrictModel):
     code: str = Field(min_length=1, max_length=200_000)
 
 
+class WorkspaceDraftUpdate(StrictModel):
+    code: str = Field(max_length=200_000)
+
+
 class LogVisibility(StrictModel):
     public_cases: bool = False
 
 
 class AIModelConfig(StrictModel):
+    currency: Literal["USD", "CNY"] = "USD"
+    cached_input_price: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     provider_url: HttpUrl
     model: str = Field(min_length=1, max_length=200)
     api_key: str | None = Field(default=None, min_length=1, max_length=1000)
@@ -74,6 +80,26 @@ class AIModelConfig(StrictModel):
 class AIProblemTaskCreate(StrictModel):
     requirement: str = Field(min_length=10, max_length=20_000)
     problem_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    draft_id: str | None = Field(default=None, pattern=r"^draft-[A-Za-z0-9_-]{8,64}$")
+    action: Literal["generate", "revise", "review", "tests"] = "generate"
+    target_section: Literal["all", "statement", "constraints", "samples", "testcases", "review"] = (
+        "all"
+    )
+
+
+class ProblemDraftCreate(StrictModel):
+    base_problem_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    requirement: str = Field(default="", max_length=20_000)
+    problem: Problem | None = None
+    reference_solution: str = Field(default="", max_length=200_000)
+    brute_solution: str = Field(default="", max_length=200_000)
+    generator_code: str = Field(default="", max_length=200_000)
+    review: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProblemDraftUpdate(ProblemDraftCreate):
+    revision: int = Field(ge=1)
+    change_summary: str = Field(default="人工保存", max_length=500)
 
 
 class Coverage(StrictModel):
@@ -90,6 +116,8 @@ class WrongSolution(StrictModel):
 class GeneratedProblem(StrictModel):
     problem: Problem
     reference_solution: str = Field(min_length=1, max_length=200_000)
+    brute_solution: str = Field(default="", max_length=200_000)
+    generator_code: str = Field(default="", max_length=200_000)
     review: str = Field(min_length=1, max_length=20_000)
     coverage: Coverage
     wrong_solutions: list[WrongSolution] = Field(min_length=2, max_length=4)

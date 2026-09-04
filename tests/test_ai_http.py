@@ -66,7 +66,13 @@ async def provider(generated: dict[str, Any], *, mode: str = "ok") -> Any:
                     if mode == "slow":
                         await asyncio.sleep(30)
                 if mode != "estimate":
-                    yield 'data: {"usage":{"prompt_tokens":10,"completion_tokens":20}}\n\n'
+                    usage = {"prompt_tokens": 10, "completion_tokens": 20}
+                    if mode == "cached":
+                        usage["prompt_tokens_details"] = {"cached_tokens": 6}
+                        usage["completion_tokens_details"] = {"reasoning_tokens": 12}
+                    yield "data: " + json.dumps({"usage": usage}) + "\n\n"
+                if mode == "truncated":
+                    yield 'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\n'
                 yield "data: [DONE]\n\n"
             finally:
                 disconnected.set()

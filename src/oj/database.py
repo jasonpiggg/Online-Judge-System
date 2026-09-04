@@ -72,6 +72,15 @@ CREATE TABLE IF NOT EXISTS ai_configs (
     output_price REAL NOT NULL DEFAULT 0,
     price_unit INTEGER NOT NULL DEFAULT 1000000
 );
+CREATE TABLE IF NOT EXISTS ai_system_config (
+    id INTEGER PRIMARY KEY CHECK(id=1),
+    provider_url TEXT NOT NULL,
+    model TEXT NOT NULL,
+    encrypted_api_key BLOB NOT NULL,
+    input_price REAL NOT NULL DEFAULT 0,
+    output_price REAL NOT NULL DEFAULT 0,
+    price_unit INTEGER NOT NULL DEFAULT 1000000
+);
 CREATE TABLE IF NOT EXISTS ai_tasks (
     id TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -88,11 +97,61 @@ CREATE TABLE IF NOT EXISTS ai_tasks (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS workspace_drafts (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    problem_id TEXT NOT NULL,
+    language TEXT NOT NULL,
+    code TEXT NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(user_id, problem_id, language)
+);
+CREATE TABLE IF NOT EXISTS problem_drafts (
+    id TEXT PRIMARY KEY,
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    base_problem_id TEXT,
+    status TEXT NOT NULL DEFAULT 'draft'
+        CHECK(status IN ('draft','verifying','ready','published','archived')),
+    requirement TEXT NOT NULL DEFAULT '',
+    problem_json TEXT NOT NULL DEFAULT '{}',
+    reference_solution TEXT NOT NULL DEFAULT '',
+    brute_solution TEXT NOT NULL DEFAULT '',
+    generator_code TEXT NOT NULL DEFAULT '',
+    review_json TEXT NOT NULL DEFAULT '{}',
+    revision INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS problem_draft_revisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    draft_id TEXT NOT NULL REFERENCES problem_drafts(id) ON DELETE CASCADE,
+    revision INTEGER NOT NULL,
+    source TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    change_summary TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    UNIQUE(draft_id, revision)
+);
+CREATE TABLE IF NOT EXISTS verification_runs (
+    id TEXT PRIMARY KEY,
+    draft_id TEXT NOT NULL REFERENCES problem_drafts(id) ON DELETE CASCADE,
+    status TEXT NOT NULL CHECK(status IN ('pending','running','passed','failed','cancelled')),
+    report_json TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_user_created ON submissions(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_submissions_problem_created ON submissions(problem_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status);
 CREATE INDEX IF NOT EXISTS idx_access_logs_user_problem ON access_logs(user_id, problem_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_drafts_user_updated
+    ON workspace_drafts(user_id, updated_at);
+CREATE INDEX IF NOT EXISTS idx_problem_drafts_owner_updated
+    ON problem_drafts(owner_id, updated_at);
+CREATE INDEX IF NOT EXISTS idx_verification_runs_draft
+    ON verification_runs(draft_id, created_at);
 """
 
 
@@ -106,12 +165,12 @@ class Database:
             cursor = await db.execute("PRAGMA user_version")
             version = (await cursor.fetchone())[0]  # type: ignore[index]
             await cursor.close()
-            if version > 2:
+            if version > 5:
                 raise RuntimeError("Database schema is newer than this application")
             existing = await db.execute("SELECT name FROM sqlite_master WHERE type='table'")
             has_tables = bool(await existing.fetchone())
             await existing.close()
-            if version < 2 and has_tables:
+            if version < 5 and has_tables:
                 stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
                 backup_path = self.path.with_name(f"{self.path.stem}.pre-v{version}-{stamp}.db")
                 async with aiosqlite.connect(backup_path) as backup:
@@ -134,6 +193,45 @@ class Database:
                     old_role TEXT NOT NULL, new_role TEXT NOT NULL, time TEXT NOT NULL
                 )""")
                 await db.execute("PRAGMA user_version = 2")
+                await db.commit()
+            if version < 3:
+                await db.execute("BEGIN IMMEDIATE")
+                columns_cursor = await db.execute("PRAGMA table_info(ai_tasks)")
+                columns = {row[1] for row in await columns_cursor.fetchall()}
+                await columns_cursor.close()
+                additions = {
+                    "draft_id": "TEXT",
+                    "parent_task_id": "TEXT",
+                    "action": "TEXT NOT NULL DEFAULT 'generate'",
+                    "target_section": "TEXT",
+                }
+                for name, declaration in additions.items():
+                    if name not in columns:
+                        await db.execute(
+                            f"ALTER TABLE ai_tasks ADD COLUMN {name} {declaration}"  # noqa: S608
+                        )
+                await db.execute("PRAGMA user_version = 3")
+                await db.commit()
+            if version < 4:
+                # The singleton table is independent of user records and survives reset.
+                await db.execute("PRAGMA user_version = 4")
+                await db.commit()
+            if version < 5:
+                await db.execute("BEGIN IMMEDIATE")
+                for table in ("ai_configs", "ai_system_config", "ai_tasks"):
+                    await db.execute(
+                        f"ALTER TABLE {table} ADD COLUMN currency TEXT NOT NULL "  # noqa: S608
+                        "DEFAULT 'USD' CHECK(currency IN ('USD','CNY'))"
+                    )
+                for table in ("ai_configs", "ai_system_config"):
+                    await db.execute(
+                        f"ALTER TABLE {table} ADD COLUMN cached_input_price REAL"  # noqa: S608
+                    )
+                await db.execute(
+                    "ALTER TABLE ai_system_config ADD COLUMN routing_config TEXT "
+                    "NOT NULL DEFAULT '{}'"
+                )
+                await db.execute("PRAGMA user_version = 5")
                 await db.commit()
             await db.execute("PRAGMA journal_mode = WAL")
             await db.execute("PRAGMA optimize")

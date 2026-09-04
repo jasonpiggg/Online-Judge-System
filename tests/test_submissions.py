@@ -56,3 +56,39 @@ async def test_submission_rate_limit(
         assert (await client.post("/api/submissions/", json=body)).status_code == 200
     assert (await client.post("/api/submissions/", json=body)).status_code == 429
 
+
+async def test_progress_and_outcome_filters(
+    client: AsyncClient, problem_payload: dict[str, object]
+) -> None:
+    await client.post("/api/users/", json={"username": "alice", "password": "secret1"})
+    await client.post(
+        "/api/auth/login", json={"username": "alice", "password": "secret1"}
+    )
+    await client.post("/api/problems/", json=problem_payload)
+    ids = []
+    for code in ["a,b=map(int,input().split())\nprint(a+b)", "print(0)"]:
+        result = await client.post(
+            "/api/submissions/",
+            json={"problem_id": "sum_2", "language": "python", "code": code},
+        )
+        ids.append(result.json()["data"]["submission_id"])
+    for submission_id in ids:
+        await _wait_result(client, submission_id)
+
+    passed = await client.get(
+        "/api/submissions/", params={"problem_id": "sum_2", "outcome": "passed"}
+    )
+    failed = await client.get(
+        "/api/submissions/", params={"problem_id": "sum_2", "outcome": "not_passed"}
+    )
+    assert passed.json()["data"]["total"] == 1
+    assert failed.json()["data"]["total"] == 1
+
+    problems = await client.get(
+        "/api/problems/", params={"include_metadata": True, "include_progress": True}
+    )
+    progress = problems.json()["data"][0]["progress"]
+    assert progress["attempts"] == 2
+    assert progress["passed"] == 1
+    assert progress["best_ratio"] == 1
+

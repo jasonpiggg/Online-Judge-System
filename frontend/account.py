@@ -32,7 +32,7 @@ def auth_screen(api: ApiClient) -> None:
     with left:
         heading("专注解题，\n看见进步。", note="一个清晰、可靠的编程练习空间。")
         st.markdown(
-            '<div class="oj-hero"><h2>从思路到通过，少一点打断。</h2>'
+            '<div class="oj-intro"><h2>从思路到通过，少一点打断。</h2>'
             "<p>在同一页阅读题目、编写代码与查看结果。每个测试点都有答案。</p></div>",
             unsafe_allow_html=True,
         )

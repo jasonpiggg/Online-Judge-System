@@ -15,10 +15,14 @@ from oj.main_support import bootstrap_database
 @pytest.fixture
 async def app(tmp_path: Path) -> AsyncIterator[FastAPI]:
     settings = Settings(
+        _env_file=None,
         database_path=tmp_path / "oj.db",
         problem_dir=tmp_path / "problems",
         seed_problem_dir=tmp_path / "seeds",
         ai_encryption_key="test-encryption-key",
+        ai_default_provider_url="",
+        ai_default_model="",
+        ai_default_api_key="",
         allow_private_ai_endpoints=True,
     )
     application = create_app(settings)

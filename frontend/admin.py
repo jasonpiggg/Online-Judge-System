@@ -45,7 +45,14 @@ def admin_page(api: ApiClient) -> None:
                     ["user", "admin", "banned"],
                     index=["user", "admin", "banned"].index(who["role"]),
                 )
-                if st.button("保存角色", type="primary"):
+                changing = role != who["role"]
+                if changing and str(who["user_id"]) == str(st.session_state.user["user_id"]):
+                    st.warning("正在修改当前登录账户；降权或禁用后管理入口会立即消失。")
+                confirmed = st.checkbox(
+                    f"确认将 {who['username']} 从 {who['role']} 改为 {role}",
+                    disabled=not changing,
+                )
+                if st.button("保存角色", type="primary", disabled=not changing or not confirmed):
                     if call(
                         lambda: api.put(f"/api/users/{who['user_id']}/role", json={"role": role})
                     ):

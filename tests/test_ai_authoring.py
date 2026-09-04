@@ -175,6 +175,11 @@ async def test_generated_problem_is_locally_verified(
             ],
         },
         "reference_solution": "a,b=map(int,input().split())\nprint(a+b)",
+        "brute_solution": "values=list(map(int,input().split()))\nprint(sum(values))",
+        "generator_code": (
+            "import json\n"
+            "print(json.dumps([f'{i} {-i}\\n' for i in range(1, 21)]))"
+        ),
         "review": "覆盖零、正负数和整数边界，参考解法为 O(1)。",
         "coverage": {
             "basic": "正数基本求和",
@@ -211,6 +216,8 @@ async def test_generated_problem_is_locally_verified(
     data = detail.json()["data"]
     assert data["status"] == "completed"
     assert data["result"]["problem"]["id"] == "ai_sum"
+    assert data["result"]["verification"]["independent_oracle"]["generated_cases"] == 20
+    assert data["result"]["verification"]["mutation_score"] == 100
     assert data["usage"] == {
         "input_tokens": 200,
         "output_tokens": 400,
@@ -219,3 +226,5 @@ async def test_generated_problem_is_locally_verified(
         "currency": "USD",
         "source": "provider",
     }
+    drafts = await client.get("/api/problem-drafts/")
+    assert drafts.json()["data"][0]["status"] == "ready"

@@ -134,6 +134,12 @@ async def update_role(
         existing = await cursor.fetchone()
         if existing is None:
             raise APIError(404, "user not found")
+        if existing["role"] == body.role:
+            return response(200, "role unchanged", {"user_id": str(user_id), "role": body.role})
+        if existing["role"] == "admin" and body.role != "admin":
+            cursor = await db.execute("SELECT COUNT(*) AS n FROM users WHERE role='admin'")
+            if (await cursor.fetchone())["n"] <= 1:
+                raise APIError(409, "the last administrator cannot be demoted or banned")
         await db.execute("UPDATE users SET role=? WHERE id=?", (body.role, user_id))
         await db.execute(
             "INSERT INTO role_change_logs(actor_id,target_id,old_role,new_role,time) "

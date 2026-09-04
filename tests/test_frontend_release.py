@@ -38,7 +38,23 @@ if st.button("switch"):
 
 @pytest.mark.parametrize("role", ["admin", "user"])
 def test_native_navigation_role_scope(monkeypatch: Any, role: str) -> None:
-    monkeypatch.setattr(ApiClient, "request", lambda *_a, **_k: {"code": 200, "data": []})
+    def fake_request(_self: ApiClient, _method: str, path: str, **_kwargs: Any) -> dict[str, Any]:
+        if path == "/api/users/1":
+            return {
+                "code": 200,
+                "msg": "success",
+                "data": {
+                    "user_id": "1",
+                    "username": "tester",
+                    "role": role,
+                    "join_time": "2026-01-01T00:00:00Z",
+                    "submit_count": 0,
+                    "resolve_count": 0,
+                },
+            }
+        return {"code": 200, "msg": "success", "data": []}
+
+    monkeypatch.setattr(ApiClient, "request", fake_request)
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "frontend/app.py"))
     app.session_state.user = {"user_id": "1", "username": "tester", "role": role}
     app.session_state.mobile = True

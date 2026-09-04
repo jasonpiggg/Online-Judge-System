@@ -4,7 +4,7 @@ from functools import partial
 
 import streamlit as st
 
-from frontend.account import auth_screen, profile_page
+from frontend.account import activate_user, auth_screen, profile_page
 from frontend.admin import admin_page
 from frontend.ai import ai_page
 from frontend.client import ApiClient
@@ -38,11 +38,17 @@ if not st.session_state.get("user"):
         st.info(message)
     auth_screen(api)
 else:
+    profile = call(
+        lambda: api.get(f"/api/users/{st.session_state.user['user_id']}")
+    )
+    if not profile:
+        st.stop()
+    activate_user(profile["data"])
     user = st.session_state.user
     definitions = [
         ("library", "题库", ":material/menu_book:", partial(library_page, api)),
         ("records", "提交记录", ":material/history:", partial(records_page, api)),
-        ("ai", "AI 命题", ":material/auto_awesome:", partial(ai_page, api)),
+        ("ai", "命题中心", ":material/experiment:", partial(ai_page, api)),
     ]
     if user["role"] == "admin":
         definitions.append(("admin", "管理中心", ":material/tune:", partial(admin_page, api)))
