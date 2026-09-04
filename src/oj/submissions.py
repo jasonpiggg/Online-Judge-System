@@ -135,8 +135,12 @@ def detail_from_row(row: object, include_metadata: bool = False) -> dict[str, ob
         "status": status,
     }
     if include_metadata:
-        for name in ("user_id", "problem_id", "language", "created_at", "code"):
-            data[name] = row[name]  # type: ignore[index]
+        for name in (
+            "user_id", "problem_id", "language", "created_at", "code", "problem_deleted"
+        ):
+            data[name] = (
+                bool(row[name]) if name == "problem_deleted" else row[name]  # type: ignore[index]
+            )
     if status == "success":
         data.update(
             score=row["score"],  # type: ignore[index]
@@ -154,5 +158,5 @@ def summary_from_row(row: object, include_metadata: bool = False) -> dict[str, o
     detail = detail_from_row(row, include_metadata)
     keys = {"submission_id", "status", "score", "counts"}
     if include_metadata:
-        keys.update({"user_id", "problem_id", "language", "created_at"})
+        keys.update({"user_id", "problem_id", "language", "created_at", "problem_deleted"})
     return {key: value for key, value in detail.items() if key in keys}

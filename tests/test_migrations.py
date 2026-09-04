@@ -17,7 +17,7 @@ async def test_legacy_database_backup_and_idempotent_migration(tmp_path: Path) -
     await db.initialize()
     row = await db.fetchone("SELECT username FROM users WHERE id=1")
     assert row["username"] == "preserved"
-    assert (await db.fetchone("PRAGMA user_version"))[0] == 7
+    assert (await db.fetchone("PRAGMA user_version"))[0] == 8
     columns = await db.fetchall("PRAGMA table_info(ai_tasks)")
     assert {"draft_id", "parent_task_id", "action", "target_section"} <= {
         row["name"] for row in columns
@@ -29,6 +29,11 @@ async def test_legacy_database_backup_and_idempotent_migration(tmp_path: Path) -
     context_columns = await db.fetchall("PRAGMA table_info(ai_task_context)")
     assert "context_generation" in {row["name"] for row in conversation_columns}
     assert "context_generation" in {row["name"] for row in context_columns}
+    assert "recovery_draft_id" in {row["name"] for row in context_columns}
+    assert "problem_deleted" in {
+        row["name"] for row in await db.fetchall("PRAGMA table_info(submissions)")
+    }
+    assert "archived_at" in {row["name"] for row in columns}
     backups = await asyncio.to_thread(lambda: list(tmp_path.glob("oj.pre-v0-*.db")))
     assert len(backups) == 1
     backup = Database(backups[0])
@@ -50,8 +55,34 @@ async def test_v3_upgrade_preserves_personal_config_and_backs_up(tmp_path: Path)
     )
     await db.initialize()
     await db.initialize()
-    assert (await db.fetchone("PRAGMA user_version"))[0] == 7
+    assert (await db.fetchone("PRAGMA user_version"))[0] == 8
     assert (await db.fetchone("SELECT encrypted_api_key FROM ai_configs"))[0] == b"\x01\x02"
     assert await db.fetchone("SELECT * FROM ai_system_config") is None
     backups = await asyncio.to_thread(lambda: list(tmp_path.glob("oj.pre-v3-*.db")))
+    assert len(backups) == 1
+
+
+async def test_v7_upgrade_adds_recovery_archive_and_deleted_problem_fields(
+    tmp_path: Path,
+) -> None:
+    db = Database(tmp_path / "oj.db")
+    await db.initialize()
+    await db.execute("ALTER TABLE submissions DROP COLUMN problem_deleted")
+    await db.execute("DROP INDEX idx_ai_tasks_user_archived_created")
+    await db.execute("ALTER TABLE ai_tasks DROP COLUMN archived_at")
+    await db.execute("ALTER TABLE ai_task_context DROP COLUMN recovery_draft_id")
+    await db.execute("PRAGMA user_version=7")
+
+    await db.initialize()
+    assert (await db.fetchone("PRAGMA user_version"))[0] == 8
+    assert "problem_deleted" in {
+        row["name"] for row in await db.fetchall("PRAGMA table_info(submissions)")
+    }
+    assert "archived_at" in {
+        row["name"] for row in await db.fetchall("PRAGMA table_info(ai_tasks)")
+    }
+    assert "recovery_draft_id" in {
+        row["name"] for row in await db.fetchall("PRAGMA table_info(ai_task_context)")
+    }
+    backups = await asyncio.to_thread(lambda: list(tmp_path.glob("oj.pre-v7-*.db")))
     assert len(backups) == 1

@@ -69,12 +69,43 @@ async def _owned_draft(request: Request, draft_id: str, user_id: int) -> Any:
 async def list_problem_drafts(
     request: Request,
     limit: int = Query(default=50, ge=1, le=100),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int | None = Query(default=None, ge=1, le=100),
+    include_metadata: bool = False,
+    include_archived: bool = True,
     user: CurrentUser = Depends(get_current_user),
 ) -> JSONResponse:
+    if page is not None and page_size is None:
+        raise APIError(400, "page_size is required when page is provided")
+    clauses = ["owner_id=?"]
+    params: list[object] = [user.id]
+    if not include_archived:
+        clauses.append("status!='archived'")
+    where = " AND ".join(clauses)
+    if include_metadata:
+        current_page = page or 1
+        size = page_size or limit
+        total = await request.app.state.db.fetchone(
+            f"SELECT COUNT(*) AS n FROM problem_drafts WHERE {where}",  # noqa: S608
+            params,
+        )
+        rows = await request.app.state.db.fetchall(
+            f"SELECT * FROM problem_drafts WHERE {where} "  # noqa: S608
+            "ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+            (*params, size, (current_page - 1) * size),
+        )
+        return response(
+            data={
+                "drafts": [_decode(row) for row in rows],
+                "total": int(total["n"]),
+                "page": current_page,
+                "page_size": size,
+            }
+        )
     rows = await request.app.state.db.fetchall(
-        """SELECT * FROM problem_drafts WHERE owner_id=?
-           ORDER BY updated_at DESC LIMIT ?""",
-        (user.id, limit),
+        f"SELECT * FROM problem_drafts WHERE {where} "  # noqa: S608
+        "ORDER BY updated_at DESC LIMIT ?",
+        (*params, limit),
     )
     return response(data=[_decode(row) for row in rows])
 
@@ -306,6 +337,12 @@ async def archive_problem_draft(
     user: CurrentUser = Depends(get_current_user),
 ) -> JSONResponse:
     await _owned_draft(request, draft_id, user.id)
+    active = await request.app.state.db.fetchall(
+        "SELECT id FROM ai_tasks WHERE draft_id=? AND status IN ('pending','running')",
+        (draft_id,),
+    )
+    for task in active:
+        await request.app.state.ai_authoring.cancel(task["id"])
     await request.app.state.db.execute(
         "UPDATE problem_drafts SET status='archived',updated_at=? WHERE id=?",
         (now_iso(), draft_id),

@@ -28,6 +28,7 @@ from oj.ai_prompts import (
     PROMPT_VERSION,
     REVIEW_PROMPT,
     STATEMENT_PROMPT,
+    TARGETED_REPAIR_PROMPT,
 )
 from oj.ai_sections import SECTION_FIELDS, merge_section, section_prompt
 from oj.difficulty import normalize_difficulty
@@ -39,6 +40,42 @@ from oj.schemas import GeneratedProblem, Problem
 
 ASSISTANT_HISTORY_TURNS = 4
 ASSISTANT_HISTORY_BYTES = 20_000
+
+
+def repair_scope(message: str) -> dict[str, str]:
+    if "错误解法" in message:
+        return {
+            "wrong_solutions": "2-4 个可运行但会被测试点卡错的错误解",
+            "problem.testcases": "仅在卡错所必需时补充测试点",
+            "review": "修复说明",
+        }
+    if "随机数据生成器" in message:
+        return {
+            "generator_code": "输出 20-100 个唯一输入字符串 JSON 数组的 Python 程序",
+            "review": "修复说明",
+        }
+    if "oracle" in message.lower() or "对拍" in message:
+        return {
+            "brute_solution": "独立算法实现",
+            "generator_code": "必要时同步修正输入生成器",
+            "review": "修复说明",
+        }
+    if "参考解" in message:
+        return {
+            "reference_solution": "正确的标准输入输出程序",
+            "problem.samples": "仅在期望输出错误时修正",
+            "problem.testcases": "仅在期望输出错误时修正",
+            "review": "修复说明",
+        }
+    return {
+        "problem": "只修复反馈指出的题目字段",
+        "reference_solution": "仅在反馈相关时修正",
+        "brute_solution": "仅在反馈相关时修正",
+        "generator_code": "仅在反馈相关时修正",
+        "wrong_solutions": "仅在反馈相关时修正",
+        "coverage": "仅在反馈相关时修正",
+        "review": "修复说明",
+    }
 
 
 def compact(value: Any) -> str:
@@ -897,7 +934,7 @@ class AIExperience(AIAuthoringManager):
             check_presentation(candidate)
             await self.db.execute(
                 "UPDATE ai_tasks SET result=? WHERE id=?",
-                (compact({"kind": "candidate", **candidate}), task_id),
+                (compact({"kind": "candidate", "result_version": 2, **candidate}), task_id),
             )
         except (ValueError, ValidationError) as exc:
             feedback = str(exc)[:1500]
@@ -936,7 +973,7 @@ class AIExperience(AIAuthoringManager):
             feedback += "\n" + str(exc)[:1000]
         await self.db.execute(
             "UPDATE ai_tasks SET result=? WHERE id=?",
-            (compact({"kind": "candidate", **candidate}), task_id),
+            (compact({"kind": "candidate", "result_version": 2, **candidate}), task_id),
         )
         try:
             GeneratedProblem.model_validate(candidate)
@@ -971,18 +1008,42 @@ class AIExperience(AIAuthoringManager):
             )
             preview["repair_reason"] = str(exc)[:3000]
             await self._preview(task_id, preview)
+            allowed = repair_scope(str(exc))
             fixed = await invoke(
                 "repair",
-                REVIEW_PROMPT,
+                TARGETED_REPAIR_PROMPT,
                 {
                     "requirement": requirement,
                     "candidate": candidate,
-                    "candidate_schema": GeneratedProblem.model_json_schema(),
+                    "allowed_patch": allowed,
                     "local_feedback": str(exc)[:3000],
                 },
             )
             repair = _extract_json(fixed)
-            candidate = merge_patch(candidate, repair["patch"])
+            patch = repair["patch"]
+            if not isinstance(patch, dict):
+                raise AuthoringError("定向修复没有返回可用的修改对象") from exc
+            allowed_top = {name.split(".", 1)[0] for name in allowed}
+            extra_top = set(patch) - allowed_top
+            if extra_top:
+                raise AuthoringError(
+                    "定向修复试图修改无关字段：" + "、".join(sorted(extra_top))
+                ) from exc
+            nested_allowed = {
+                name.split(".", 1)[1]
+                for name in allowed
+                if name.startswith("problem.")
+            }
+            if "problem" in patch and nested_allowed:
+                if not isinstance(patch["problem"], dict):
+                    raise AuthoringError("定向修复中的 problem 必须是对象") from exc
+                extra_problem = set(patch["problem"]) - nested_allowed
+                if extra_problem:
+                    raise AuthoringError(
+                        "定向修复试图修改无关题目字段："
+                        + "、".join(sorted(extra_problem))
+                    ) from exc
+            candidate = merge_patch(candidate, patch)
             candidate["review"] = repair["review"]
             generated = GeneratedProblem.model_validate(candidate)
             await self._validate_generated(

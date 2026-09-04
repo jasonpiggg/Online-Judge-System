@@ -27,7 +27,7 @@ async def _user_data(db: object, user_id: int) -> dict[str, object] | None:
            COUNT(s.id) AS submit_count,
            COUNT(DISTINCT CASE WHEN s.status='success' AND s.score=s.counts AND s.counts>0
                           THEN s.problem_id END) AS resolve_count
-           FROM users u LEFT JOIN submissions s ON s.user_id=u.id
+           FROM users u LEFT JOIN submissions s ON s.user_id=u.id AND s.problem_deleted=0
            WHERE u.id=? GROUP BY u.id""",
         (user_id,),
     )

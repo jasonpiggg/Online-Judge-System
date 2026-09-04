@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from oj.difficulty import DIFFICULTY_RULES
 
-PROMPT_VERSION = "oj-2026-09-v5"
+PROMPT_VERSION = "oj-2026-09-v6"
 DISPLAY_RULES = r"""
 Human-facing descriptions, IO explanations, constraints, hints, reviews and tutor answers
 must use clean Chinese Markdown. Typeset variables, subscripts, powers, fractions, sums,
@@ -107,4 +107,14 @@ public_cases must be boolean, never null. Each wrong solution has only code and 
 Nested objects are merged; arrays replace entire arrays. Use {} when nothing needs fixing.
 Check sample/test outputs, implementation syntax, oracle independence, wrong algorithms,
 generator input validity and declared complexity. Never add fields outside the schema."""
+)
+
+TARGETED_REPAIR_PROMPT = (
+    QUALITY_RULES
+    + """
+Repair only the failed validation asset described by local_feedback. Return one strict JSON object
+with exactly {"patch": object, "review": string}. The patch may contain only paths listed in
+allowed_patch. Omit unchanged fields and never repeat the complete candidate. A nested problem
+patch may contain only the explicitly allowed problem fields. Preserve literal sample/test IO.
+Do not wrap the outer JSON in a code fence. Escape every backslash inside JSON strings."""
 )

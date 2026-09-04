@@ -11,12 +11,27 @@ from httpx import AsyncClient
 
 import oj.ai_authoring as ai_module
 from oj.ai_authoring import calculate_cost, validate_provider_url
+from oj.ai_experience import repair_scope
 from oj.config import Settings
 from tests.conftest import login_admin
 
 
 def test_cost_calculation() -> None:
     assert calculate_cost(1_000, 500, 2.0, 4.0, 1_000) == 4.0
+
+
+def test_targeted_repair_scopes_only_failed_assets() -> None:
+    wrong = repair_scope("错误解法 2 未被有效卡错")
+    assert set(wrong) == {"wrong_solutions", "problem.testcases", "review"}
+    generator = repair_scope("随机数据生成器必须输出 20–100 组")
+    assert set(generator) == {"generator_code", "review"}
+    reference = repair_scope("参考解未通过")
+    assert set(reference) == {
+        "reference_solution",
+        "problem.samples",
+        "problem.testcases",
+        "review",
+    }
 
 
 async def test_provider_url_and_generated_local_key(tmp_path: Path) -> None:
@@ -124,6 +139,168 @@ async def test_task_cancel_is_real(client: AsyncClient, app: FastAPI) -> None:
     assert detail.json()["data"]["status"] == "cancelled"
     assert task_id not in app.state.ai_authoring.tasks
     assert (await client.put(f"/api/ai/problem-tasks/{task_id}/cancel")).status_code == 409
+
+    another = await client.post(
+        "/api/ai/problem-tasks/",
+        json={"requirement": "创建另一道用于测试归档取消的简单求和题目"},
+    )
+    another_id = another.json()["data"]["task_id"]
+    await asyncio.sleep(0.03)
+    archived = await client.delete(f"/api/ai/problem-tasks/{another_id}")
+    assert archived.status_code == 200
+    assert archived.json()["data"]["status"] == "cancelled"
+    row = await app.state.db.fetchone("SELECT archived_at FROM ai_tasks WHERE id=?", (another_id,))
+    assert row["archived_at"] is not None
+
+    draft = (await client.post("/api/problem-drafts/", json={})).json()["data"]
+    linked = await client.post(
+        "/api/ai/problem-tasks/",
+        json={
+            "requirement": "补全这个草稿并验证关联任务归档取消行为",
+            "draft_id": draft["id"],
+        },
+    )
+    linked_id = linked.json()["data"]["task_id"]
+    await asyncio.sleep(0.03)
+    assert (await client.delete(f"/api/problem-drafts/{draft['id']}")).status_code == 200
+    linked_detail = await client.get(f"/api/ai/problem-tasks/{linked_id}")
+    assert linked_detail.json()["data"]["status"] == "cancelled"
+
+
+async def test_authoring_lists_archive_and_failed_candidate_recovery(
+    client: AsyncClient, app: FastAPI
+) -> None:
+    await login_admin(client)
+    now = "2026-09-05T00:00:00+00:00"
+    candidate = {
+        "kind": "candidate",
+        "result_version": 2,
+        "problem": {"id": "calculator", "title": "简易计算器", "description": "计算两个整数之和"},
+        "reference_solution": "a,b=map(int,input().split());print(a+b)",
+        "validation": {"status": "failed", "stage": "repair"},
+    }
+    await app.state.db.execute(
+        "INSERT INTO ai_tasks(id,user_id,requirement,status,progress,stage,result,error,"
+        "created_at,updated_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?)",
+        (
+            "ai-recovery-test", 1, "创建一道简易计算器练习题", "failed", "命题失败", "repair",
+            json.dumps(candidate, ensure_ascii=False), "修复 JSON 不完整", now, now,
+        ),
+    )
+    await app.state.db.execute(
+        "INSERT INTO ai_task_context(task_id,kind,payload,config_snapshot,fingerprint,preview) "
+        "VALUES(?,?,?,?,?,?)",
+        (
+            "ai-recovery-test",
+            "authoring",
+            json.dumps({"requirement": "创建一道简易计算器练习题"}),
+            b"x",
+            "fp",
+            "{}",
+        ),
+    )
+    page = await client.get(
+        "/api/ai/problem-tasks/",
+        params={"page": 1, "page_size": 10, "include_metadata": True, "include_archived": False},
+    )
+    assert page.json()["data"]["total"] == 1
+    assert isinstance((await client.get("/api/ai/problem-tasks/")).json()["data"], list)
+
+    recovered = await client.post("/api/ai/problem-tasks/ai-recovery-test/save-draft")
+    assert recovered.status_code == 200
+    draft_id = recovered.json()["data"]["draft_id"]
+    assert (await client.post("/api/ai/problem-tasks/ai-recovery-test/save-draft")).json()[
+        "data"
+    ]["draft_id"] == draft_id
+    draft = (await client.get(f"/api/problem-drafts/{draft_id}")).json()["data"]
+    assert draft["problem"]["title"] == "简易计算器"
+    assert draft["status"] == "draft"
+
+    await client.post("/api/users/", json={"username": "task-other", "password": "secret1"})
+    await client.post(
+        "/api/auth/login", json={"username": "task-other", "password": "secret1"}
+    )
+    assert (await client.delete("/api/ai/problem-tasks/ai-recovery-test")).status_code == 403
+    assert (
+        await client.post("/api/ai/problem-tasks/ai-recovery-test/save-draft")
+    ).status_code == 403
+    client.cookies.clear()
+    await login_admin(client)
+    assert (await client.delete("/api/ai/problem-tasks/ai-recovery-test")).status_code == 200
+    assert (await client.delete("/api/ai/problem-tasks/ai-recovery-test")).status_code == 200
+    hidden = await client.get(
+        "/api/ai/problem-tasks/",
+        params={"page": 1, "page_size": 10, "include_metadata": True, "include_archived": False},
+    )
+    assert hidden.json()["data"]["total"] == 0
+
+    draft_page = await client.get(
+        "/api/problem-drafts/",
+        params={"page": 1, "page_size": 10, "include_metadata": True, "include_archived": False},
+    )
+    assert draft_page.json()["data"]["total"] == 1
+    assert (await client.delete(f"/api/problem-drafts/{draft_id}")).status_code == 200
+    assert (await client.delete(f"/api/problem-drafts/{draft_id}")).status_code == 200
+
+    await app.state.db.execute(
+        "INSERT INTO ai_tasks(id,user_id,requirement,status,progress,stage,result,"
+        "created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (
+            "ai-cancelled-recovery",
+            1,
+            "恢复取消任务中的简易计算器成果",
+            "cancelled",
+            "任务已取消",
+            "cancelled",
+            json.dumps(candidate, ensure_ascii=False),
+            now,
+            now,
+        ),
+    )
+    await app.state.db.execute(
+        "INSERT INTO ai_task_context(task_id,kind,payload,config_snapshot,fingerprint,preview) "
+        "VALUES(?,?,?,?,?,?)",
+        ("ai-cancelled-recovery", "authoring", "{}", b"x", "cancelled-fp", "{}"),
+    )
+    cancelled_recovery = await client.post(
+        "/api/ai/problem-tasks/ai-cancelled-recovery/save-draft"
+    )
+    assert cancelled_recovery.status_code == 200
+
+
+async def test_failure_keeps_versioned_candidate_envelope(app: FastAPI) -> None:
+    now = "2026-09-05T00:00:00+00:00"
+    await app.state.db.execute(
+        "INSERT INTO ai_tasks(id,user_id,requirement,status,progress,stage,result,"
+        "created_at,updated_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?)",
+        (
+            "ai-candidate-envelope",
+            1,
+            "创建一道简易计算器练习题",
+            "running",
+            "正在修复",
+            "repair",
+            json.dumps({"kind": "candidate", "result_version": 2, "problem": {"title": "计算器"}}),
+            now,
+            now,
+        ),
+    )
+
+    async def fail_after_candidate(_task_id: str) -> None:
+        raise ai_module.AuthoringError("错误解法 2 未被有效卡错；修复 JSON 不完整")
+
+    app.state.ai_authoring._author = fail_after_candidate
+    await app.state.ai_authoring._run("ai-candidate-envelope")
+    row = await app.state.db.fetchone(
+        "SELECT status,result FROM ai_tasks WHERE id='ai-candidate-envelope'"
+    )
+    retained = json.loads(row["result"])
+    assert row["status"] == "failed"
+    assert retained["kind"] == "candidate"
+    assert retained["result_version"] == 2
+    assert retained["validation"]["stage"] == "repair"
 
 
 async def test_task_requires_config_and_valid_reference(client: AsyncClient) -> None:

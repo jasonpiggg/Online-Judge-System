@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS submissions (
     run_info TEXT,
     error_info TEXT,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    problem_deleted INTEGER NOT NULL DEFAULT 0 CHECK(problem_deleted IN (0,1))
 );
 CREATE TABLE IF NOT EXISTS submission_cases (
     submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
@@ -95,7 +96,8 @@ CREATE TABLE IF NOT EXISTS ai_tasks (
     usage_source TEXT NOT NULL DEFAULT 'estimated',
     cost REAL NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    archived_at TEXT
 );
 CREATE TABLE IF NOT EXISTS workspace_drafts (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -165,12 +167,12 @@ class Database:
             cursor = await db.execute("PRAGMA user_version")
             version = (await cursor.fetchone())[0]  # type: ignore[index]
             await cursor.close()
-            if version > 7:
+            if version > 8:
                 raise RuntimeError("Database schema is newer than this application")
             existing = await db.execute("SELECT name FROM sqlite_master WHERE type='table'")
             has_tables = bool(await existing.fetchone())
             await existing.close()
-            if version < 7 and has_tables:
+            if version < 8 and has_tables:
                 stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
                 backup_path = self.path.with_name(f"{self.path.stem}.pre-v{version}-{stamp}.db")
                 async with aiosqlite.connect(backup_path) as backup:
@@ -279,6 +281,34 @@ class Database:
                             "INTEGER NOT NULL DEFAULT 0"
                         )
                 await db.execute("PRAGMA user_version = 7")
+                await db.commit()
+            if version < 8:
+                await db.execute("BEGIN IMMEDIATE")
+                cursor = await db.execute("PRAGMA table_info(submissions)")
+                submission_columns = {row[1] for row in await cursor.fetchall()}
+                await cursor.close()
+                if "problem_deleted" not in submission_columns:
+                    await db.execute(
+                        "ALTER TABLE submissions ADD COLUMN problem_deleted INTEGER "
+                        "NOT NULL DEFAULT 0 CHECK(problem_deleted IN (0,1))"
+                    )
+                cursor = await db.execute("PRAGMA table_info(ai_tasks)")
+                task_columns = {row[1] for row in await cursor.fetchall()}
+                await cursor.close()
+                if "archived_at" not in task_columns:
+                    await db.execute("ALTER TABLE ai_tasks ADD COLUMN archived_at TEXT")
+                cursor = await db.execute("PRAGMA table_info(ai_task_context)")
+                context_columns = {row[1] for row in await cursor.fetchall()}
+                await cursor.close()
+                if "recovery_draft_id" not in context_columns:
+                    await db.execute(
+                        "ALTER TABLE ai_task_context ADD COLUMN recovery_draft_id TEXT"
+                    )
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_ai_tasks_user_archived_created "
+                    "ON ai_tasks(user_id,archived_at,created_at)"
+                )
+                await db.execute("PRAGMA user_version = 8")
                 await db.commit()
             await db.execute("PRAGMA journal_mode = WAL")
             await db.execute("PRAGMA optimize")

@@ -434,7 +434,7 @@ class AIAuthoringManager:
             elif isinstance(exc, ValidationError):
                 locations = [".".join(map(str, e["loc"])) or "result" for e in exc.errors()]
                 message = "生成结果不符合质量结构，请调整需求：" + ", ".join(locations)[:500]
-            elif isinstance(exc, (TimeoutError, httpx.TimeoutException)):
+            elif isinstance(exc, TimeoutError | httpx.TimeoutException):
                 message = "AI 阶段或任务超时。已保留用量；请检查服务商或缩小命题范围。"
             elif isinstance(exc, httpx.HTTPStatusError):
                 message = f"模型服务返回 HTTP {exc.response.status_code}，请检查配置和服务额度。"
@@ -444,6 +444,25 @@ class AIAuthoringManager:
                 message = "模型返回的 JSON 不完整或格式错误；已保留可用输出，不会自动重试收费。"
             else:
                 message = "AI 生成或验证失败。请检查服务连接、JSON 格式和模型配置后手动重试。"
+            current = await self.db.fetchone(
+                "SELECT result,stage FROM ai_tasks WHERE id=?", (task_id,)
+            )
+            if current and current["result"]:
+                try:
+                    retained = json.loads(current["result"])
+                except (TypeError, json.JSONDecodeError):
+                    retained = None
+                if isinstance(retained, dict) and retained.get("kind") == "candidate":
+                    retained.setdefault("result_version", 2)
+                    retained["validation"] = {
+                        "status": "failed",
+                        "stage": current["stage"],
+                        "message": message,
+                    }
+                    await self.db.execute(
+                        "UPDATE ai_tasks SET result=? WHERE id=?",
+                        (json.dumps(retained, ensure_ascii=False), task_id),
+                    )
             await self.db.execute(
                 "UPDATE ai_tasks SET status='failed',progress="
                 "CASE WHEN action='verify' THEN '本地验证未通过' ELSE '命题失败' END,"
@@ -696,7 +715,19 @@ class AIAuthoringManager:
         initial_problem: dict[str, Any] | None = None,
     ) -> None:
         await self.db.execute(
-            "UPDATE ai_tasks SET result=? WHERE id=?", (generated.model_dump_json(), task_id)
+            "UPDATE ai_tasks SET result=? WHERE id=?",
+            (
+                json.dumps(
+                    {
+                        "kind": "candidate",
+                        "result_version": 2,
+                        **generated.model_dump(),
+                        "validation": {"status": "running", "stage": "validation"},
+                    },
+                    ensure_ascii=False,
+                ),
+                task_id,
+            ),
         )
         await self._update(task_id, "running", "正在验证参考解的全部样例与测试点", "validation")
         try:
@@ -745,6 +776,8 @@ class AIAuthoringManager:
             2,
         )
         result = {
+            "kind": "generated",
+            "result_version": 2,
             **generated.model_dump(),
             "verification": {
                 "level": "full",
