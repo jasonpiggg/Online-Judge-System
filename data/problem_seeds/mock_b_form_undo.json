@@ -1,0 +1,72 @@
+{
+  "id": "mock_b_form_undo",
+  "title": "表单版本与撤销",
+  "description": "维护键值表单。每次 SET 产生一个版本；UNDO k 撤销最近最多 k 次 SET；GET 查询当前值，不存在输出 NULL。",
+  "input_description": "第一行 q，随后为 SET key value、UNDO k 或 GET key。",
+  "output_description": "依次输出 GET 的结果。",
+  "samples": [
+    {
+      "input": "6\nSET a 1\nGET a\nSET a 2\nUNDO 1\nGET a\nGET b\n\n",
+      "output": "1\n1\nNULL\n"
+    },
+    {
+      "input": "7\nSET a 1\nGET a\nSET a 2\nUNDO 1\nGET a\nGET b\nSET k0 v0\n",
+      "output": "1\n1\nNULL\n"
+    }
+  ],
+  "constraints": "1 ≤ q ≤ 200000，键和值不含空格。",
+  "testcases": [
+    {
+      "input": "6\nSET a 1\nGET a\nSET a 2\nUNDO 1\nGET a\nGET b\n\n",
+      "output": "1\n1\nNULL\n"
+    },
+    {
+      "input": "7\nSET a 1\nGET a\nSET a 2\nUNDO 1\nGET a\nGET b\nSET k0 v0\n",
+      "output": "1\n1\nNULL\n"
+    },
+    {
+      "input": "8\nSET a 1\nGET a\nSET a 2\nUNDO 1\nGET a\nGET b\nSET k0 v0\nSET k1 v1\n",
+      "output": "1\n1\nNULL\n"
+    },
+    {
+      "input": "9\nSET a 1\nGET a\nSET a 2\nUNDO 1\nGET a\nGET b\nSET k0 v0\nSET k1 v1\nSET k2 v2\n",
+      "output": "1\n1\nNULL\n"
+    },
+    {
+      "input": "10\nSET a 1\nGET a\nSET a 2\nUNDO 1\nGET a\nGET b\nSET k0 v0\nSET k1 v1\nSET k2 v2\nSET k3 v3\n",
+      "output": "1\n1\nNULL\n"
+    },
+    {
+      "input": "11\nSET a 1\nGET a\nSET a 2\nUNDO 1\nGET a\nGET b\nSET k0 v0\nSET k1 v1\nSET k2 v2\nSET k3 v3\nSET k4 v4\n",
+      "output": "1\n1\nNULL\n"
+    },
+    {
+      "input": "12\nSET a 1\nGET a\nSET a 2\nUNDO 1\nGET a\nGET b\nSET k0 v0\nSET k1 v1\nSET k2 v2\nSET k3 v3\nSET k4 v4\nSET k5 v5\n",
+      "output": "1\n1\nNULL\n"
+    },
+    {
+      "input": "13\nSET a 1\nGET a\nSET a 2\nUNDO 1\nGET a\nGET b\nSET k0 v0\nSET k1 v1\nSET k2 v2\nSET k3 v3\nSET k4 v4\nSET k5 v5\nSET k6 v6\n",
+      "output": "1\n1\nNULL\n"
+    },
+    {
+      "input": "14\nSET a 1\nGET a\nSET a 2\nUNDO 1\nGET a\nGET b\nSET k0 v0\nSET k1 v1\nSET k2 v2\nSET k3 v3\nSET k4 v4\nSET k5 v5\nSET k6 v6\nSET k7 v7\n",
+      "output": "1\n1\nNULL\n"
+    },
+    {
+      "input": "15\nSET a 1\nGET a\nSET a 2\nUNDO 1\nGET a\nGET b\nSET k0 v0\nSET k1 v1\nSET k2 v2\nSET k3 v3\nSET k4 v4\nSET k5 v5\nSET k6 v6\nSET k7 v7\nSET k8 v8\n",
+      "output": "1\n1\nNULL\n"
+    }
+  ],
+  "hint": "保存可回滚的变更记录，UNDO 不产生新版本。",
+  "source": "程序设计训练期末模拟卷 B",
+  "tags": [
+    "模拟卷B",
+    "大模拟",
+    "撤销"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "",
+  "public_cases": false
+}

@@ -1,0 +1,51 @@
+{
+  "id": "quota_enrollment",
+  "title": "限额选课",
+  "description": "课程按分数从高到低录取 quota 人；同分按姓名字典序。",
+  "input_description": "第一行 n quota，随后每行姓名和分数。",
+  "output_description": "按录取优先级逐行输出姓名。",
+  "samples": [
+    {
+      "input": "3 2\na 90\nb 80\nc 95\n",
+      "output": "c\na\n"
+    },
+    {
+      "input": "2 1\nz 100\na 100\n",
+      "output": "a\n"
+    }
+  ],
+  "constraints": "1 ≤ quota ≤ n ≤ 200000，姓名不重复。",
+  "testcases": [
+    {
+      "input": "3 2\na 90\nb 80\nc 95\n",
+      "output": "c\na\n"
+    },
+    {
+      "input": "2 1\nz 100\na 100\n",
+      "output": "a\n"
+    },
+    {
+      "input": "1 1\nsolo 0\n",
+      "output": "solo\n"
+    },
+    {
+      "input": "4 3\nd 60\nc 60\nb 60\na 60\n",
+      "output": "a\nb\nc\n"
+    },
+    {
+      "input": "5 2\nu1 1\nu2 5\nu3 3\nu4 4\nu5 2\n",
+      "output": "u2\nu4\n"
+    }
+  ],
+  "hint": "使用复合排序键。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "排序",
+    "结构体"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "中等",
+  "public_cases": false
+}

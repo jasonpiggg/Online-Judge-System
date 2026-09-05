@@ -1,0 +1,51 @@
+{
+  "id": "course_dependencies",
+  "title": "课程依赖",
+  "description": "课程依赖边 a b 表示必须先修 a 再修 b，输出字典序最小的可行编号序列。",
+  "input_description": "第一行 n m，随后 m 行依赖。",
+  "output_description": "有环输出 CYCLE，否则输出顺序。",
+  "samples": [
+    {
+      "input": "3 2\n1 2\n2 3\n",
+      "output": "1 2 3\n"
+    },
+    {
+      "input": "3 2\n1 3\n2 3\n",
+      "output": "1 2 3\n"
+    }
+  ],
+  "constraints": "1 ≤ n,m ≤ 200000。",
+  "testcases": [
+    {
+      "input": "3 2\n1 2\n2 3\n",
+      "output": "1 2 3\n"
+    },
+    {
+      "input": "3 2\n1 3\n2 3\n",
+      "output": "1 2 3\n"
+    },
+    {
+      "input": "2 2\n1 2\n2 1\n",
+      "output": "CYCLE\n"
+    },
+    {
+      "input": "4 0\n",
+      "output": "1 2 3 4\n"
+    },
+    {
+      "input": "4 3\n4 2\n1 2\n2 3\n",
+      "output": "1 4 2 3\n"
+    }
+  ],
+  "hint": "用小根堆维护当前入度为零的课程。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "拓扑排序",
+    "图"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "中等",
+  "public_cases": false
+}

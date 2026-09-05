@@ -1,0 +1,72 @@
+{
+  "id": "mock_a_batch_knn",
+  "title": "批量 KNN 推断",
+  "description": "使用欧氏距离完成批量 KNN 分类。距离相同时按训练行序稳定选择；投票相同时选择较小标签。允许使用 numpy.asarray、广播、sum、argsort、unique。",
+  "input_description": "第一行 n d q k；随后 n 行 d 个整数特征和标签；再 q 行查询特征。",
+  "output_description": "每个查询输出预测标签。",
+  "samples": [
+    {
+      "input": "3 2 1 2\n0 0 0\n2 0 1\n0 2 1\n0 0\n",
+      "output": "0\n"
+    },
+    {
+      "input": "3 2 2 3\n0 0 0\n2 0 1\n0 2 1\n0 0\n1 2\n",
+      "output": "1\n1\n"
+    }
+  ],
+  "constraints": "1 ≤ n,q ≤ 5000，1 ≤ d ≤ 30，1 ≤ k ≤ n。",
+  "testcases": [
+    {
+      "input": "3 2 1 2\n0 0 0\n2 0 1\n0 2 1\n0 0\n",
+      "output": "0\n"
+    },
+    {
+      "input": "3 2 2 3\n0 0 0\n2 0 1\n0 2 1\n0 0\n1 2\n",
+      "output": "1\n1\n"
+    },
+    {
+      "input": "3 2 3 1\n0 0 0\n2 0 1\n0 2 1\n0 0\n1 2\n2 1\n",
+      "output": "0\n1\n1\n"
+    },
+    {
+      "input": "3 2 4 2\n0 0 0\n2 0 1\n0 2 1\n0 0\n1 2\n2 1\n0 0\n",
+      "output": "0\n0\n0\n0\n"
+    },
+    {
+      "input": "3 2 5 3\n0 0 0\n2 0 1\n0 2 1\n0 0\n1 2\n2 1\n0 0\n1 2\n",
+      "output": "1\n1\n1\n1\n1\n"
+    },
+    {
+      "input": "3 2 6 1\n0 0 0\n2 0 1\n0 2 1\n0 0\n1 2\n2 1\n0 0\n1 2\n2 1\n",
+      "output": "0\n1\n1\n0\n1\n1\n"
+    },
+    {
+      "input": "3 2 7 2\n0 0 0\n2 0 1\n0 2 1\n0 0\n1 2\n2 1\n0 0\n1 2\n2 1\n0 0\n",
+      "output": "0\n0\n0\n0\n0\n0\n0\n"
+    },
+    {
+      "input": "3 2 8 3\n0 0 0\n2 0 1\n0 2 1\n0 0\n1 2\n2 1\n0 0\n1 2\n2 1\n0 0\n1 2\n",
+      "output": "1\n1\n1\n1\n1\n1\n1\n1\n"
+    },
+    {
+      "input": "3 2 9 1\n0 0 0\n2 0 1\n0 2 1\n0 0\n1 2\n2 1\n0 0\n1 2\n2 1\n0 0\n1 2\n2 1\n",
+      "output": "0\n1\n1\n0\n1\n1\n0\n1\n1\n"
+    },
+    {
+      "input": "3 2 10 2\n0 0 0\n2 0 1\n0 2 1\n0 0\n1 2\n2 1\n0 0\n1 2\n2 1\n0 0\n1 2\n2 1\n0 0\n",
+      "output": "0\n0\n0\n0\n0\n0\n0\n0\n0\n0\n"
+    }
+  ],
+  "hint": "可用 NumPy 广播一次计算一个查询到全部训练样本的平方距离。",
+  "source": "程序设计训练期末模拟卷 A",
+  "tags": [
+    "模拟卷A",
+    "NumPy",
+    "机器学习"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 512,
+  "author": "Atelier OJ",
+  "difficulty": "",
+  "public_cases": false
+}

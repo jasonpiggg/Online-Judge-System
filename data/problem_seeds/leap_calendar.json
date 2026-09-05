@@ -1,0 +1,51 @@
+{
+  "id": "leap_calendar",
+  "title": "闰年日历",
+  "description": "判断指定年月的天数，采用公历闰年规则。",
+  "input_description": "一行两个整数 year month。",
+  "output_description": "输出该月天数。",
+  "samples": [
+    {
+      "input": "2000 2\n",
+      "output": "29\n"
+    },
+    {
+      "input": "1900 2\n",
+      "output": "28\n"
+    }
+  ],
+  "constraints": "1 ≤ year ≤ 9999，1 ≤ month ≤ 12。",
+  "testcases": [
+    {
+      "input": "2000 2\n",
+      "output": "29\n"
+    },
+    {
+      "input": "1900 2\n",
+      "output": "28\n"
+    },
+    {
+      "input": "2024 2\n",
+      "output": "29\n"
+    },
+    {
+      "input": "2023 11\n",
+      "output": "30\n"
+    },
+    {
+      "input": "2023 12\n",
+      "output": "31\n"
+    }
+  ],
+  "hint": "能被 400 整除，或能被 4 但不能被 100 整除的是闰年。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "分支",
+    "日期"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "入门",
+  "public_cases": false
+}

@@ -1,0 +1,51 @@
+{
+  "id": "run_length_encode",
+  "title": "游程编码",
+  "description": "把连续相同字符编码为字符和连续长度。",
+  "input_description": "一行仅含大小写英文字母的非空字符串。",
+  "output_description": "各段输出为 字符+长度，以空格分隔。",
+  "samples": [
+    {
+      "input": "A\n",
+      "output": "A1\n"
+    },
+    {
+      "input": "AAABB\n",
+      "output": "A3 B2\n"
+    }
+  ],
+  "constraints": "1 ≤ 长度 ≤ 100000。",
+  "testcases": [
+    {
+      "input": "A\n",
+      "output": "A1\n"
+    },
+    {
+      "input": "AAABB\n",
+      "output": "A3 B2\n"
+    },
+    {
+      "input": "abbbbCC\n",
+      "output": "a1 b4 C2\n"
+    },
+    {
+      "input": "xyz\n",
+      "output": "x1 y1 z1\n"
+    },
+    {
+      "input": "ZZZZZZZZZZ\n",
+      "output": "Z10\n"
+    }
+  ],
+  "hint": "记录当前段起点。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "字符串",
+    "模拟"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "简单",
+  "public_cases": false
+}

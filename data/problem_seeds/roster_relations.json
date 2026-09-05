@@ -1,0 +1,51 @@
+{
+  "id": "roster_relations",
+  "title": "名单关系",
+  "description": "给出人员之间的同组关系，回答两人是否通过关系链属于同一组。",
+  "input_description": "第一行 n m q；随后 m 行关系和 q 行询问，人员编号为 1..n。",
+  "output_description": "每个询问输出 YES 或 NO。",
+  "samples": [
+    {
+      "input": "3 1 2\n1 2\n1 2\n1 3\n",
+      "output": "YES\nNO\n"
+    },
+    {
+      "input": "4 3 2\n1 2\n2 3\n3 4\n1 4\n2 4\n",
+      "output": "YES\nYES\n"
+    }
+  ],
+  "constraints": "1 ≤ n,m,q ≤ 200000。",
+  "testcases": [
+    {
+      "input": "3 1 2\n1 2\n1 2\n1 3\n",
+      "output": "YES\nNO\n"
+    },
+    {
+      "input": "4 3 2\n1 2\n2 3\n3 4\n1 4\n2 4\n",
+      "output": "YES\nYES\n"
+    },
+    {
+      "input": "2 0 1\n1 2\n",
+      "output": "NO\n"
+    },
+    {
+      "input": "5 2 3\n1 5\n2 3\n1 5\n3 2\n4 5\n",
+      "output": "YES\nYES\nNO\n"
+    },
+    {
+      "input": "1 0 1\n1 1\n",
+      "output": "YES\n"
+    }
+  ],
+  "hint": "使用并查集合并关系。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "并查集",
+    "图"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "简单",
+  "public_cases": false
+}

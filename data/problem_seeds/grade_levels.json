@@ -1,0 +1,51 @@
+{
+  "id": "grade_levels",
+  "title": "成绩等级",
+  "description": "按 A≥90、B≥80、C≥70、D≥60、F<60 统计成绩。",
+  "input_description": "第一行 n，第二行 n 个整数成绩。",
+  "output_description": "依次输出 A B C D F 的人数。",
+  "samples": [
+    {
+      "input": "1\n100\n",
+      "output": "1 0 0 0 0\n"
+    },
+    {
+      "input": "5\n90 80 70 60 59\n",
+      "output": "1 1 1 1 1\n"
+    }
+  ],
+  "constraints": "1 ≤ n ≤ 100000，0 ≤ 成绩 ≤ 100。",
+  "testcases": [
+    {
+      "input": "1\n100\n",
+      "output": "1 0 0 0 0\n"
+    },
+    {
+      "input": "5\n90 80 70 60 59\n",
+      "output": "1 1 1 1 1\n"
+    },
+    {
+      "input": "4\n0 1 2 3\n",
+      "output": "0 0 0 0 4\n"
+    },
+    {
+      "input": "6\n89 89 79 69 99 100\n",
+      "output": "2 2 1 1 0\n"
+    },
+    {
+      "input": "3\n60 60 60\n",
+      "output": "0 0 0 3 0\n"
+    }
+  ],
+  "hint": "边界分数属于较高等级。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "分支",
+    "计数"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "入门",
+  "public_cases": false
+}

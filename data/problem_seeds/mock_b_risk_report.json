@@ -1,0 +1,72 @@
+{
+  "id": "mock_b_risk_report",
+  "title": "风险评分报表",
+  "description": "为每位用户计算规则风险分：每次逾期 35 分，收入低于 5000 加 20 分，年龄低于 25 加 10 分；按风险分降序、用户 ID 升序生成报表。允许使用 pandas.DataFrame、布尔索引、sort_values。",
+  "input_description": "第一行 n；随后每行 user_id age income overdue。",
+  "output_description": "逐行输出 user_id 和风险分。",
+  "samples": [
+    {
+      "input": "1\nu00 18 3000 0\n",
+      "output": "u00 30\n"
+    },
+    {
+      "input": "2\nu00 18 3000 0\nu01 19 3700 1\n",
+      "output": "u01 65\nu00 30\n"
+    }
+  ],
+  "constraints": "1 ≤ n ≤ 200000，各字段为整数且 user_id 唯一。",
+  "testcases": [
+    {
+      "input": "1\nu00 18 3000 0\n",
+      "output": "u00 30\n"
+    },
+    {
+      "input": "2\nu00 18 3000 0\nu01 19 3700 1\n",
+      "output": "u01 65\nu00 30\n"
+    },
+    {
+      "input": "3\nu00 18 3000 0\nu01 19 3700 1\nu02 20 4400 2\n",
+      "output": "u02 100\nu01 65\nu00 30\n"
+    },
+    {
+      "input": "4\nu00 18 3000 0\nu01 19 3700 1\nu02 20 4400 2\nu03 21 5100 3\n",
+      "output": "u03 115\nu02 100\nu01 65\nu00 30\n"
+    },
+    {
+      "input": "5\nu00 18 3000 0\nu01 19 3700 1\nu02 20 4400 2\nu03 21 5100 3\nu04 22 5800 0\n",
+      "output": "u03 115\nu02 100\nu01 65\nu00 30\nu04 10\n"
+    },
+    {
+      "input": "6\nu00 18 3000 0\nu01 19 3700 1\nu02 20 4400 2\nu03 21 5100 3\nu04 22 5800 0\nu05 23 6500 1\n",
+      "output": "u03 115\nu02 100\nu01 65\nu05 45\nu00 30\nu04 10\n"
+    },
+    {
+      "input": "7\nu00 18 3000 0\nu01 19 3700 1\nu02 20 4400 2\nu03 21 5100 3\nu04 22 5800 0\nu05 23 6500 1\nu06 24 7200 2\n",
+      "output": "u03 115\nu02 100\nu06 80\nu01 65\nu05 45\nu00 30\nu04 10\n"
+    },
+    {
+      "input": "8\nu00 18 3000 0\nu01 19 3700 1\nu02 20 4400 2\nu03 21 5100 3\nu04 22 5800 0\nu05 23 6500 1\nu06 24 7200 2\nu07 25 7900 3\n",
+      "output": "u03 115\nu07 105\nu02 100\nu06 80\nu01 65\nu05 45\nu00 30\nu04 10\n"
+    },
+    {
+      "input": "9\nu00 18 3000 0\nu01 19 3700 1\nu02 20 4400 2\nu03 21 5100 3\nu04 22 5800 0\nu05 23 6500 1\nu06 24 7200 2\nu07 25 7900 3\nu08 26 8600 0\n",
+      "output": "u03 115\nu07 105\nu02 100\nu06 80\nu01 65\nu05 45\nu00 30\nu04 10\nu08 0\n"
+    },
+    {
+      "input": "10\nu00 18 3000 0\nu01 19 3700 1\nu02 20 4400 2\nu03 21 5100 3\nu04 22 5800 0\nu05 23 6500 1\nu06 24 7200 2\nu07 25 7900 3\nu08 26 8600 0\nu09 27 9300 1\n",
+      "output": "u03 115\nu07 105\nu02 100\nu06 80\nu01 65\nu05 45\nu09 35\nu00 30\nu04 10\nu08 0\n"
+    }
+  ],
+  "hint": "用向量化布尔表达式生成 score 列，再稳定排序。",
+  "source": "程序设计训练期末模拟卷 B",
+  "tags": [
+    "模拟卷B",
+    "Pandas",
+    "机器学习"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 512,
+  "author": "Atelier OJ",
+  "difficulty": "",
+  "public_cases": false
+}

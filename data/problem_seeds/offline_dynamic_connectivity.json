@@ -1,0 +1,51 @@
+{
+  "id": "offline_dynamic_connectivity",
+  "title": "离线动态连通性",
+  "description": "无向图支持加边、删边和连通性询问；同一边不会重复加入或删除不存在的边。",
+  "input_description": "第一行 n q，随后 q 行 + u v、- u v 或 ? u v。",
+  "output_description": "每个询问输出 YES 或 NO。",
+  "samples": [
+    {
+      "input": "3 5\n+ 1 2\n? 1 2\n? 1 3\n+ 2 3\n? 1 3\n",
+      "output": "YES\nNO\nYES\n"
+    },
+    {
+      "input": "2 4\n+ 1 2\n? 1 2\n- 1 2\n? 1 2\n",
+      "output": "YES\nNO\n"
+    }
+  ],
+  "constraints": "1 ≤ n,q ≤ 200000。",
+  "testcases": [
+    {
+      "input": "3 5\n+ 1 2\n? 1 2\n? 1 3\n+ 2 3\n? 1 3\n",
+      "output": "YES\nNO\nYES\n"
+    },
+    {
+      "input": "2 4\n+ 1 2\n? 1 2\n- 1 2\n? 1 2\n",
+      "output": "YES\nNO\n"
+    },
+    {
+      "input": "4 6\n+ 1 2\n+ 3 4\n? 1 4\n+ 2 3\n? 1 4\n- 2 3\n",
+      "output": "NO\nYES\n"
+    },
+    {
+      "input": "1 1\n? 1 1\n",
+      "output": "YES\n"
+    },
+    {
+      "input": "5 7\n+ 1 2\n+ 2 3\n? 1 3\n- 1 2\n? 1 3\n+ 4 5\n? 4 5\n",
+      "output": "YES\nNO\nYES\n"
+    }
+  ],
+  "hint": "把边的生存区间加入时间线段树，DFS 时使用可撤销并查集。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "可撤销并查集",
+    "分治"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "挑战",
+  "public_cases": false
+}

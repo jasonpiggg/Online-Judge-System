@@ -1,0 +1,71 @@
+{
+  "id": "mock_a_inventory_summary",
+  "title": "仓库盘点汇总",
+  "description": "汇总多种商品的库存件数和库存金额，金额均为整数分。",
+  "input_description": "第一行 n；随后每行商品编号、数量、单价。",
+  "output_description": "输出总件数和总金额。",
+  "samples": [
+    {
+      "input": "1\np0 1 10\n",
+      "output": "1 10\n"
+    },
+    {
+      "input": "2\np0 1 10\np1 2 11\n",
+      "output": "3 32\n"
+    }
+  ],
+  "constraints": "1 ≤ n ≤ 100000，数量与单价非负。",
+  "testcases": [
+    {
+      "input": "1\np0 1 10\n",
+      "output": "1 10\n"
+    },
+    {
+      "input": "2\np0 1 10\np1 2 11\n",
+      "output": "3 32\n"
+    },
+    {
+      "input": "3\np0 1 10\np1 2 11\np2 3 12\n",
+      "output": "6 68\n"
+    },
+    {
+      "input": "4\np0 1 10\np1 2 11\np2 3 12\np3 4 13\n",
+      "output": "10 120\n"
+    },
+    {
+      "input": "5\np0 1 10\np1 2 11\np2 3 12\np3 4 13\np4 5 14\n",
+      "output": "15 190\n"
+    },
+    {
+      "input": "6\np0 1 10\np1 2 11\np2 3 12\np3 4 13\np4 5 14\np5 6 15\n",
+      "output": "21 280\n"
+    },
+    {
+      "input": "7\np0 1 10\np1 2 11\np2 3 12\np3 4 13\np4 5 14\np5 6 15\np6 7 16\n",
+      "output": "28 392\n"
+    },
+    {
+      "input": "8\np0 1 10\np1 2 11\np2 3 12\np3 4 13\np4 5 14\np5 6 15\np6 7 16\np7 8 17\n",
+      "output": "36 528\n"
+    },
+    {
+      "input": "9\np0 1 10\np1 2 11\np2 3 12\np3 4 13\np4 5 14\np5 6 15\np6 7 16\np7 8 17\np8 9 18\n",
+      "output": "45 690\n"
+    },
+    {
+      "input": "10\np0 1 10\np1 2 11\np2 3 12\np3 4 13\np4 5 14\np5 6 15\np6 7 16\np7 8 17\np8 9 18\np9 10 19\n",
+      "output": "55 880\n"
+    }
+  ],
+  "hint": "逐行累加，注意总金额使用 64 位整数。",
+  "source": "程序设计训练期末模拟卷 A",
+  "tags": [
+    "模拟卷A",
+    "基础语法"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "",
+  "public_cases": false
+}

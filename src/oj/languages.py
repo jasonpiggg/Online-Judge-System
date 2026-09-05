@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import shlex
-import shutil
 import sys
 
 import aiosqlite
@@ -36,7 +35,9 @@ def command_argv(template: str, *, src: str, exe: str) -> list[str]:
     if executable not in SAFE_EXECUTABLES and executable != "{exe}":
         raise ValueError("executable is not in the safe allowlist")
     expanded = [part.replace("{src}", src).replace("{exe}", exe) for part in argv]
-    if executable in {"python", "python3"} and shutil.which(executable) is None:
+    if executable in {"python", "python3"}:
+        # Python submissions run in the server's managed environment. This keeps
+        # declared course packages consistent and avoids PATH alias differences.
         expanded[0] = sys.executable
     return expanded
 

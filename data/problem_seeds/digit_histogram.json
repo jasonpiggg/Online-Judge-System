@@ -1,0 +1,51 @@
+{
+  "id": "digit_histogram",
+  "title": "数字位统计",
+  "description": "统计一个十进制整数表示中每个数字出现的次数，负号不计。",
+  "input_description": "一行一个十进制整数。",
+  "output_description": "输出数字 0 到 9 的出现次数。",
+  "samples": [
+    {
+      "input": "0\n",
+      "output": "1 0 0 0 0 0 0 0 0 0\n"
+    },
+    {
+      "input": "-1002\n",
+      "output": "2 1 1 0 0 0 0 0 0 0\n"
+    }
+  ],
+  "constraints": "输入长度不超过 100000。",
+  "testcases": [
+    {
+      "input": "0\n",
+      "output": "1 0 0 0 0 0 0 0 0 0\n"
+    },
+    {
+      "input": "-1002\n",
+      "output": "2 1 1 0 0 0 0 0 0 0\n"
+    },
+    {
+      "input": "9876543210\n",
+      "output": "1 1 1 1 1 1 1 1 1 1\n"
+    },
+    {
+      "input": "111223\n",
+      "output": "0 3 2 1 0 0 0 0 0 0\n"
+    },
+    {
+      "input": "909090\n",
+      "output": "3 0 0 0 0 0 0 0 0 3\n"
+    }
+  ],
+  "hint": "按字符扫描即可。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "字符串",
+    "计数"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "入门",
+  "public_cases": false
+}

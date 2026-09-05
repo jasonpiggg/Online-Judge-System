@@ -1,0 +1,51 @@
+{
+  "id": "segmented_cost_optimization",
+  "title": "分段代价优化",
+  "description": "把非负数组恰好分成 k 个非空连续段，总代价为每段元素和的平方，求最小总代价。",
+  "input_description": "第一行 n k，第二行 n 个非负整数。",
+  "output_description": "输出最小总代价。",
+  "samples": [
+    {
+      "input": "3 1\n1 2 3\n",
+      "output": "36\n"
+    },
+    {
+      "input": "3 3\n1 2 3\n",
+      "output": "14\n"
+    }
+  ],
+  "constraints": "1 ≤ k ≤ n ≤ 200000，元素和不超过 10^9。",
+  "testcases": [
+    {
+      "input": "3 1\n1 2 3\n",
+      "output": "36\n"
+    },
+    {
+      "input": "3 3\n1 2 3\n",
+      "output": "14\n"
+    },
+    {
+      "input": "4 2\n1 1 1 1\n",
+      "output": "8\n"
+    },
+    {
+      "input": "5 2\n5 0 0 0 5\n",
+      "output": "50\n"
+    },
+    {
+      "input": "6 3\n1 2 1 2 1 2\n",
+      "output": "27\n"
+    }
+  ],
+  "hint": "转移式可展开成直线最值并用凸包优化。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "动态规划优化",
+    "凸包"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "挑战",
+  "public_cases": false
+}

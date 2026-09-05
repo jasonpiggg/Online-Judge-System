@@ -1,0 +1,51 @@
+{
+  "id": "tiered_billing",
+  "title": "阶梯计费",
+  "description": "用量前 100 单位每单位 2 元，接下来 100 单位每单位 3 元，超过 200 的部分每单位 5 元。",
+  "input_description": "一行非负整数用量。",
+  "output_description": "输出总费用。",
+  "samples": [
+    {
+      "input": "0\n",
+      "output": "0\n"
+    },
+    {
+      "input": "100\n",
+      "output": "200\n"
+    }
+  ],
+  "constraints": "0 ≤ 用量 ≤ 10^9。",
+  "testcases": [
+    {
+      "input": "0\n",
+      "output": "0\n"
+    },
+    {
+      "input": "100\n",
+      "output": "200\n"
+    },
+    {
+      "input": "101\n",
+      "output": "203\n"
+    },
+    {
+      "input": "200\n",
+      "output": "500\n"
+    },
+    {
+      "input": "345\n",
+      "output": "1225\n"
+    }
+  ],
+  "hint": "分段计算每一档。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "分支",
+    "算术"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "入门",
+  "public_cases": false
+}

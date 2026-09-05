@@ -1,0 +1,51 @@
+{
+  "id": "merge_appointments",
+  "title": "合并预约",
+  "description": "合并所有重叠或首尾相接的预约时间段。",
+  "input_description": "第一行 n，随后 n 行闭区间 l r。",
+  "output_description": "先输出合并后数量，再逐行输出区间。",
+  "samples": [
+    {
+      "input": "1\n1 2\n",
+      "output": "1\n1 2\n"
+    },
+    {
+      "input": "3\n1 3\n2 5\n8 9\n",
+      "output": "2\n1 5\n8 9\n"
+    }
+  ],
+  "constraints": "1 ≤ n ≤ 100000，0 ≤ l ≤ r ≤ 10^9。",
+  "testcases": [
+    {
+      "input": "1\n1 2\n",
+      "output": "1\n1 2\n"
+    },
+    {
+      "input": "3\n1 3\n2 5\n8 9\n",
+      "output": "2\n1 5\n8 9\n"
+    },
+    {
+      "input": "3\n5 5\n1 2\n2 4\n",
+      "output": "2\n1 4\n5 5\n"
+    },
+    {
+      "input": "4\n1 1\n3 3\n5 5\n7 7\n",
+      "output": "4\n1 1\n3 3\n5 5\n7 7\n"
+    },
+    {
+      "input": "3\n-2 0\n0 2\n10 20\n",
+      "output": "2\n-2 2\n10 20\n"
+    }
+  ],
+  "hint": "按左端点排序后线性扫描。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "排序",
+    "区间"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "简单",
+  "public_cases": false
+}

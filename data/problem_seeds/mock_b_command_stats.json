@@ -1,0 +1,71 @@
+{
+  "id": "mock_b_command_stats",
+  "title": "命令记录统计",
+  "description": "统计命令日志中每种命令名出现的次数，并按命令名字典序输出。",
+  "input_description": "第一行 n，随后 n 行非空命令；命令名是每行第一个字段。",
+  "output_description": "逐行输出命令名和次数。",
+  "samples": [
+    {
+      "input": "1\nGET /x\n",
+      "output": "GET 1\n"
+    },
+    {
+      "input": "2\nGET /x\nPOST /y\n",
+      "output": "GET 1\nPOST 1\n"
+    }
+  ],
+  "constraints": "1 ≤ n ≤ 200000。",
+  "testcases": [
+    {
+      "input": "1\nGET /x\n",
+      "output": "GET 1\n"
+    },
+    {
+      "input": "2\nGET /x\nPOST /y\n",
+      "output": "GET 1\nPOST 1\n"
+    },
+    {
+      "input": "3\nGET /x\nPOST /y\nDELETE /z\n",
+      "output": "DELETE 1\nGET 1\nPOST 1\n"
+    },
+    {
+      "input": "4\nGET /x\nPOST /y\nDELETE /z\nGET /x\n",
+      "output": "DELETE 1\nGET 2\nPOST 1\n"
+    },
+    {
+      "input": "5\nGET /x\nPOST /y\nDELETE /z\nGET /x\nPOST /y\n",
+      "output": "DELETE 1\nGET 2\nPOST 2\n"
+    },
+    {
+      "input": "6\nGET /x\nPOST /y\nDELETE /z\nGET /x\nPOST /y\nDELETE /z\n",
+      "output": "DELETE 2\nGET 2\nPOST 2\n"
+    },
+    {
+      "input": "7\nGET /x\nPOST /y\nDELETE /z\nGET /x\nPOST /y\nDELETE /z\nGET /x\n",
+      "output": "DELETE 2\nGET 3\nPOST 2\n"
+    },
+    {
+      "input": "8\nGET /x\nPOST /y\nDELETE /z\nGET /x\nPOST /y\nDELETE /z\nGET /x\nPOST /y\n",
+      "output": "DELETE 2\nGET 3\nPOST 3\n"
+    },
+    {
+      "input": "9\nGET /x\nPOST /y\nDELETE /z\nGET /x\nPOST /y\nDELETE /z\nGET /x\nPOST /y\nDELETE /z\n",
+      "output": "DELETE 3\nGET 3\nPOST 3\n"
+    },
+    {
+      "input": "10\nGET /x\nPOST /y\nDELETE /z\nGET /x\nPOST /y\nDELETE /z\nGET /x\nPOST /y\nDELETE /z\nGET /x\n",
+      "output": "DELETE 3\nGET 4\nPOST 3\n"
+    }
+  ],
+  "hint": "按空白切分首字段并用字典计数。",
+  "source": "程序设计训练期末模拟卷 B",
+  "tags": [
+    "模拟卷B",
+    "基础语法"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "",
+  "public_cases": false
+}

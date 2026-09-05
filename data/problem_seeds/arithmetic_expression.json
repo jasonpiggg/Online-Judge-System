@@ -1,0 +1,51 @@
+{
+  "id": "arithmetic_expression",
+  "title": "表达式求值",
+  "description": "计算包含整数、括号、+、-、* 和一元负号的表达式。",
+  "input_description": "一行合法表达式，不含空格。",
+  "output_description": "输出整数结果。",
+  "samples": [
+    {
+      "input": "1+2*3\n",
+      "output": "7\n"
+    },
+    {
+      "input": "(1+2)*3\n",
+      "output": "9\n"
+    }
+  ],
+  "constraints": "表达式长度不超过 200000，中间结果在 64 位整数内。",
+  "testcases": [
+    {
+      "input": "1+2*3\n",
+      "output": "7\n"
+    },
+    {
+      "input": "(1+2)*3\n",
+      "output": "9\n"
+    },
+    {
+      "input": "-5+2*4\n",
+      "output": "3\n"
+    },
+    {
+      "input": "10-(2+3)*2\n",
+      "output": "0\n"
+    },
+    {
+      "input": "2*(-3+7)\n",
+      "output": "8\n"
+    }
+  ],
+  "hint": "用运算符栈处理优先级与括号。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "栈",
+    "解析"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "中等",
+  "public_cases": false
+}
