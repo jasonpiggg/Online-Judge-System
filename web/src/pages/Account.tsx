@@ -5,6 +5,7 @@ import { api, json, errorText, queryClient } from "../api";
 import type { User } from "../types";
 import { Button } from "../components/ui/button";
 import { LanguageSettings } from "../components/LanguageSettings";
+import { DisclosureCard } from "../components/DisclosureCard";
 export function ModelSettings() {
   const { data: c } = useQuery({
     queryKey: ["model-config"],
@@ -23,8 +24,7 @@ export function ModelSettings() {
             ? "正在使用个人模型"
             : "尚未配置模型"}
       </p>
-      <details className="disclosure-card">
-        <summary>个人模型配置</summary>
+      <DisclosureCard summary="个人模型配置">
         <form
           className="form-grid"
           key={c?.source}
@@ -109,9 +109,11 @@ export function ModelSettings() {
               </select>
             </label>
           </div>
-          <Button variant="default" disabled={busy}>
-            保存配置
-          </Button>
+          <div className="form-actions">
+            <Button variant="default" disabled={busy}>
+              保存配置
+            </Button>
+          </div>
         </form>
         {c?.personal_configured && (
           <Button
@@ -129,7 +131,7 @@ export function ModelSettings() {
             移除个人配置，恢复系统模型
           </Button>
         )}
-      </details>
+      </DisclosureCard>
       {saved && <p role="status">配置已保存。</p>}
       {error && <p role="alert">{error}</p>}
     </section>
@@ -156,10 +158,9 @@ export function Account({ user }: { user: User }) {
         </div>
       </div>
       <ModelSettings />
-      <details className="account-language-settings disclosure-card">
-        <summary>评测语言配置</summary>
+      <DisclosureCard className="account-language-settings" summary="评测语言配置">
         <LanguageSettings heading={false} />
-      </details>
+      </DisclosureCard>
       <Button
         onClick={async () => {
           await api("/auth/logout", json("POST"));

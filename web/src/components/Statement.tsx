@@ -1,5 +1,6 @@
 import type { Problem } from "../types";
 import { Code, RichText } from "./Markdown";
+import { DisclosureCard } from "./DisclosureCard";
 export function Statement({ problem: p }: { problem: Problem }) {
   return (
     <article className="statement">
@@ -41,10 +42,9 @@ export function Statement({ problem: p }: { problem: Problem }) {
         <RichText text={p.constraints} />
       </section>
       {p.hint && (
-        <details className="disclosure-card">
-          <summary>解题提示</summary>
+        <DisclosureCard summary="解题提示">
           <RichText text={p.hint} />
-        </details>
+        </DisclosureCard>
       )}
     </article>
   );

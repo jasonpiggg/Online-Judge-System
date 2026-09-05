@@ -7,6 +7,7 @@ import { Code, logText } from "./Markdown";
 import { Icon } from "./Icon";
 import { Button } from "./ui/button";
 import { Pagination } from "./Pagination";
+import { DisclosureCard } from "./DisclosureCard";
 import { useActionReveal } from "./useActionReveal";
 
 const labels: Record<string, string> = {
@@ -208,14 +209,13 @@ export function EvaluationView({
         </div>
       )}
       {s.status !== "pending" && hasRawLogs && (
-        <details className="raw-logs disclosure-card">
-          <summary>原始运行日志</summary>
+        <DisclosureCard className="raw-logs" summary="原始运行日志">
           {["compile_info", "run_info", "error_info"].map((k) =>
             s[k as keyof Submission] ? (
               <Code key={k} text={logText(s[k as keyof Submission])} />
             ) : null,
           )}
-        </details>
+        </DisclosureCard>
       )}
     </>
   );

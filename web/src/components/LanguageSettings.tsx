@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, errorText, json, queryClient } from "../api";
 import { Button } from "./ui/button";
 import { useQuery } from "@tanstack/react-query";
+import { DisclosureCard } from "./DisclosureCard";
 
 export function LanguageSettings({ heading = true }: { heading?: boolean }) {
   const [busy, setBusy] = useState(false);
@@ -39,8 +40,7 @@ export function LanguageSettings({ heading = true }: { heading?: boolean }) {
                 <td>{language.time_limit} 秒</td>
                 <td>{language.memory_limit} MB</td>
                 <td>
-                  <details className="disclosure-card">
-                    <summary>查看命令</summary>
+                  <DisclosureCard summary="查看命令">
                     <dl>
                       <dt>扩展名</dt>
                       <dd>{language.file_ext}</dd>
@@ -53,15 +53,14 @@ export function LanguageSettings({ heading = true }: { heading?: boolean }) {
                         <code>{language.run_cmd}</code>
                       </dd>
                     </dl>
-                  </details>
+                  </DisclosureCard>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <details className="disclosure-card">
-        <summary>注册语言 / 更新配置</summary>
+      <DisclosureCard summary="注册语言 / 更新配置">
         <form
           className="form-grid narrow"
           onSubmit={async (event) => {
@@ -111,16 +110,20 @@ export function LanguageSettings({ heading = true }: { heading?: boolean }) {
               name="time_limit"
               type="number"
               step="any"
+              min="0.1"
               defaultValue={3}
+              required
             />
           </label>
           <label>
             内存限制（MB）
-            <input name="memory_limit" type="number" defaultValue={128} />
+            <input name="memory_limit" type="number" min="1" defaultValue={128} required />
           </label>
-          <Button disabled={busy}>保存语言</Button>
+          <div className="form-actions">
+            <Button disabled={busy}>保存语言</Button>
+          </div>
         </form>
-      </details>
+      </DisclosureCard>
       {message && <p role="status">{message}</p>}
       {error && <p role="alert">{error}</p>}
     </section>
