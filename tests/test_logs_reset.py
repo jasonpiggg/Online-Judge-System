@@ -42,7 +42,10 @@ async def test_private_public_logs_and_audit(
     submission_id = await _create_finished_submission(client, problem_payload)
     own_log = await client.get(f"/api/submissions/{submission_id}/log")
     assert own_log.status_code == 200
-    assert len(own_log.json()["data"]["details"]) == 2
+    own_data = own_log.json()["data"]
+    assert len(own_data["details"]) == 2
+    assert own_data["can_view_raw_logs"] is True
+    assert own_data["raw_logs"]["run_info"]["result"] == "finished"
 
     client.cookies.clear()
     await client.post(
@@ -56,6 +59,9 @@ async def test_private_public_logs_and_audit(
         "/api/problems/sum_2/log_visibility", json={"public_cases": True}
     )
     assert visibility.status_code == 200
+    admin_log = (await client.get(f"/api/submissions/{submission_id}/log")).json()["data"]
+    assert admin_log["can_view_raw_logs"] is True
+    assert "raw_logs" in admin_log
     audit = await client.get("/api/logs/access/", params={"user_id": alice_id})
     assert audit.status_code == 200
     assert audit.json()["data"][0]["status"] == "200"
@@ -64,7 +70,11 @@ async def test_private_public_logs_and_audit(
     await client.post(
         "/api/auth/login", json={"username": "bobby", "password": "secret2"}
     )
-    assert (await client.get(f"/api/submissions/{submission_id}/log")).status_code == 200
+    public_log = await client.get(f"/api/submissions/{submission_id}/log")
+    assert public_log.status_code == 200
+    public_data = public_log.json()["data"]
+    assert public_data["can_view_raw_logs"] is False
+    assert "raw_logs" not in public_data
 
 
 async def test_admin_reset(client: AsyncClient, problem_payload: dict[str, object]) -> None:

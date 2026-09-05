@@ -10,7 +10,7 @@ from streamlit.testing.v1 import AppTest
 
 from frontend.client import ApiClient
 from oj.ai_authoring import AIAuthoringManager
-from oj.ai_sections import merge_section
+from oj.ai_sections import DraftReviewCandidate, merge_draft_review, merge_section
 from oj.config import Settings
 from oj.schemas import GeneratedProblem, Problem
 from tests.test_ai_http import configure, finish, provider
@@ -68,6 +68,77 @@ def test_scoped_patch_rejects_overwrite_and_huge_samples(problem_payload: dict[s
         )
     with pytest.raises(ValidationError):
         merge_section(base, "samples", {**patch, "samples": patch["samples"] * 2})
+
+
+def test_draft_review_patch_protects_identity_and_missing_assets(
+    problem_payload: dict[str, Any],
+) -> None:
+    baseline = DraftReviewCandidate.model_validate(
+        {
+            "problem": problem_payload,
+            "reference_solution": "print(sum(map(int,input().split())))",
+            "coverage": {"basic": "已有基础覆盖", "boundary": "", "scale": ""},
+        }
+    )
+    proposal = merge_draft_review(
+        baseline,
+        {
+            "problem": {"constraints": "$|a|, |b| \\le 10^9$"},
+            "reference_solution": "a,b=map(int,input().split());print(a+b)",
+            "coverage": {"basic": "覆盖普通正负数相加"},
+        },
+    )
+    assert proposal.problem.id == baseline.problem.id
+    assert "\\le" in proposal.problem.constraints
+    assert proposal.coverage.boundary == ""
+    with pytest.raises(ValueError, match="受保护字段"):
+        merge_draft_review(baseline, {"problem": {"id": "renamed"}})
+    with pytest.raises(ValueError, match="不能补写缺失资产"):
+        merge_draft_review(baseline, {"generator_code": "print('[]')"})
+    with pytest.raises(ValueError, match="未知字段"):
+        merge_draft_review(baseline, {"secret": "value"})
+
+
+async def test_draft_review_repairs_one_invalid_patch(
+    app: FastAPI,
+    problem_payload: dict[str, Any],
+    monkeypatch: Any,
+) -> None:
+    manager = app.state.ai_authoring
+    await configure(manager, "http://127.0.0.1:9999/v1")
+    await manager.problems.create(Problem.model_validate(problem_payload))
+    calls: list[str] = []
+
+    async def stream(_config: Any, prompt: str, callback: Any) -> Any:
+        calls.append(prompt)
+        await callback(10, 20, "provider")
+        result = (
+            {"patch": {"problem": {"id": "forbidden"}}, "review": "错误修改"}
+            if len(calls) == 1
+            else {"patch": {}, "review": "保留题意，未发现需要自动修改的内容。"}
+        )
+        return json.dumps(result, ensure_ascii=False), 10, 20, "provider"
+
+    monkeypatch.setattr(manager, "_stream_completion", stream)
+    task_id = await manager.create_request(
+        1,
+        {
+            "workflow_version": 2,
+            "problem_id": "sum_2",
+            "requirement": "请全面检查当前题目并只做必要修正",
+            "action": "review",
+            "target_section": "review",
+        },
+    )
+    row = await finish(manager, task_id)
+    context = await app.state.db.fetchone(
+        "SELECT repair_used FROM ai_task_context WHERE task_id=?", (task_id,)
+    )
+    assert row["status"] == "completed" and len(calls) == 2, (row["error"], len(calls))
+    assert context["repair_used"] == 1
+    result = json.loads(row["result"])
+    assert result["kind"] == "review_patch"
+    assert result["baseline"] == result["proposal"]
 
 
 async def test_scoped_review_failure_keeps_first_draft(
