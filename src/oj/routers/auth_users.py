@@ -13,6 +13,9 @@ from oj.security import hash_password, verify_password
 
 router = APIRouter(prefix="/api")
 
+# Checking this public, fixed hash keeps nonexistent-user requests on the same bcrypt path.
+DUMMY_PASSWORD_HASH = b"$2b$12$lVL/0H9oeTbAg9YwHZHCC.EqkiF5Qc13S0/FxlRmH8C6qVWe0/aw2"
+
 
 @router.get("/auth/me")
 async def current_profile(
@@ -59,13 +62,48 @@ async def _create_user(request: Request, body: Credentials, role: str) -> dict[s
 
 @router.post("/auth/login")
 async def login(request: Request, body: Credentials) -> JSONResponse:
-    row = await request.app.state.db.fetchone(
-        "SELECT id,username,password_hash,role FROM users WHERE username=?", (body.username,)
-    )
-    if row is None or not await verify_password(body.password, row["password_hash"]):
-        raise APIError(401, "invalid username or password")
+    client = request.client.host if request.client else "unknown"
+    limiter = request.app.state.login_rate_limiter
+    attempt = await limiter.begin(client, body.username)
+    try:
+        row = await request.app.state.db.fetchone(
+            "SELECT id,username,password_hash,role FROM users WHERE username=?",
+            (body.username,),
+        )
+        valid_password = await verify_password(
+            body.password, row["password_hash"] if row is not None else DUMMY_PASSWORD_HASH
+        )
+    except Exception:
+        await limiter.cancel(attempt)
+        raise
+    if row is None:
+        await limiter.record_failure(attempt)
+        raise APIError(
+            401,
+            "user not found",
+            error_id="user_not_found",
+            title="用户不存在",
+            suggestion="检查用户名是否正确，或先创建账户。",
+        )
+    if not valid_password:
+        await limiter.record_failure(attempt)
+        raise APIError(
+            401,
+            "incorrect password",
+            error_id="incorrect_password",
+            title="密码错误",
+            suggestion="重新输入密码后再试。",
+        )
     if row["role"] == "banned":
-        raise APIError(403, "user is banned")
+        await limiter.record_failure(attempt)
+        raise APIError(
+            403,
+            "user is banned",
+            error_id="account_disabled",
+            title="账户已被禁用",
+            suggestion="请联系管理员确认账户状态。",
+        )
+    await limiter.record_success(attempt)
     old_session = request.cookies.get(request.app.state.settings.session_cookie)
     if old_session:
         await request.app.state.db.execute("DELETE FROM sessions WHERE id=?", (old_session,))

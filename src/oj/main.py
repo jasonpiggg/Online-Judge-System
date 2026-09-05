@@ -9,6 +9,7 @@ from oj.ai_experience import AIExperience
 from oj.config import Settings
 from oj.database import Database
 from oj.errors import install_error_handlers
+from oj.login_rate_limit import LoginRateLimiter
 from oj.main_support import bootstrap_database
 from oj.problem_store import ProblemStore
 from oj.routers.ai import router as ai_router
@@ -30,6 +31,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     problems = ProblemStore(app_settings.problem_dir, app_settings.seed_problem_dir)
     submissions = SubmissionManager(db, problems)
     ai_authoring = AIExperience(db, problems, app_settings)
+    login_rate_limiter = LoginRateLimiter(
+        account_limit=app_settings.login_account_failure_limit,
+        account_window=app_settings.login_account_window_seconds,
+        client_limit=app_settings.login_client_failure_limit,
+        client_window=app_settings.login_client_window_seconds,
+        lockout=app_settings.login_lockout_seconds,
+    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -49,6 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.problems = problems
     app.state.submissions = submissions
     app.state.ai_authoring = ai_authoring
+    app.state.login_rate_limiter = login_rate_limiter
     install_error_handlers(app)
     app.include_router(auth_users_router)
     app.include_router(languages_router)

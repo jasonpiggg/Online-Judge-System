@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     session_cookie: str = "oj_session"
     session_ttl_seconds: int = Field(default=28_800, ge=300, le=2_592_000)
     cookie_secure: bool = False
+    login_account_failure_limit: int = Field(default=5, ge=2, le=100)
+    login_account_window_seconds: int = Field(default=300, ge=30, le=86_400)
+    login_client_failure_limit: int = Field(default=30, ge=5, le=1000)
+    login_client_window_seconds: int = Field(default=600, ge=30, le=86_400)
+    login_lockout_seconds: int = Field(default=300, ge=30, le=86_400)
     ai_encryption_key: str = ""
     ai_default_provider_url: str = ""
     ai_default_model: str = ""
