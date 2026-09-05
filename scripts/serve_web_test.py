@@ -96,6 +96,14 @@ async def completion(config: Any, prompt: str, usage: Any = None) -> tuple[str, 
             },
             ensure_ascii=False,
         )
+    elif "Review an existing authoring draft conservatively" in config["system_prompt"]:
+        text = json.dumps(
+            {
+                "patch": {"problem": {"constraints": "|a|, |b| <= 10^9"}},
+                "review": "约束改为统一数学记号；题意未改变，采纳后仍需本地验证。",
+            },
+            ensure_ascii=False,
+        )
     elif "editing ONLY" in config["system_prompt"]:
         text = json.dumps(
             {"samples": [{"input": "3 4", "output": "7"}], "review": "小规模样例清晰，输出正确。"}

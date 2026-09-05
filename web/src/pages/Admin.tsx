@@ -274,12 +274,16 @@ export function Admin({ user }: { user: User }) {
                     </td>
                     <td>
                       <div className="action-group">
-                        <Link onClick={profileReveal.reveal} to={`/admin?tab=用户&user_id=${u.user_id}`}>
-                          资料
-                        </Link>
-                        <Link to={`/admin?tab=提交&user_id=${u.user_id}`}>
-                          提交记录
-                        </Link>
+                        <Button asChild size="compact" variant="ghost">
+                          <Link onClick={profileReveal.reveal} to={`/admin?tab=用户&user_id=${u.user_id}`}>
+                            资料
+                          </Link>
+                        </Button>
+                        <Button asChild size="compact">
+                          <Link to={`/admin?tab=提交&user_id=${u.user_id}`}>
+                            提交记录
+                          </Link>
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -288,7 +292,7 @@ export function Admin({ user }: { user: User }) {
             </table>
           </div>
           {users.data?.total === 0 && <p className="empty">没有匹配的用户。</p>}
-          <details>
+          <details className="disclosure-card">
             <summary>创建用户</summary>
             <form
               className="form-grid narrow"
@@ -423,7 +427,7 @@ export function Admin({ user }: { user: User }) {
         />
       )}
       {tab === "系统设置" && (
-        <details>
+        <details className="disclosure-card">
           <summary>恢复初始实验数据</summary>
           <p>
             此操作会清除运行数据、重置账户和题目，并退出所有会话。输入 RESET

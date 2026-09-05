@@ -26,6 +26,7 @@ export type Task = {
   language?: string;
   submission_id?: number;
   recovery_draft_id?: string | null;
+  source_draft_id?: string | null;
   usage: {
     input_tokens: number;
     output_tokens: number;
@@ -179,7 +180,7 @@ export function TaskProgress({
         {elapsed} 秒{disconnected ? " · 连接恢复中，正在读取已保存进度" : ""}
       </p>
       {(task.error || error) && <ErrorNotice title="任务没有完成" message={task.error || error} />}
-      <details>
+      <details className="disclosure-card">
         <summary>用量与费用</summary>
         <p className="muted">
           输入 {task.usage.input_tokens.toLocaleString()} · 输出{" "}

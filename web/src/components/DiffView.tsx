@@ -10,7 +10,9 @@ const labels: Record<string, string> = {
   samples: "公开样例", testcases: "评测测试点", difficulty: "难度",
   tags: "标签", time_limit: "时间限制", memory_limit: "内存限制",
   public_cases: "日志公开", source: "来源", author: "作者",
-  code: "代码",
+  code: "代码", reference_solution: "参考解", brute_solution: "独立解法",
+  generator_code: "数据生成器", coverage: "覆盖说明",
+  wrong_solutions: "错误解法",
 };
 
 function text(value: unknown) {

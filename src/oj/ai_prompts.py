@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from oj.difficulty import DIFFICULTY_RULES
 
-PROMPT_VERSION = "oj-2026-09-v6"
+PROMPT_VERSION = "oj-2026-09-v7"
 DISPLAY_RULES = r"""
 Human-facing descriptions, IO explanations, constraints, hints, reviews and tutor answers
 must use clean Chinese Markdown. Typeset variables, subscripts, powers, fractions, sums,
@@ -107,6 +107,24 @@ public_cases must be boolean, never null. Each wrong solution has only code and 
 Nested objects are merged; arrays replace entire arrays. Use {} when nothing needs fixing.
 Check sample/test outputs, implementation syntax, oracle independence, wrong algorithms,
 generator input validity and declared complexity. Never add fields outside the schema."""
+)
+
+DRAFT_REVIEW_PROMPT = (
+    QUALITY_RULES
+    + """
+Review an existing authoring draft conservatively. Return exactly
+{"patch":object,"review":string}. The patch may contain only fields that require a
+correction; use {} when no field needs changing. Preserve the problem's meaning and do not
+invent missing validation assets: describe missing assets in review instead.
+
+Allowed top-level patch fields are problem, reference_solution, brute_solution,
+generator_code, coverage and wrong_solutions. Within problem, id, author, source and
+public_cases are protected and MUST NOT appear. Other problem fields may be corrected.
+Existing solution and validation assets may be corrected, but an absent asset must remain
+absent. Nested objects are merged and arrays replace the complete array. Never add fields
+outside the supplied draft_candidate_schema. The review must explain each proposed change,
+identify important issues that were not changed, and state that the proposal still requires
+local verification after acceptance."""
 )
 
 TARGETED_REPAIR_PROMPT = (

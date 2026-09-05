@@ -36,7 +36,7 @@ export function ErrorNotice({
       <div>
         <h3>{title}</h3>
         <p>{friendlyError(message)}</p>
-        <details>
+        <details className="disclosure-card">
           <summary>查看技术详情</summary>
           <code>{message}</code>
         </details>

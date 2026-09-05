@@ -224,8 +224,13 @@ async def test_v2_sections_and_review(
     async def stream(_config: Any, prompt: str, _usage: Any = None) -> Any:
         if target != "testcases":
             assert '"testcases"' not in prompt or target == "review"
+        response = (
+            {"patch": {}, "review": "内容完整，样例与要求保持一致。"}
+            if target == "review"
+            else {**values[target], "review": "内容完整，样例与要求保持一致。"}
+        )
         return (
-            json.dumps({**values[target], "review": "内容完整，样例与要求保持一致。"}),
+            json.dumps(response),
             10,
             20,
             "provider",
@@ -245,9 +250,79 @@ async def test_v2_sections_and_review(
     row = await finish(manager, task_id)
     assert row["status"] == "completed", row["error"]
     result = json.loads(row["result"])
-    assert result["kind"] == ("review" if target == "review" else "section_patch")
+    assert result["kind"] == ("review_patch" if target == "review" else "section_patch")
     if target != "review":
         assert not result["verification"]["quality_gate_passed"]
+    else:
+        assert result["baseline"] == result["proposal"]
+        assert result["source_draft_revision"] is None
+
+
+async def test_review_task_exposes_source_draft_and_stale_acceptance_conflicts(
+    client: AsyncClient,
+    app: FastAPI,
+    problem_payload: dict[str, Any],
+) -> None:
+    manager = await configured(client, app, problem_payload)
+    created = await client.post(
+        "/api/problem-drafts/",
+        json={"base_problem_id": "sum_2", "problem": problem_payload},
+    )
+    draft = created.json()["data"]
+
+    async def stream(_config: Any, _prompt: str, _usage: Any = None) -> Any:
+        return (
+            json.dumps(
+                {
+                    "patch": {"problem": {"constraints": "$|a|, |b| \\le 10^9$"}},
+                    "review": "统一约束记号；采纳后需要重新验证。",
+                },
+                ensure_ascii=False,
+            ),
+            10,
+            20,
+            "provider",
+        )
+
+    manager._stream_completion = stream
+    created_task = await client.post(
+        "/api/ai/problem-tasks/",
+        json={
+            "workflow_version": 2,
+            "draft_id": draft["id"],
+            "problem_id": "sum_2",
+            "requirement": "请全面检查当前题目并只做必要修正",
+            "action": "review",
+            "target_section": "review",
+        },
+    )
+    task_id = created_task.json()["data"]["task_id"]
+    await finish(manager, task_id)
+    task = (await client.get(f"/api/ai/problem-tasks/{task_id}")).json()["data"]
+    assert task["source_draft_id"] == draft["id"]
+    assert task["result"]["source_draft_revision"] == 1
+
+    changed = await client.put(
+        f"/api/problem-drafts/{draft['id']}",
+        json={
+            "base_problem_id": draft["base_problem_id"],
+            "problem": {**problem_payload, "title": "人工并发修改"},
+            "revision": 1,
+        },
+    )
+    assert changed.status_code == 200
+    stale = await client.put(
+        f"/api/problem-drafts/{draft['id']}",
+        json={
+            "base_problem_id": draft["base_problem_id"],
+            "problem": task["result"]["proposal"]["problem"],
+            "review": {"review": task["result"]["review"]},
+            "revision": task["result"]["source_draft_revision"],
+        },
+    )
+    assert stale.status_code == 409
+    current = (await client.get(f"/api/problem-drafts/{draft['id']}")).json()["data"]
+    assert current["problem"]["title"] == "人工并发修改"
 
 
 async def test_assistant_context_isolation_history_and_duplicate(

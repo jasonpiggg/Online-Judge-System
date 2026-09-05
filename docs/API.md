@@ -39,7 +39,7 @@
 | GET    | `/api/submissions/`             | 本人/管理员          | 按用户、题目、状态、是否全过筛选和分页                   |
 | GET    | `/api/submissions/{id}`         | 本人/管理员          | 总体评测结果                                             |
 | PUT    | `/api/submissions/{id}/rejudge` | 管理员               | 覆盖并重新评测                                           |
-| GET    | `/api/submissions/{id}/log`     | 本人/管理员/公开题目 | 测试点明细                                               |
+| GET    | `/api/submissions/{id}/log`     | 本人/管理员/公开题目 | 逐点状态；本人/管理员另含原始运行日志                   |
 | GET    | `/api/logs/access/`             | 管理员               | 日志访问审计；`include_metadata=true` 返回总数和分页结果 |
 | GET    | `/api/logs/roles/`              | 管理员               | 角色变更审计；支持分页，`include_metadata=true` 返回总数 |
 | POST   | `/api/reset/`                   | 管理员               | 恢复确定的测试初始状态                                   |
@@ -52,6 +52,11 @@
 访问审计同样要求 `user_id` 或 `problem_id` 至少一项，二者都为空返回 400。
 删除题目会给旧提交加上 `problem_deleted` 标记：记录和源码保留用于审计，但不再计入
 `submit_count`、`resolve_count` 或题库进度；重新创建同题号不会恢复旧成绩，旧提交禁止重测。
+
+日志响应始终包含 `status/score/counts/details/can_view_raw_logs`。只有提交者本人和管理员
+会收到 `raw_logs.compile_info/run_info/error_info`；公开日志查看者即使获得 200，也只收到
+逐点状态，不会收到源码、隐藏输入、标准输出或可能带源码上下文的编译日志。成功和拒绝访问
+继续分别写入 200/403 访问审计。
 
 新版网页对应入口与权限核对见 [管理员网页覆盖表](admin-web-coverage.md)。
 完整实验功能入口见 [实验功能与 React 网页覆盖核对](web-scoring-coverage.md)。
@@ -104,6 +109,12 @@
 推理 Token 已包含在输出 Token 中，不额外重复计费，也不返回思维链正文。
 任务总费用按各阶段单独计算后相加，不能使用顶层默认价格直接乘总 Token。
 为兼容旧记录，保留 `usage_details.pricing` 默认价格；新客户端应优先使用阶段价格。
+
+网页将命题任务显式分为三类：`revise` 只修改所选白名单区域并返回 `section_patch`；
+`review` 审查完整题面和已有资产并返回 `review_patch`，其中包含不可变的 `baseline`、
+`proposal`、`review` 与 `source_draft_revision`；`generate/all` 可补全整题并运行完整质量
+门禁。不完整草稿不会从局部修改或审查静默升级为完整生成。任务详情另返回
+`source_draft_id`，客户端据此回到原草稿并用 revision 乐观锁采纳 Patch。
 
 ## 做题草稿
 

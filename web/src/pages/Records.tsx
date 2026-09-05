@@ -17,6 +17,21 @@ import { Pagination } from "../components/Pagination";
 import { BackLink } from "../components/BackLink";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { useRegisterActivity } from "../components/Activity";
+
+export function submissionBackPath(
+  from: string,
+  submission: Submission | undefined,
+  isAdmin: boolean,
+) {
+  if (from.startsWith("/submissions?")) return from;
+  if (isAdmin && from.startsWith("/admin?")) return from;
+  if (submission && !submission.problem_deleted) {
+    const problemPath = `/problems/${submission.problem_id}`;
+    if (from === problemPath || from.startsWith(problemPath + "?")) return from;
+  }
+  return "/submissions";
+}
+
 export function Records({
   user,
   adminView = false,
@@ -185,7 +200,11 @@ export function Records({
             {data.total === 0 && (
               <p className="empty">
                 没有匹配的提交记录。
-                {!isAdmin && <Link to="/problems">去做一道题 →</Link>}
+                {!isAdmin && (
+                  <Button asChild size="compact">
+                    <Link to="/problems">去做一道题 <Icon name="arrow" /></Link>
+                  </Button>
+                )}
               </p>
             )}
             <Pagination
@@ -210,11 +229,6 @@ export function SubmissionPage({ user }: { user: User }) {
   const location = useLocation();
   const [params] = useSearchParams();
   const from = params.get("from") || "";
-  const back =
-    from.startsWith("/submissions?") ||
-    (user.role === "admin" && from.startsWith("/admin?"))
-      ? from
-      : "/submissions";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const { data: s, error: loadError } = useQuery({
@@ -222,6 +236,12 @@ export function SubmissionPage({ user }: { user: User }) {
     queryFn: () => api<Submission>(`/submissions/${id}?include_metadata=true`),
     refetchInterval: (q) => (q.state.data?.status === "pending" ? 1000 : false),
   });
+  const back = submissionBackPath(from, s, user.role === "admin");
+  const backLabel = back.startsWith("/problems/")
+    ? "返回原题"
+    : back.startsWith("/admin?")
+      ? "返回管理提交"
+      : "返回提交列表";
   useRegisterActivity({
     id: `submission:${id}`,
     kind: "submission",
@@ -231,7 +251,7 @@ export function SubmissionPage({ user }: { user: User }) {
   });
   return (
     <div className="page">
-      <BackLink to={back}>返回提交列表</BackLink>
+      <BackLink to={back}>{backLabel}</BackLink>
       <h1>提交 #{id}</h1>
       {loadError && <ErrorNotice title="无法读取提交详情" message={loadError.message} />}
       {s && (
@@ -254,7 +274,7 @@ export function SubmissionPage({ user }: { user: User }) {
             {s.problem_deleted ? " · 题目已删除（保留此提交供审计）" : ""}
           </p>
           <ResultPanel id={id!} detailLink={false} />
-          <details open>
+          <details className="disclosure-card" open>
             <summary>提交代码</summary>
             <Code text={s.code || ""} />
           </details>

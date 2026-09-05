@@ -25,12 +25,19 @@ from oj.ai_prompts import (
     ASSETS_PROMPT,
     ASSISTANT_PROMPT,
     DISPLAY_RULES,
+    DRAFT_REVIEW_PROMPT,
     PROMPT_VERSION,
     REVIEW_PROMPT,
     STATEMENT_PROMPT,
     TARGETED_REPAIR_PROMPT,
 )
-from oj.ai_sections import SECTION_FIELDS, merge_section, section_prompt
+from oj.ai_sections import (
+    SECTION_FIELDS,
+    DraftReviewCandidate,
+    merge_draft_review,
+    merge_section,
+    section_prompt,
+)
 from oj.difficulty import normalize_difficulty
 from oj.errors import APIError
 from oj.evaluation import evaluation_summary
@@ -650,7 +657,7 @@ class AIExperience(AIAuthoringManager):
             )
             if assistant:
                 selected["max_output_tokens"] = self.settings.ai_assistant_max_output_tokens
-            elif phase.startswith("section") or phase == "review_only":
+            elif phase.startswith("section") or phase in {"review_only", "review_repair"}:
                 selected["max_output_tokens"] = self.settings.ai_section_max_output_tokens
             else:
                 selected["max_output_tokens"] = self.settings.ai_max_output_tokens
@@ -667,6 +674,7 @@ class AIExperience(AIAuthoringManager):
                 "section_review": "正在复审局部建议",
                 "section_repair": "正在定向修复局部建议（最多一次）",
                 "review_only": "正在审查草稿",
+                "review_repair": "正在定向修复审查 Patch（最多一次）",
             }
             await self._update(task_id, "running", labels[phase], phase)
 
@@ -793,19 +801,78 @@ class AIExperience(AIAuthoringManager):
             )
             return
         if action == "review":
+            assets = payload.get("assets", {})
+            baseline = DraftReviewCandidate.model_validate(
+                {
+                    "problem": base,
+                    "reference_solution": assets.get("reference_solution", ""),
+                    "brute_solution": assets.get("brute_solution", ""),
+                    "generator_code": assets.get("generator_code", ""),
+                    "coverage": assets.get("coverage", {}),
+                    "wrong_solutions": assets.get("wrong_solutions", []),
+                }
+            )
             text = await invoke(
                 "review_only",
-                REVIEW_PROMPT + "\nReturn {review:string} only. No patch.",
-                {"requirement": requirement, "problem": base, "assets": payload.get("assets", {})},
+                DRAFT_REVIEW_PROMPT,
+                {
+                    "requirement": requirement,
+                    "draft": baseline.model_dump(),
+                    "draft_candidate_schema": DraftReviewCandidate.model_json_schema(),
+                },
             )
-            review = _extract_json(text).get("review")
-            if not isinstance(review, str) or not review.strip():
-                raise AuthoringError("审查意见为空")
+            def parse_review(value: str) -> tuple[DraftReviewCandidate, str]:
+                parsed = _extract_json(value)
+                if set(parsed) != {"patch", "review"}:
+                    raise AuthoringError("全面审查必须只返回 patch 和 review")
+                review_text_value = parsed["review"]
+                if not isinstance(review_text_value, str) or not review_text_value.strip():
+                    raise AuthoringError("审查意见为空")
+                try:
+                    proposal = merge_draft_review(baseline, parsed["patch"])
+                except (ValueError, ValidationError) as exc:
+                    raise AuthoringError(f"审查修改结构不正确：{exc}") from exc
+                return proposal, review_text_value
+
+            try:
+                proposal, review_text_value = parse_review(text)
+            except (ValueError, AuthoringError) as exc:
+                preview["repair_reason"] = str(exc)[:3000]
+                await self._preview(task_id, preview)
+                await self.db.execute(
+                    "UPDATE ai_task_context SET repair_used=1 WHERE task_id=?", (task_id,)
+                )
+                fixed = await invoke(
+                    "review_repair",
+                    DRAFT_REVIEW_PROMPT
+                    + "\nRepair the previous response using the schema feedback; "
+                    "do not widen the patch.",
+                    {
+                        "requirement": requirement,
+                        "draft": baseline.model_dump(),
+                        "previous_response": text,
+                        "local_feedback": str(exc)[:3000],
+                        "draft_candidate_schema": DraftReviewCandidate.model_json_schema(),
+                    },
+                )
+                proposal, review_text_value = parse_review(fixed)
+            result = {
+                "kind": "review_patch",
+                "baseline": baseline.model_dump(),
+                "proposal": proposal.model_dump(),
+                "review": review_text_value,
+                "reviewed": True,
+                "source_draft_revision": payload.get("source_revision"),
+                "verification": {
+                    "quality_gate_passed": False,
+                    "scope": "draft_review",
+                },
+            }
             await self.db.execute(
                 "UPDATE ai_tasks SET result=? WHERE id=?",
-                (compact({"kind": "review", "review": review}), task_id),
+                (compact(result), task_id),
             )
-            await self._update(task_id, "completed", "审查完成，建议待采纳", "completed")
+            await self._update(task_id, "completed", "全面审查完成，修改待确认", "completed")
             return
         if action in {"revise", "tests"} and target != "all":
             if not base:

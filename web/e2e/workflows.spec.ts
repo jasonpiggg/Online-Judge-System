@@ -89,10 +89,14 @@ test("filter, navigate, edit, refresh, submit and inspect result", async ({
   await expect(page.locator(".view-lines")).toContainText("print");
   await page.getByRole("button", { name: "提交评测", exact: true }).click();
   await expect(page.getByText("全部通过", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "查看提交详情 →" }).click();
+  await expect(page.getByRole("heading", { name: "本题提交记录" })).toBeVisible();
+  await expect(page.locator(".submission-history-row.selected")).toContainText("全部通过");
+  await page.getByRole("link", { name: "查看提交详情", exact: true }).click();
   await expect(page.getByRole("heading", { name: /提交 #/ })).toBeVisible();
-  await page.getByRole("link", { name: "返回题目继续修改" }).click();
+  await page.getByRole("link", { name: "返回原题", exact: true }).click();
+  await expect(page).toHaveURL(/\/problems\/sum_2\?submission=\d+&tab=%E7%BB%93%E6%9E%9C/);
   await expect(page.locator(".view-lines")).toContainText("print");
+  await expect(page.locator(".submission-history-row.selected")).toBeVisible();
 });
 
 test("Chinese composition, URL restoration and vertical result controls", async ({
@@ -213,10 +217,10 @@ test("incomplete draft saves and AI completes it", async ({ page }) => {
   await expect(page.getByLabel("来源", { exact: true })).toHaveValue(
     "浏览器验收",
   );
-  await expect(
-    page.getByText("草稿尚未完整，AI 会保留已填写内容并自动补全整题。"),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "补全草稿", exact: true }).click();
+  await expect(page.getByRole("button", { name: "生成局部修改" })).toBeDisabled();
+  await expect(page.getByText(/此模式不会自动切换/)).toBeVisible();
+  await page.getByRole("radio", { name: /补全整题并验证/ }).click();
+  await page.getByRole("button", { name: "补全并验证整题", exact: true }).click();
   await expect(page.getByRole("link", { name: "打开已验证草稿" })).toBeVisible({
     timeout: 45000,
   });
@@ -366,11 +370,11 @@ test("edit existing problem and accept a scoped AI suggestion", async ({
   await page.getByLabel("标题", { exact: true }).fill("草稿中的两数之和");
   await page.getByRole("button", { name: "保存草稿", exact: true }).click();
   await expect(page.locator(".sticky-actions")).toContainText("已同步");
-  await page.getByLabel("AI 修改范围").selectOption("samples");
+  await page.getByLabel("AI 局部修改范围").selectOption("samples");
   await page
     .getByLabel("AI 修改要求")
     .fill("提供一个简单准确的新样例，保留其他内容。");
-  await page.getByRole("button", { name: "开始", exact: true }).click();
+  await page.getByRole("button", { name: "生成局部修改", exact: true }).click();
   await expect(page.getByRole("button", { name: "采纳到草稿" })).toBeEnabled({
     timeout: 15000,
   });
@@ -380,6 +384,84 @@ test("edit existing problem and accept a scoped AI suggestion", async ({
   await page.getByRole("button", { name: "采纳到草稿" }).click();
   await page.getByRole("button", { name: "预览题面", exact: true }).click();
   await expect(page.locator(".statement")).toContainText("3 4");
+});
+
+test("review mode produces an applicable patch and returns to its source draft", async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto("/problems/sum_2");
+  await page.getByRole("button", { name: "编辑题目", exact: true }).click();
+  await page.getByRole("radio", { name: /全面审查并修正/ }).click();
+  await expect(page.getByRole("button", { name: "开始全面审查" })).toBeEnabled();
+  await page.getByRole("button", { name: "开始全面审查", exact: true }).click();
+  await expect(page.getByText("AI 全面审查", { exact: true })).toBeVisible({
+    timeout: 15000,
+  });
+  await expect(page.getByRole("link", { name: "返回原草稿" })).toHaveAttribute(
+    "href",
+    /\/authoring\/drafts\//,
+  );
+  await expect(page.locator(".diff-view")).toBeVisible();
+  await page.getByRole("button", { name: "应用修改到草稿" }).click();
+  await expect(page).toHaveURL(/\/authoring\/drafts\/.*step=/);
+  const draftId = page.url().match(/\/authoring\/drafts\/([^?]+)/)?.[1];
+  expect(draftId).toBeTruthy();
+  const stored = await page.request.get(`/api/problem-drafts/${draftId}`);
+  expect((await stored.json()).data.problem.constraints).toBe("|a|, |b| <= 10^9");
+});
+
+test("problem submission history paginates ten rows at a time", async ({ page }) => {
+  await login(page);
+  await page.route("**/api/submissions/?*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("problem_id") !== "sum_2") {
+      await route.continue();
+      return;
+    }
+    const requestedPage = Number(url.searchParams.get("page") || "1");
+    const all = Array.from({ length: 11 }, (_, index) => ({
+      submission_id: String(9100 + index),
+      problem_id: "sum_2",
+      language: "python",
+      status: "finished",
+      score: 2,
+      counts: 2,
+      created_at: new Date(2026, 8, 5, 10, index).toISOString(),
+      evaluation: {
+        status: "finished",
+        verdict: "AC",
+        score: 2,
+        max_score: 2,
+        executed_cases: 2,
+        passed_cases: 2,
+        total_cases: 2,
+        all_passed: true,
+        result_counts: { AC: 2 },
+      },
+    }));
+    const start = (requestedPage - 1) * 10;
+    await route.fulfill({
+      json: {
+        status_code: 200,
+        message: "success",
+        data: {
+          submissions: all.slice(start, start + 10),
+          total: all.length,
+          page: requestedPage,
+          page_size: 10,
+        },
+      },
+    });
+  });
+  await page.goto("/problems/sum_2?tab=%E7%BB%93%E6%9E%9C");
+  await expect(page.locator(".submission-history-row")).toHaveCount(10);
+  await page
+    .getByRole("navigation", { name: "本题提交记录分页" })
+    .getByRole("button", { name: "第 2 页" })
+    .click();
+  await expect(page.locator(".submission-history-row")).toHaveCount(1);
+  await expect(page.locator(".submission-history-row")).toContainText("#9110");
 });
 for (const width of [1440, 1024, 390])
   test(`responsive layout ${width}px`, async ({ page }, testInfo) => {
@@ -537,6 +619,13 @@ test("administrator manages problems, users, submissions and audit through the U
   playwright,
 }, testInfo) => {
   await login(page);
+  await expect(
+    page
+      .getByRole("navigation", { name: "主导航" })
+      .getByRole("link", { name: "资源", exact: true }),
+  ).toHaveCount(0);
+  await page.goto("/resources");
+  await expect(page.getByRole("heading", { name: "资源管理", exact: true })).toBeVisible();
   const username = "managed_student";
   const created = await page.request.post("/api/users/", {
     data: { username, password: "test-student-password" },
@@ -585,7 +674,7 @@ test("administrator manages problems, users, submissions and audit through the U
   ).toBeEnabled();
   await page.getByRole("button", { name: "重新评测", exact: true }).click();
   await expect(page.locator(".case-tile").first()).toBeVisible();
-  await page.getByRole("link", { name: "返回提交列表", exact: true }).click();
+  await page.getByRole("link", { name: "返回管理提交", exact: true }).click();
   await expect(page.getByLabel("提交用户 ID")).toHaveValue(uid);
   await page.reload();
   await expect(page.locator("tbody")).toContainText(username);
@@ -795,8 +884,19 @@ test("regular user can view public case logs without private submission data", a
   await page.request.post("/api/auth/login", { data: { username: "public_log_viewer", password: "public-log-password" } });
   await page.goto(`/logs/submissions/${sid}`);
   await expect(page.locator(".case-tile").first()).toBeVisible();
+  await expect(page.getByText(/不包含源码、隐藏输入/)).toBeVisible();
+  await expect(page.getByText("原始运行日志", { exact: true })).toHaveCount(0);
   await expect(page.getByText("提交代码", { exact: true })).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText("print(a+b)");
+  await page.request.post("/api/auth/login", {
+    data: { username: "admin", password: "admintestpassword" },
+  });
+  await page.goto(`/logs/submissions/${sid}`);
+  await expect(page.getByText("原始运行日志", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: /返回管理/ })).toHaveAttribute(
+    "href",
+    "/admin?tab=提交",
+  );
   await author.dispose();
 });
 

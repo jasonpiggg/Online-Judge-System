@@ -119,6 +119,7 @@ async def get_problem_task(
                 "submission_id": payload.get("submission_id"),
                 "workflow_version": payload.get("workflow_version", 1),
                 "recovery_draft_id": context["recovery_draft_id"],
+                "source_draft_id": payload.get("draft_id"),
             }
         )
     return response(data=data)

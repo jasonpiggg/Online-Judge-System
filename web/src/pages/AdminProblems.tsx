@@ -264,14 +264,14 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
               </label>
             </div>
           )}
-          <details>
+          <details className="disclosure-card">
             <summary>完整题面与样例</summary>
             <Statement problem={p} />
           </details>
-          <details>
+          <details className="disclosure-card">
             <summary>测试数据（{p.testcases.length} 个）</summary>
             {p.testcases.map((c, i) => (
-              <details key={i}>
+              <details className="disclosure-card" key={i}>
                 <summary>测试点 {i + 1}</summary>
                 <div className="samples">
                   <div>
@@ -286,7 +286,7 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
               </details>
             ))}
           </details>
-          <details>
+          <details className="disclosure-card">
             <summary>原始题目 JSON</summary>
             <Code text={JSON.stringify(p, null, 2)} />
           </details>
