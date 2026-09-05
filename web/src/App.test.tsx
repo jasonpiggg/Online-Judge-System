@@ -41,6 +41,8 @@ it("keeps rate-limit guidance visible without allowing duplicate submits", async
   expect(retry).toBeDisabled();
   fireEvent.submit(retry.closest("form")!);
   expect(fetch).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole("tab", { name: "注册" }));
+  expect(screen.getByRole("button", { name: "注册并登录" })).toBeEnabled();
 });
 
 it("validates login fields before requesting the server and uses one reveal control", () => {

@@ -66,6 +66,7 @@ export function Login() {
     setError("");
     setErrorId("");
     setFieldErrors({});
+    setRetrySeconds(0);
     setPassword("");
     setConfirmation("");
     setShowPassword(false);
