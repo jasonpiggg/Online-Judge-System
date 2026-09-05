@@ -200,6 +200,7 @@ type Message = {
   code_snapshot: string;
   language?: string;
   submission_id?: number;
+  created_at: string;
 };
 type MessagePage = { messages: Message[]; total: number; page: number };
 export function Assistant({
@@ -225,6 +226,7 @@ export function Assistant({
     [applied, setApplied] = useState<{ before: string; after: string; language: string } | null>(null),
     [copyMessage, setCopyMessage] = useState(""),
     [historyPage, setHistoryPage] = useState(1),
+    [selectedHistory, setSelectedHistory] = useState<string>(),
     [topicMessage, setTopicMessage] = useState("");
   const pending = useRef<{ hash: string; key: string } | undefined>(undefined);
   const { data: task, disconnected } = useTask(active);
@@ -248,6 +250,7 @@ export function Assistant({
           setContextGeneration(r.context_generation);
           setActive(undefined);
           setHistoryPage(1);
+          setSelectedHistory(undefined);
           setTopicMessage("");
         }
       })
@@ -298,6 +301,7 @@ export function Assistant({
       setActive(r.task_id);
       setMessage("");
       setHistoryPage(1);
+      setSelectedHistory(undefined);
       pending.current = undefined;
       await queryClient.invalidateQueries({
         queryKey: ["conversation", conversation],
@@ -474,42 +478,64 @@ export function Assistant({
           </section>
         )}
       </div>
-      {(history.data?.total || 0) > (active ? 1 : 0) && (
-        <details className="assistant-history">
-          <summary>
-            历史对话（
-            {Math.max(0, (history.data?.total || 0) - (active ? 1 : 0))} 轮）
-          </summary>
-          <div className="messages">
-            {history.data?.messages
-              .filter((item) => item.task_id !== active)
-              .map((item) => (
-                <details className="history-turn" key={item.task_id}>
-                  <summary>
+      {history.isPending && conversation && <p className="skeleton">正在读取历史对话…</p>}
+      {history.error && <ErrorNotice title="历史对话暂时无法读取" message={history.error.message} />}
+      {(history.data?.total || 0) > (active ? 1 : 0) && (() => {
+        const messages = history.data?.messages.filter((item) => item.task_id !== active) || [];
+        const selected = messages.find((item) => item.task_id === selectedHistory);
+        return (
+        <section className="assistant-history" aria-labelledby="assistant-history-title">
+          <div className="assistant-history-heading">
+            <div>
+              <span className="eyebrow">对话记录</span>
+              <h4 id="assistant-history-title">历史对话</h4>
+            </div>
+            <span className="muted">{Math.max(0, (history.data?.total || 0) - (active ? 1 : 0))} 轮</span>
+          </div>
+          <div className={`assistant-history-layout${selected ? " has-selection" : ""}`}>
+            <div className="history-list" role="list" aria-label="历史对话列表">
+              {messages.map((item) => (
+                <div role="listitem" key={item.task_id}>
+                  <button
+                    type="button"
+                    className={`history-turn${selectedHistory === item.task_id ? " selected" : ""}`}
+                    aria-expanded={selectedHistory === item.task_id}
+                    onClick={() => setSelectedHistory((current) => current === item.task_id ? undefined : item.task_id)}
+                  >
                     <span>{item.message}</span>
                     <small>
                       {item.language || "代码快照"}
-                      {item.submission_id
-                        ? ` · 提交 #${item.submission_id}`
-                        : ""}
+                      {item.submission_id ? ` · 提交 #${item.submission_id}` : ""}
+                      {` · ${new Date(item.created_at).toLocaleString()}`}
                     </small>
-                  </summary>
-                  <div className="history-answer">
-                    {showAnswer(item.text, item.code_snapshot, item.language, item.status)}
-                  </div>
-                </details>
+                    <i className={`history-status tone-${item.status}`}>{item.status === "completed" ? "已完成" : item.status === "failed" ? "失败" : "处理中"}</i>
+                  </button>
+                </div>
               ))}
+            </div>
+            {selected && (
+              <div className="history-answer" aria-live="polite">
+                <p className="user-message">{selected.message}</p>
+                {selected.text
+                  ? showAnswer(selected.text, selected.code_snapshot, selected.language, selected.status)
+                  : <p className="muted">这一轮没有可显示的回答。</p>}
+              </div>
+            )}
           </div>
           {(history.data?.total || 0) > 5 && (
             <Pagination
               page={historyPage}
               totalPages={Math.ceil((history.data?.total || 0) / 5)}
               label="AI 历史对话分页"
-              onChange={setHistoryPage}
+              onChange={(page) => {
+                setSelectedHistory(undefined);
+                setHistoryPage(page);
+              }}
             />
           )}
-        </details>
-      )}
+        </section>
+        );
+      })()}
       {proposed && (
         <section className="code-review-card">
           <div className="section-heading">

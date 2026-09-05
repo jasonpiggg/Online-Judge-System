@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Link,
   useLocation,
-  useNavigate,
   useSearchParams,
 } from "react-router-dom";
 import { api, json, queryClient, errorText } from "../api";
@@ -17,11 +16,13 @@ import { Code } from "../components/Markdown";
 import { createEditingDraft } from "../problem-actions";
 import { useActionReveal } from "../components/useActionReveal";
 import { DisclosureCard } from "../components/DisclosureCard";
+import { Switch } from "../components/Switch";
+import { TaskLink, useActivity } from "../components/Activity";
 
 export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
   const [params, setParams] = useSearchParams();
-  const location = useLocation(),
-    navigate = useNavigate();
+  const location = useLocation();
+  const { openRoot } = useActivity();
   const id = params.get("problem_id"),
     q = params.get("q") || "";
   const page = Math.max(1, Number(params.get("page")) || 1);
@@ -192,14 +193,14 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
           </dl>
           <div className="action-group">
             <Button asChild>
-              <Link to={`/problems/${p.id}`}>打开做题页</Link>
+              <TaskLink to={`/problems/${p.id}`}>打开做题页</TaskLink>
             </Button>
             <Button
               disabled={busy}
               onClick={() =>
                 void action(async () => {
                   const draft = await createEditingDraft(p);
-                  navigate(`/authoring/drafts/${draft.id}`);
+                  openRoot(`/authoring/drafts/${draft.id}`);
                 })
               }
             >
@@ -243,15 +244,12 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
                   允许其他登录用户查看逐点状态、耗时和内存，不公开提交代码。
                 </p>
               </div>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={
-                    visibility?.id === p.id ? visibility.value : p.public_cases
-                  }
-                  disabled={busy}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
+              <Switch
+                checked={visibility?.id === p.id ? visibility.value : p.public_cases}
+                disabled={busy || visibility?.id === p.id}
+                ariaLabel="公开评测日志"
+                label={(visibility?.id === p.id ? visibility.value : p.public_cases) ? "已公开" : "未公开"}
+                onChange={(checked) => {
                     setVisibility({ id: p.id, value: checked });
                     void action(() =>
                       api(
@@ -259,10 +257,8 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
                         json("PUT", { public_cases: checked }),
                       ),
                     ).finally(() => setVisibility(null));
-                  }}
-                />
-                公开日志
-              </label>
+                }}
+              />
             </div>
           )}
           <DisclosureCard summary="完整题面与样例">
