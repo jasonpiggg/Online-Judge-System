@@ -392,7 +392,7 @@ export function Admin({ user }: { user: User }) {
           {!hasAuditScope && (
             <p className="empty">请至少填写用户 ID 或题号，再查询访问审计。</p>
           )}
-          {logs.isPending && <p className="skeleton">正在读取访问审计…</p>}
+          {hasAuditScope && logs.isPending && <p className="skeleton">正在读取访问审计…</p>}
           {logs.data?.total === 0 && (
             <p className="empty">没有匹配的访问记录。</p>
           )}

@@ -990,6 +990,8 @@ test("regular user can view public case logs without private submission data", a
     "/admin?tab=提交",
   );
   await page.goto("/admin?tab=访问审计");
+  await expect(page.getByText("请至少填写用户 ID 或题号，再查询访问审计。", { exact: true })).toBeVisible();
+  await expect(page.getByText("正在读取访问审计…", { exact: true })).toHaveCount(0);
   await page.getByLabel("审计用户 ID").fill(String(viewerId));
   await page.getByLabel("审计题号").fill("sum_2");
   await page.getByRole("button", { name: "查询审计", exact: true }).click();
