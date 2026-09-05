@@ -31,24 +31,46 @@ export function Login() {
   const usernameInput = useRef<HTMLInputElement>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
   const [register, setRegister] = useState(false),
+    [username, setUsername] = useState(""),
     [error, setError] = useState(""),
     [errorId, setErrorId] = useState(""),
+    [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}),
     [busy, setBusy] = useState(false),
     [password, setPassword] = useState(""),
     [confirmation, setConfirmation] = useState(""),
-    [showPassword, setShowPassword] = useState(false);
+    [showPassword, setShowPassword] = useState(false),
+    [showConfirmation, setShowConfirmation] = useState(false),
+    [retrySeconds, setRetrySeconds] = useState(0);
   useEffect(() => {
-    if (errorId === "user_not_found") usernameInput.current?.focus();
-    else if (errorId) passwordInput.current?.focus();
+    if (errorId === "user_not_found" || errorId === "account_disabled") usernameInput.current?.focus();
+    else if (errorId === "incorrect_password") passwordInput.current?.focus();
   }, [errorId]);
+  useEffect(() => {
+    if (!retrySeconds) return;
+    const timer = window.setInterval(() => setRetrySeconds((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [retrySeconds > 0]);
+  const clearField = (field: string) => {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setError("");
+    setErrorId("");
+  };
   const changeMode = (next: boolean) => {
     if (busy || next === register) return;
     setRegister(next);
     setError("");
     setErrorId("");
+    setFieldErrors({});
+    setRetrySeconds(0);
     setPassword("");
     setConfirmation("");
     setShowPassword(false);
+    setShowConfirmation(false);
   };
   return (
     <main className="login">
@@ -99,22 +121,29 @@ export function Login() {
           : "使用你的课程账户继续做题、查看提交和保存草稿。"}
       </p>
       <form
+        noValidate
         onSubmit={async (e) => {
           e.preventDefault();
-          if (busy) return;
+          if (busy || retrySeconds > 0) return;
           setBusy(true);
           setError("");
           setErrorId("");
-          const data = new FormData(e.currentTarget);
-          const body = {
-            username: data.get("username"),
-            password: data.get("password"),
-          };
-          if (register && password !== confirmation) {
-            setError("两次输入的密码不一致。");
+          const validation: Record<string, string> = {};
+          const usernameLength = [...username].length;
+          const passwordLength = [...password].length;
+          if (usernameLength < 3) validation.username = "用户名至少需要 3 个字符。";
+          else if (usernameLength > 40) validation.username = "用户名不能超过 40 个字符。";
+          else if ([...username].some((character) => /\s/.test(character) || character.charCodeAt(0) <= 31 || character.charCodeAt(0) === 127)) validation.username = "用户名不能包含空格或控制字符。";
+          if (passwordLength < 6) validation.password = "密码至少需要 6 个字符。";
+          else if (passwordLength > 200) validation.password = "密码不能超过 200 个字符。";
+          if (register && password !== confirmation) validation.password_confirmation = "两次输入的密码不一致。";
+          if (Object.keys(validation).length) {
+            setFieldErrors(validation);
             setBusy(false);
+            (validation.username ? usernameInput.current : passwordInput.current)?.focus();
             return;
           }
+          const body = { username, password };
           try {
             if (register) await api("/users/", json("POST", body));
             await api("/auth/login", json("POST", body));
@@ -123,8 +152,19 @@ export function Login() {
             });
             await queryClient.invalidateQueries({ queryKey: ["me"] });
           } catch (e) {
-            setError(errorText(e));
-            setErrorId(e instanceof ApiError ? e.details?.id || "" : "");
+            const apiError = e instanceof ApiError ? e : null;
+            const id = apiError?.details?.id || "";
+            const serverFields = Object.fromEntries(
+              (apiError?.details?.fields || [])
+                .filter((item) => ["username", "password", "password_confirmation"].includes(item.field))
+                .map((item) => [item.field, item.message]),
+            );
+            if (id === "user_not_found") serverFields.username = "没有找到这个用户，请检查拼写。";
+            if (id === "incorrect_password") serverFields.password = "密码不正确，请重新输入。";
+            setFieldErrors(serverFields);
+            setError(Object.keys(serverFields).length ? "" : errorText(e));
+            setErrorId(id);
+            if (id === "login_rate_limited") setRetrySeconds(apiError?.retryAfter || 300);
             if (!register) {
               setPassword("");
             }
@@ -139,20 +179,19 @@ export function Login() {
             ref={usernameInput}
             name="username"
             aria-label="用户名"
-            aria-invalid={errorId === "user_not_found" || undefined}
-            aria-describedby={errorId === "user_not_found" ? "username-error" : undefined}
+            aria-invalid={!!fieldErrors.username || undefined}
+            aria-describedby={fieldErrors.username ? "username-error" : undefined}
             autoComplete="username"
-            minLength={register ? 3 : undefined}
+            minLength={3}
             required
             disabled={busy}
-            onChange={() => {
-              if (errorId === "user_not_found") {
-                setError("");
-                setErrorId("");
-              }
+            value={username}
+            onChange={(event) => {
+              setUsername(event.target.value);
+              clearField("username");
             }}
           />
-          {errorId === "user_not_found" && <small id="username-error" className="field-error">没有找到这个用户，请检查拼写。</small>}
+          {fieldErrors.username && <small id="username-error" className="field-error" role="alert">{fieldErrors.username}</small>}
         </label>
         <label>
           密码
@@ -160,21 +199,19 @@ export function Login() {
             <input
               ref={passwordInput}
               aria-label="密码"
-              aria-invalid={errorId === "incorrect_password" || undefined}
-              aria-describedby={errorId === "incorrect_password" ? "password-error" : undefined}
+              aria-invalid={!!fieldErrors.password || undefined}
+              aria-describedby={fieldErrors.password ? "password-error" : undefined}
               type={showPassword ? "text" : "password"}
               name="password"
               value={password}
               onChange={(event) => {
                 setPassword(event.target.value);
-                if (errorId === "incorrect_password") {
-                  setError("");
-                  setErrorId("");
-                }
+                clearField("password");
+                if (register) clearField("password_confirmation");
               }}
               autoComplete={register ? "new-password" : "current-password"}
               required
-              minLength={register ? 6 : undefined}
+              minLength={6}
               disabled={busy}
             />
             <button
@@ -185,31 +222,49 @@ export function Login() {
               onClick={() => setShowPassword((visible) => !visible)}
               disabled={busy}
             >
-              {showPassword ? "隐藏" : "显示"}
+              <Icon name={showPassword ? "eyeOff" : "eye"} />
             </button>
           </span>
-          {errorId === "incorrect_password" && <small id="password-error" className="field-error">密码不正确，请重新输入。</small>}
+          {fieldErrors.password && <small id="password-error" className="field-error" role="alert">{fieldErrors.password}</small>}
         </label>
         {register && (
           <label>
             确认密码
-            <input
-              aria-label="确认密码"
-              type={showPassword ? "text" : "password"}
-              name="password_confirmation"
-              value={confirmation}
-              onChange={(event) => setConfirmation(event.target.value)}
-              autoComplete="new-password"
-              required
-              minLength={6}
-              disabled={busy}
-            />
+            <span className="password-field">
+              <input
+                aria-label="确认密码"
+                aria-invalid={!!fieldErrors.password_confirmation || undefined}
+                aria-describedby={fieldErrors.password_confirmation ? "confirmation-error" : undefined}
+                type={showConfirmation ? "text" : "password"}
+                name="password_confirmation"
+                value={confirmation}
+                onChange={(event) => {
+                  setConfirmation(event.target.value);
+                  clearField("password_confirmation");
+                }}
+                autoComplete="new-password"
+                required
+                minLength={6}
+                disabled={busy}
+              />
+              <button
+                className="password-toggle"
+                type="button"
+                aria-label={showConfirmation ? "隐藏确认密码" : "显示确认密码"}
+                aria-pressed={showConfirmation}
+                onClick={() => setShowConfirmation((visible) => !visible)}
+                disabled={busy}
+              >
+                <Icon name={showConfirmation ? "eyeOff" : "eye"} />
+              </button>
+            </span>
+            {fieldErrors.password_confirmation && <small id="confirmation-error" className="field-error" role="alert">{fieldErrors.password_confirmation}</small>}
             <small className="muted">用户名至少 3 个字符，密码至少 6 个字符。</small>
           </label>
         )}
         {error && <p className="auth-error" role="alert">{error}</p>}
-        <Button variant="default" disabled={busy}>
-          {busy ? "请稍候…" : register ? "注册并登录" : "登录"}
+        <Button variant="default" disabled={busy || retrySeconds > 0}>
+          {busy ? "请稍候…" : retrySeconds > 0 ? `${retrySeconds} 秒后重试` : register ? "注册并登录" : "登录"}
         </Button>
       </form>
     </main>

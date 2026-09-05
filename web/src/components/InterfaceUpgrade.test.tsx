@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, useLocation } from "react-router-dom";
-import { ActivityBar, ActivityProvider, routeIdentity, upsertActivity, useRegisterActivity } from "./Activity";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { ActivityBar, ActivityProvider, routeIdentity, updateSlot, useRegisterActivity, type TaskSlot } from "./Activity";
 import { BackLink } from "./BackLink";
 import { DiffView } from "./DiffView";
 import { ErrorNotice } from "./ErrorNotice";
@@ -27,23 +27,39 @@ function RegisteredTask({ unsafe = false }: { unsafe?: boolean }) {
     status: "已保存",
     unsafeToClose: unsafe,
   });
+  return <><BackLink /><ActivityBar /></>;
+}
+
+function RegisteredOverflowTask() {
+  useRegisterActivity({
+    id: "problem:7",
+    kind: "problem",
+    title: "P7",
+    path: "/problems/7?tab=代码",
+  });
   return <ActivityBar />;
 }
 
 describe("activity task tabs", () => {
-  it("updates a task in place instead of moving the active tab to the left", () => {
-    const entries = [
-      { id: "draft:1", kind: "draft" as const, title: "草稿一", path: "/authoring/drafts/1", touchedAt: 1 },
-      { id: "problem:p1", kind: "problem" as const, title: "P1", path: "/problems/p1", status: "编辑中", touchedAt: 2 },
-    ];
-    const updated = upsertActivity(entries, { ...entries[1], status: "已保存" });
-    expect(updated.map((item) => item.id)).toEqual(["draft:1", "problem:p1"]);
-    expect(updated[1].status).toBe("已保存");
+  it("updates a slot in place and only pushes a different page", () => {
+    const slots: TaskSlot[] = [{
+      id: "slot-1",
+      current: { id: "problem:p1", kind: "problem", title: "P1", path: "/problems/p1?tab=题目", status: "编辑中" },
+      backStack: [],
+      touchedAt: 1,
+    }];
+    const samePage = updateSlot(slots, "slot-1", { ...slots[0].current, path: "/problems/p1?tab=代码", status: "已保存" }, "replace", 2);
+    expect(samePage[0].backStack).toHaveLength(0);
+    expect(samePage[0].current.status).toBe("已保存");
+    const nextPage = updateSlot(samePage, "slot-1", { id: "draft:1", kind: "draft", title: "草稿一", path: "/authoring/drafts/1" }, "push", 3);
+    expect(nextPage[0].backStack).toHaveLength(1);
+    expect(nextPage[0].current.title).toBe("草稿一");
   });
 
   it("adds and closes a safe task without deleting content", async () => {
-    render(<MemoryRouter initialEntries={["/problems"]}><ActivityProvider userId="7"><RegisteredTask /></ActivityProvider></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/problems/p1"]}><ActivityProvider userId="7"><Routes><Route path="/problems/p1" element={<RegisteredTask />} /><Route path="/problems" element={<p>题库</p>} /></Routes></ActivityProvider></MemoryRouter>);
     expect(await screen.findByText("P1 · 测试题")).toBeInTheDocument();
+    expect(document.querySelector(".back-link")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "关闭 P1 · 测试题" }));
     expect(screen.queryByText("P1 · 测试题")).not.toBeInTheDocument();
   });
@@ -63,38 +79,21 @@ describe("activity task tabs", () => {
     expect(screen.queryByLabelText("进行中的任务")).not.toBeInTheDocument();
   });
 
-  it("normalizes transient query parameters and preserves protected tasks at the cap", () => {
+  it("normalizes transient query parameters", () => {
     expect(routeIdentity("/problems/p1?from=%2Fsubmissions&tab=代码")).toBe("/problems/p1");
-    const entries = Array.from({ length: 20 }, (_, index) => ({
-      id: `problem:${index}`,
-      kind: "problem" as const,
-      title: `P${index}`,
-      path: `/problems/${index}`,
-      touchedAt: index,
-      unsafeToClose: index === 19,
-    }));
-    const updated = upsertActivity(
-      entries,
-      { id: "problem:new", kind: "problem", title: "New", path: "/problems/new" },
-      "/problems/18?tab=代码",
-    );
-    expect(updated).toHaveLength(20);
-    expect(updated.some((entry) => entry.id === "problem:19")).toBe(true);
-    expect(updated.some((entry) => entry.id === "problem:18")).toBe(true);
-    expect(updated.some((entry) => entry.id === "problem:17")).toBe(false);
   });
 
   it("promotes the current overflow task into the visible active tabs", () => {
-    localStorage.setItem("oj-activities-7", JSON.stringify(Array.from({ length: 8 }, (_, index) => ({
-      id: `problem:${index}`,
-      kind: "problem",
-      title: `P${index}`,
-      path: `/problems/${index}?tab=代码`,
+    const slots = Array.from({ length: 8 }, (_, index) => ({
+      id: `slot-${index}`,
+      current: { id: `problem:${index}`, kind: "problem", title: `P${index}`, path: `/problems/${index}?tab=代码` },
+      backStack: [],
       touchedAt: index,
-    }))));
+    }));
+    localStorage.setItem("oj-activities-7", JSON.stringify({ version: 2, slots }));
     const { container } = render(
-      <MemoryRouter initialEntries={["/problems/7?submission=2"]}>
-        <ActivityProvider userId="7"><ActivityBar /></ActivityProvider>
+      <MemoryRouter initialEntries={[{ pathname: "/problems/7", search: "?tab=代码", state: { taskSlotId: "slot-7", taskAction: "activate" } }]}>
+        <ActivityProvider userId="7"><RegisteredOverflowTask /></ActivityProvider>
       </MemoryRouter>,
     );
     expect(container.querySelector(".activity-tab.active")?.textContent).toContain("P7");
@@ -109,9 +108,8 @@ it("renders field differences in split and unified layouts", () => {
   expect(document.querySelector(".diff-unified")).not.toBeNull();
 });
 
-it("uses polished back navigation and actionable errors", () => {
-  render(<MemoryRouter><BackLink to="/problems">返回题库</BackLink><ErrorNotice message="permission denied" /></MemoryRouter>);
-  expect(screen.getByRole("link", { name: "返回题库" })).toHaveClass("back-link");
+it("keeps actionable errors", () => {
+  render(<MemoryRouter><ErrorNotice message="permission denied" /></MemoryRouter>);
   expect(screen.getByText(/联系管理员/)).toBeInTheDocument();
 });
 
@@ -119,17 +117,25 @@ function CurrentPath() {
   return <output aria-label="current-path">{useLocation().pathname}</output>;
 }
 
-it("uses application history before the safe back fallback", () => {
-  sessionStorage.setItem("oj-navigation-user", "7");
-  sessionStorage.setItem("oj-navigation-start-index", "1");
-  window.history.replaceState({ idx: 2 }, "");
+function RegisteredBackTask() {
+  useRegisterActivity({ id: "draft:1", kind: "draft", title: "草稿", path: "/authoring/drafts/1" });
+  return <><BackLink /><CurrentPath /></>;
+}
+
+it("returns within the active task slot instead of browser history", async () => {
+  localStorage.setItem("oj-activities-7", JSON.stringify({ version: 2, slots: [{
+    id: "slot-1",
+    current: { id: "draft:1", kind: "draft", title: "草稿", path: "/authoring/drafts/1" },
+    backStack: [{ id: "problem:p1", kind: "problem", title: "P1 · 原题", path: "/problems/p1" }],
+    touchedAt: 1,
+  }] }));
   render(
-    <MemoryRouter initialEntries={["/origin", "/detail"]} initialIndex={1}>
-      <BackLink to="/fallback">返回上一步</BackLink><CurrentPath />
+    <MemoryRouter initialEntries={[{ pathname: "/authoring/drafts/1", state: { taskSlotId: "slot-1", taskAction: "activate" } }]}>
+      <ActivityProvider userId="7"><RegisteredBackTask /></ActivityProvider>
     </MemoryRouter>,
   );
-  fireEvent.click(screen.getByRole("link", { name: "返回上一步" }));
-  expect(screen.getByLabelText("current-path")).toHaveTextContent("/origin");
+  fireEvent.click(await screen.findByRole("button", { name: "返回 P1 · 原题" }));
+  expect(screen.getByLabelText("current-path")).toHaveTextContent("/problems/p1");
 });
 
 it("wraps disclosure content and keeps link and native buttons on shared sizes", () => {
@@ -246,7 +252,7 @@ describe("AI authoring task origin", () => {
   it("prefers the immutable source draft and uses the review step when needed", () => {
     expect(authoringTaskOrigin({ source_draft_id: "draft-1", problem_id: "p1", action: "review" })).toEqual({
       path: "/authoring/drafts/draft-1?step=检查与发布",
-      label: "返回原草稿",
+      source: "draft",
       draftId: "draft-1",
     });
     expect(authoringTaskOrigin({ source_draft_id: "draft-1", problem_id: "p1", action: "generate" }).path).toBe("/authoring/drafts/draft-1");
@@ -256,7 +262,7 @@ describe("AI authoring task origin", () => {
     expect(authoringTaskOrigin({ source_draft_id: null, problem_id: "p1", action: "generate" }).path).toBe("/problems/p1");
     expect(authoringTaskOrigin({ source_draft_id: null, action: "generate" })).toEqual({
       path: "/authoring",
-      label: "返回命题中心",
+      source: "authoring",
       draftId: undefined,
     });
   });

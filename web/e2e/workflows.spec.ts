@@ -133,10 +133,14 @@ test("filter, navigate, edit, refresh, submit and inspect result", async ({
   await expect(page.locator(".submission-history-row.selected")).toContainText("全部通过");
   await page.getByRole("link", { name: "查看提交详情", exact: true }).click();
   await expect(page.getByRole("heading", { name: /提交 #/ })).toBeVisible();
-  await page.getByRole("link", { name: "返回原题", exact: true }).click();
+  await page.getByRole("button", { name: /返回 sum_2 · 两数之和/ }).click();
   await expect(page).toHaveURL(/\/problems\/sum_2\?submission=\d+&tab=%E7%BB%93%E6%9E%9C/);
   await expect(page.locator(".view-lines")).toContainText("print");
   await expect(page.locator(".submission-history-row.selected")).toBeVisible();
+  await page.getByRole("link", { name: "查看提交详情", exact: true }).click();
+  await page.getByRole("button", { name: "在新任务标签打开题目" }).click();
+  await expect(page).toHaveURL(/\/problems\/sum_2\?submission=\d+&tab=/);
+  await expect(page.locator(".back-link")).toHaveCount(0);
 });
 
 test("Chinese composition, URL restoration and vertical result controls", async ({
@@ -167,6 +171,21 @@ test("Chinese composition, URL restoration and vertical result controls", async 
   await expect(page.locator(".case-detail")).toContainText("耗时");
   await expect(page.locator(".evaluation-numbers")).toContainText("得分");
 });
+
+test("workspace section navigation follows scrolling and restores deep links", async ({ page }) => {
+  await login(page);
+  await page.goto("/problems/sum_2?tab=代码");
+  await expect(page.getByRole("button", { name: "代码", exact: true })).toHaveClass(/primary/);
+  await page.keyboard.press("Home");
+  await expect.poll(() => new URL(page.url()).searchParams.get("tab")).toBe("题目");
+  await expect(page.getByRole("button", { name: "题面", exact: true })).toHaveClass(/primary/);
+  await page.goto("/problems/sum_2?tab=AI");
+  await expect(page.locator("#section-AI")).toHaveAttribute("open", "");
+  await expect(page.getByRole("button", { name: "AI", exact: true })).toHaveClass(/primary/);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("button", { name: "代码", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("tab")).toBe("代码");
+});
 test("AI streams, restores after refresh and cancels without resubmission", async ({
   page,
 }, testInfo) => {
@@ -191,10 +210,12 @@ test("AI streams, restores after refresh and cancels without resubmission", asyn
   await expect(page.getByText("先检查输入：两个整数需要相加。")).toBeVisible();
   await page.getByLabel("你的问题").fill("再给一步提示");
   await page.getByRole("button", { name: "发送", exact: true }).click();
-  await expect(
-    page.getByText("历史对话（1 轮）", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText("给我提示", { exact: true })).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: "历史对话", exact: true })).toBeVisible();
+  const olderTurn = page.getByRole("button", { name: /给我提示/ });
+  await expect(olderTurn).toBeVisible();
+  await expect(olderTurn).toHaveAttribute("aria-expanded", "false");
+  await olderTurn.click();
+  await expect(olderTurn).toHaveAttribute("aria-expanded", "true");
   await page.screenshot({
     path: testInfo.outputPath("assistant-collapsed-history.png"),
     fullPage: true,
@@ -203,9 +224,7 @@ test("AI streams, restores after refresh and cancels without resubmission", asyn
   await expect(
     page.getByText("已开始新对话，后续回答不会携带此前对话内容。"),
   ).toBeVisible();
-  await expect(page.getByText("历史对话（1 轮）", { exact: true })).toHaveCount(
-    0,
-  );
+  await expect(page.getByRole("heading", { name: "历史对话", exact: true })).toHaveCount(0);
   await page.getByLabel("你的问题").fill("模拟慢速回答");
   await page.getByRole("button", { name: "发送", exact: true }).click();
   await expect(
@@ -450,10 +469,7 @@ test("review mode produces an applicable patch and returns to its source draft",
   await expect(page.getByText("AI 全面审查", { exact: true })).toBeVisible({
     timeout: 15000,
   });
-  await expect(page.getByRole("link", { name: "返回原草稿" })).toHaveAttribute(
-    "href",
-    /\/authoring\/drafts\//,
-  );
+  await expect(page.getByRole("button", { name: /^返回 / })).toBeVisible();
   await expect(page.locator(".diff-view")).toBeVisible();
   await page.getByRole("button", { name: "应用修改到草稿" }).click();
   await expect(page).toHaveURL(/\/authoring\/drafts\/.*step=/);
@@ -726,7 +742,7 @@ test("administrator manages problems, users, submissions and audit through the U
   ).toBeEnabled();
   await page.getByRole("button", { name: "重新评测", exact: true }).click();
   await expect(page.locator(".case-tile").first()).toBeVisible();
-  await page.getByRole("link", { name: "返回管理提交", exact: true }).click();
+  await page.goto(`/admin?tab=提交&user_id=${uid}`);
   await expect(page.getByLabel("提交用户 ID")).toHaveValue(uid);
   await page.reload();
   await expect(page.locator("tbody")).toContainText(username);
@@ -748,7 +764,9 @@ test("administrator manages problems, users, submissions and audit through the U
   await page.goto("/admin?tab=题目&problem_id=admin_details_case");
   const info = page.getByRole("region", { name: "题目详细信息" });
   await expect(info).toContainText("admin_details_case");
-  await info.getByLabel("公开日志", { exact: true }).check();
+  const visibilitySwitch = info.getByRole("switch", { name: "公开评测日志" });
+  expect((await info.locator(".switch-track").boundingBox())?.width).toBe(40);
+  await visibilitySwitch.check();
   await expect
     .poll(
       async () =>
@@ -811,14 +829,14 @@ test("browser-like activity tabs close safely and reopen on navigation", async (
   await page.goto("/problems/sum_2");
   await expect(page.getByLabel("进行中的任务")).toContainText("sum_2");
   await page.goto("/problems/brackets");
-  await expect(page.locator(".activity-tab > a span")).toHaveCount(2);
+  await expect(page.locator(".activity-tab-target > span")).toHaveCount(2);
   await expect(page.getByLabel("进行中的任务")).toContainText("brackets");
   await expect(page.locator(".activity-tab.active")).toContainText("brackets");
   expect(await page.locator(".activity-tab.active").evaluate((node) => getComputedStyle(node).boxShadow)).toContain("inset");
-  const before = await page.locator(".activity-tab > a span").allTextContents();
-  await page.getByRole("link", { name: /sum_2 ·/ }).click();
+  const before = await page.locator(".activity-tab-target > span").allTextContents();
+  await page.locator(".activity-tab-target").filter({ hasText: "sum_2" }).click();
   await expect(page).toHaveURL(/\/problems\/sum_2/);
-  await expect.poll(() => page.locator(".activity-tab > a span").allTextContents()).toEqual(before);
+  await expect.poll(() => page.locator(".activity-tab-target > span").allTextContents()).toEqual(before);
 });
 
 test("AI code review warns on snippets, blocks stale edits, and supports undo", async ({ page }, testInfo) => {
@@ -932,7 +950,7 @@ test("failed local verification returns to the draft without paid regeneration",
   await page.goto(`/authoring/tasks/${taskId}`);
   await expect(page.getByText("本地验证未通过", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "重新生成", exact: true })).toHaveCount(0);
-  await page.getByRole("link", { name: "返回草稿修正并检查" }).click();
+  await page.getByRole("link", { name: "继续修正并检查草稿" }).click();
   await expect(page).toHaveURL(new RegExp(`/authoring/drafts/${draftId}`));
   await expect(page.getByRole("button", { name: "运行基础检查", exact: true })).toBeEnabled();
 });
@@ -1003,9 +1021,11 @@ test("regular user can view public case logs without private submission data", a
   await page.getByRole("button", { name: "查看日志", exact: true }).click();
   await expect(page.locator(".case-tile").first()).toBeVisible();
   await expect(page.getByText("原始运行日志", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "返回上一步" })).toBeVisible();
+  await expect(page.locator(".back-link")).toHaveCount(0);
   await page.goto("/admin?tab=评测日志");
-  await expect(page.getByRole("heading", { name: "评测日志", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/tab=%E6%8F%90%E4%BA%A4/);
+  await expect(page.getByRole("heading", { name: "全站提交", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "评测日志", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "查看日志" }).first()).toBeVisible();
   await page.goto("/admin?tab=访问审计");
   await expect(page.getByText("请至少填写用户 ID 或题号，再查询访问审计。", { exact: true })).toBeVisible();

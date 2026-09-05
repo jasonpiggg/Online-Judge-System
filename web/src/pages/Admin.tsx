@@ -33,6 +33,12 @@ export function Admin({ user }: { user: User }) {
     setAuditUserId(params.get("user_id") || "");
     setAuditProblemId(params.get("problem_id") || "");
   }, [location.search, tab]);
+  useEffect(() => {
+    if (tab !== "评测日志") return;
+    const next = new URLSearchParams(params);
+    next.set("tab", "提交");
+    setParams(next, { replace: true });
+  }, [params, setParams, tab]);
   const users = useQuery({
     queryKey: ["users", page, params.get("q")],
     queryFn: () =>
@@ -110,7 +116,6 @@ export function Admin({ user }: { user: User }) {
           "用户",
           "题目",
           "提交",
-          "评测日志",
           "语言",
           "访问审计",
           "角色审计",
@@ -136,7 +141,6 @@ export function Admin({ user }: { user: User }) {
       )}
       {tab === "题目" && <AdminProblems adminView />}
       {tab === "提交" && <Records user={user} adminView />}
-      {tab === "评测日志" && <Records user={user} adminView logView />}
       {tab === "角色审计" && (
         <>
           <h2>角色变更记录</h2>

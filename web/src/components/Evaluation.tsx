@@ -9,6 +9,7 @@ import { Button } from "./ui/button";
 import { Pagination } from "./Pagination";
 import { DisclosureCard } from "./DisclosureCard";
 import { useActionReveal } from "./useActionReveal";
+import { TaskLink } from "./Activity";
 
 const labels: Record<string, string> = {
   AC: "全部通过",
@@ -224,10 +225,12 @@ export function ResultPanel({
   id,
   detailLink = true,
   detailFrom,
+  taskLink = false,
 }: {
   id: string;
   detailLink?: boolean;
   detailFrom?: string;
+  taskLink?: boolean;
 }) {
   const { data, error } = useQuery({
     queryKey: ["submission", id],
@@ -266,15 +269,19 @@ export function ResultPanel({
       {detailLink && (
         <div className="result-actions">
           <Button asChild size="compact">
-            <Link
-              to={`/submissions/${id}${
-                detailFrom
-                  ? `?${new URLSearchParams({ from: detailFrom })}`
-                  : ""
-              }`}
-            >
-              查看提交详情 <Icon name="arrow" />
-            </Link>
+            {taskLink ? (
+              <TaskLink
+                to={`/submissions/${id}${detailFrom ? `?${new URLSearchParams({ from: detailFrom })}` : ""}`}
+              >
+                查看提交详情 <Icon name="arrow" />
+              </TaskLink>
+            ) : (
+              <Link
+                to={`/submissions/${id}${detailFrom ? `?${new URLSearchParams({ from: detailFrom })}` : ""}`}
+              >
+                查看提交详情 <Icon name="arrow" />
+              </Link>
+            )}
           </Button>
         </div>
       )}
