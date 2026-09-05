@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Link,
@@ -25,15 +25,70 @@ const Workspace = lazy(() =>
   import("./pages/Workspace").then((m) => ({ default: m.Workspace })),
 );
 function Login() {
+  const loginTab = useRef<HTMLButtonElement>(null);
+  const registerTab = useRef<HTMLButtonElement>(null);
   const [register, setRegister] = useState(false),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [password, setPassword] = useState(""),
+    [confirmation, setConfirmation] = useState(""),
+    [showPassword, setShowPassword] = useState(false);
+  const changeMode = (next: boolean) => {
+    if (busy || next === register) return;
+    setRegister(next);
+    setError("");
+    setPassword("");
+    setConfirmation("");
+    setShowPassword(false);
+  };
   return (
     <main className="login">
       <Link className="brand" to="/">
         Atelier <span>OJ</span>
       </Link>
+      <div
+        className="auth-mode"
+        role="tablist"
+        aria-label="账户操作"
+        onKeyDown={(event) => {
+          if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+          event.preventDefault();
+          const next = event.key === "ArrowRight";
+          changeMode(next);
+          (next ? registerTab : loginTab).current?.focus();
+        }}
+      >
+        <Button
+          ref={loginTab}
+          type="button"
+          role="tab"
+          aria-selected={!register}
+          tabIndex={!register ? 0 : -1}
+          variant={!register ? "default" : "ghost"}
+          onClick={() => changeMode(false)}
+          disabled={busy}
+        >
+          登录
+        </Button>
+        <Button
+          ref={registerTab}
+          type="button"
+          role="tab"
+          aria-selected={register}
+          tabIndex={register ? 0 : -1}
+          variant={register ? "default" : "ghost"}
+          onClick={() => changeMode(true)}
+          disabled={busy}
+        >
+          注册
+        </Button>
+      </div>
       <h1>{register ? "创建账户" : "登录，继续练习"}</h1>
+      <p className="muted auth-intro">
+        {register
+          ? "创建学习账户后会自动登录，并继续打开当前页面。"
+          : "使用你的课程账户继续做题、查看提交和保存草稿。"}
+      </p>
       <form
         onSubmit={async (e) => {
           e.preventDefault();
@@ -45,6 +100,11 @@ function Login() {
             username: data.get("username"),
             password: data.get("password"),
           };
+          if (register && password !== confirmation) {
+            setError("两次输入的密码不一致。");
+            setBusy(false);
+            return;
+          }
           try {
             if (register) await api("/users/", json("POST", body));
             await api("/auth/login", json("POST", body));
@@ -61,26 +121,62 @@ function Login() {
       >
         <label>
           用户名
-          <input name="username" autoComplete="username" required />
+          <input
+            name="username"
+            autoComplete="username"
+            minLength={register ? 3 : undefined}
+            required
+            disabled={busy}
+          />
         </label>
         <label>
           密码
-          <input
-            type="password"
-            name="password"
-            autoComplete={register ? "new-password" : "current-password"}
-            required
-            minLength={6}
-          />
+          <span className="password-field">
+            <input
+              aria-label="密码"
+              type={showPassword ? "text" : "password"}
+              name="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete={register ? "new-password" : "current-password"}
+              required
+              minLength={register ? 6 : undefined}
+              disabled={busy}
+            />
+            <button
+              className="password-toggle"
+              type="button"
+              aria-label={showPassword ? "隐藏密码" : "显示密码"}
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((visible) => !visible)}
+              disabled={busy}
+            >
+              {showPassword ? "隐藏" : "显示"}
+            </button>
+          </span>
         </label>
-        {error && <p role="alert">{error}</p>}
+        {register && (
+          <label>
+            确认密码
+            <input
+              aria-label="确认密码"
+              type={showPassword ? "text" : "password"}
+              name="password_confirmation"
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+              autoComplete="new-password"
+              required
+              minLength={6}
+              disabled={busy}
+            />
+            <small className="muted">用户名至少 3 个字符，密码至少 6 个字符。</small>
+          </label>
+        )}
+        {error && <p className="auth-error" role="alert">{error}</p>}
         <Button variant="default" disabled={busy}>
           {busy ? "请稍候…" : register ? "注册并登录" : "登录"}
         </Button>
       </form>
-      <Button variant="ghost" onClick={() => setRegister(!register)}>
-        {register ? "已有账户？登录" : "没有账户？注册"}
-      </Button>
     </main>
   );
 }

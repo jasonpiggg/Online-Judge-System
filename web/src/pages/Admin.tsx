@@ -1,5 +1,5 @@
 import { Icon } from "../components/Icon";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { SearchInput } from "../components/SearchInput";
@@ -11,6 +11,7 @@ import { Button } from "../components/ui/button";
 import { Pagination } from "../components/Pagination";
 import { LanguageSettings } from "../components/LanguageSettings";
 import { useActionReveal } from "../components/useActionReveal";
+import { DisclosureCard } from "../components/DisclosureCard";
 
 type AuditPage = { logs: Record<string, any>[]; total: number };
 export function Admin({ user }: { user: User }) {
@@ -20,11 +21,18 @@ export function Admin({ user }: { user: User }) {
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [confirm, setConfirm] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [auditUserId, setAuditUserId] = useState(params.get("user_id") || ""),
+    [auditProblemId, setAuditProblemId] = useState(params.get("problem_id") || "");
   const profileReveal = useActionReveal<HTMLElement>();
   const tabReveal = useActionReveal<HTMLDivElement>();
   const page = Math.max(1, Number(params.get("page")) || 1);
   const hasAuditScope = !!(params.get("user_id") || params.get("problem_id"));
+  useEffect(() => {
+    if (tab !== "访问审计") return;
+    setAuditUserId(params.get("user_id") || "");
+    setAuditProblemId(params.get("problem_id") || "");
+  }, [location.search, tab]);
   const users = useQuery({
     queryKey: ["users", page, params.get("q")],
     queryFn: () =>
@@ -292,8 +300,7 @@ export function Admin({ user }: { user: User }) {
             </table>
           </div>
           {users.data?.total === 0 && <p className="empty">没有匹配的用户。</p>}
-          <details className="disclosure-card">
-            <summary>创建用户</summary>
+          <DisclosureCard summary="创建用户">
             <form
               className="form-grid narrow"
               onSubmit={(e) => {
@@ -331,42 +338,65 @@ export function Admin({ user }: { user: User }) {
                   <option value="admin">管理员</option>
                 </select>
               </label>
-              <Button disabled={busy}>创建</Button>
+              <div className="form-actions">
+                <Button disabled={busy}>创建</Button>
+              </div>
             </form>
-          </details>
+          </DisclosureCard>
         </>
       )}
       {tab === "语言" && <LanguageSettings />}
       {tab === "访问审计" && (
         <>
-          <div className="filters filter-panel">
-            {[
-              ["user_id", "审计用户 ID", "用户 ID"],
-              ["problem_id", "审计题号", "题号"],
-            ].map(([key, label, placeholder]) => (
-              <SearchInput
-                key={key}
-                label={label}
-                placeholder={placeholder}
-                value={params.get(key) || ""}
-                navigationKey={location.key}
-                onCommit={(value) =>
-                  setParams(
-                    { ...Object.fromEntries(params), [key]: value, page: "1" },
-                    { replace: true },
-                  )
-                }
+          <form
+            className="filters filter-panel audit-filter-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const userId = auditUserId.trim();
+              const problemId = auditProblemId.trim();
+              if (!userId && !problemId) {
+                setError("请至少填写用户 ID 或题号。");
+                return;
+              }
+              setError("");
+              setParams({
+                tab: "访问审计",
+                ...(userId ? { user_id: userId } : {}),
+                ...(problemId ? { problem_id: problemId } : {}),
+                page: "1",
+              });
+            }}
+          >
+            <label>
+              用户 ID
+              <input
+                aria-label="审计用户 ID"
+                inputMode="numeric"
+                pattern="[0-9]+"
+                value={auditUserId}
+                onChange={(event) => setAuditUserId(event.target.value)}
+                placeholder="例如 12"
               />
-            ))}
-          </div>
+            </label>
+            <label>
+              题号
+              <input
+                aria-label="审计题号"
+                value={auditProblemId}
+                onChange={(event) => setAuditProblemId(event.target.value)}
+                placeholder="例如 sum_2"
+              />
+            </label>
+            <Button variant="default">查询审计</Button>
+          </form>
           {!hasAuditScope && (
             <p className="empty">请至少填写用户 ID 或题号，再查询访问审计。</p>
           )}
-          {logs.isPending && <p className="skeleton">正在读取访问审计…</p>}
+          {hasAuditScope && logs.isPending && <p className="skeleton">正在读取访问审计…</p>}
           {logs.data?.total === 0 && (
             <p className="empty">没有匹配的访问记录。</p>
           )}
-          <div className="table-scroll">
+          {hasAuditScope && <div className="table-scroll">
             <table>
               <thead>
                 <tr>
@@ -405,12 +435,12 @@ export function Admin({ user }: { user: User }) {
                         {l.status}
                       </span>
                     </td>
-                    <td>{l.time}</td>
+                    <td>{new Date(l.time).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </div>}
         </>
       )}
       {paginationTotal !== undefined && (
@@ -427,31 +457,35 @@ export function Admin({ user }: { user: User }) {
         />
       )}
       {tab === "系统设置" && (
-        <details className="disclosure-card">
-          <summary>恢复初始实验数据</summary>
+        <DisclosureCard summary="恢复初始实验数据">
           <p>
             此操作会清除运行数据、重置账户和题目，并退出所有会话。输入 RESET
             确认。
           </p>
-          <input
-            aria-label="重置确认"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-          />
-          <Button
-            variant="destructive"
-            disabled={busy || confirm !== "RESET"}
-            onClick={() =>
-              void action(async () => {
-                await api("/reset/", json("POST"));
-                queryClient.clear();
-                window.location.assign("/problems");
-              })
-            }
-          >
-            重置数据
-          </Button>
-        </details>
+          <label>
+            输入 RESET 确认
+            <input
+              aria-label="重置确认"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
+          </label>
+          <div className="form-actions">
+            <Button
+              variant="destructive"
+              disabled={busy || confirm !== "RESET"}
+              onClick={() =>
+                void action(async () => {
+                  await api("/reset/", json("POST"));
+                  queryClient.clear();
+                  window.location.assign("/problems");
+                })
+              }
+            >
+              重置数据
+            </Button>
+          </div>
+        </DisclosureCard>
       )}
       </div>
     </div>

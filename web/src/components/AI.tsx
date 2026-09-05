@@ -6,6 +6,7 @@ import { Button } from "./ui/button";
 import { Pagination } from "./Pagination";
 import { ErrorNotice } from "./ErrorNotice";
 import { DiffView } from "./DiffView";
+import { DisclosureCard } from "./DisclosureCard";
 export type Task = {
   task_id: string;
   action?: string;
@@ -180,8 +181,7 @@ export function TaskProgress({
         {elapsed} 秒{disconnected ? " · 连接恢复中，正在读取已保存进度" : ""}
       </p>
       {(task.error || error) && <ErrorNotice title="任务没有完成" message={task.error || error} />}
-      <details className="disclosure-card">
-        <summary>用量与费用</summary>
+      <DisclosureCard summary="用量与费用">
         <p className="muted">
           输入 {task.usage.input_tokens.toLocaleString()} · 输出{" "}
           {task.usage.output_tokens.toLocaleString()} Token ·{" "}
@@ -189,7 +189,7 @@ export function TaskProgress({
           {task.usage.source === "provider" ? "服务商用量" : "估算用量"}）
         </p>
         <p className="muted">费用按配置单价估算；单价未配置不表示免费。</p>
-      </details>
+      </DisclosureCard>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { Icon } from "./Icon";
+import { DisclosureCard } from "./DisclosureCard";
 
 const suggestions: Array<[RegExp, string]> = [
   [/401|登录|session|unauthorized/i, "请重新登录后再试，未保存内容会继续保留在本机。"],
@@ -36,10 +37,9 @@ export function ErrorNotice({
       <div>
         <h3>{title}</h3>
         <p>{friendlyError(message)}</p>
-        <details className="disclosure-card">
-          <summary>查看技术详情</summary>
+        <DisclosureCard summary="查看技术详情">
           <code>{message}</code>
-        </details>
+        </DisclosureCard>
       </div>
     </section>
   );

@@ -16,6 +16,7 @@ import { Icon } from "../components/Icon";
 import { Pagination } from "../components/Pagination";
 import { BackLink } from "../components/BackLink";
 import { ErrorNotice } from "../components/ErrorNotice";
+import { DisclosureCard } from "../components/DisclosureCard";
 import { useRegisterActivity } from "../components/Activity";
 
 export function submissionBackPath(
@@ -274,10 +275,9 @@ export function SubmissionPage({ user }: { user: User }) {
             {s.problem_deleted ? " · 题目已删除（保留此提交供审计）" : ""}
           </p>
           <ResultPanel id={id!} detailLink={false} />
-          <details className="disclosure-card" open>
-            <summary>提交代码</summary>
+          <DisclosureCard summary="提交代码" open>
             <Code text={s.code || ""} />
-          </details>
+          </DisclosureCard>
           {user.role === "admin" && (
             <Button
               disabled={busy || s.status === "pending" || s.problem_deleted}

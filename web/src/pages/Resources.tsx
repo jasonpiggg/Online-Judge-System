@@ -51,12 +51,13 @@ export function Resources() {
         <section className="resource-panel public-log-lookup">
           <div className="section-title"><Icon name="chart" /><h2>查看公开评测日志</h2></div>
           <p>输入已知提交编号。只有本人、管理员或题目已开启公开日志时才能查看测试点明细。</p>
-          <form onSubmit={(event) => {
+          <form className="public-log-form" onSubmit={(event) => {
             event.preventDefault();
             if (submissionId.trim()) navigate(`/logs/submissions/${submissionId.trim()}`);
           }}>
-            <label>提交编号<input inputMode="numeric" pattern="[0-9]+" value={submissionId} onChange={(event) => setSubmissionId(event.target.value)} placeholder="例如 1024" required /></label>
-            <Button variant="default">查看日志</Button>
+            <label>提交编号<input aria-describedby="public-log-help" inputMode="numeric" pattern="[0-9]+" value={submissionId} onChange={(event) => setSubmissionId(event.target.value)} placeholder="例如 1024" required /></label>
+            <p id="public-log-help" className="muted">提交编号可从做题页或提交记录中找到。</p>
+            <div className="form-actions"><Button variant="default">查看日志</Button></div>
           </form>
         </section>
       )}

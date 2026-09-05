@@ -16,13 +16,14 @@ import type { Problem, User } from "../types";
 import { Button } from "../components/ui/button";
 import { Code, RichText } from "../components/Markdown";
 import { Statement } from "../components/Statement";
-import { TaskProgress, terminal, useTask } from "../components/AI";
+import { TaskProgress, terminal, useTask, type Task } from "../components/AI";
 import { BackLink } from "../components/BackLink";
 import { DiffView } from "../components/DiffView";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { useActivity, useRegisterActivity } from "../components/Activity";
 import { Pagination } from "../components/Pagination";
 import { useActionReveal } from "../components/useActionReveal";
+import { DisclosureCard } from "../components/DisclosureCard";
 type Draft = {
   id: string;
   base_problem_id: string | null;
@@ -650,10 +651,9 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
         <section className="notice">
           <h3>本机还有不同版本的草稿</h3>
           <p>云端版本已更新。展开对比并选择保留内容，所有修改会重新验证。</p>
-          <details className="disclosure-card">
-            <summary>查看本机备份</summary>
+          <DisclosureCard summary="查看本机备份">
             <Code text={local.current || ""} />
-          </details>
+          </DisclosureCard>
           <Button
             onClick={() => {
               const saved = JSON.parse(local.current!);
@@ -779,8 +779,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                   rows={10}
                 />
               </label>
-              <details className="disclosure-card">
-                <summary>独立对拍与资源限制</summary>
+              <DisclosureCard summary="独立对拍与资源限制">
                 <p className="muted">
                   本地验证会运行独立 oracle、生成器和典型错误解，不调用模型。
                 </p>
@@ -896,7 +895,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                     公开测试点日志
                   </label>
                 )}
-              </details>
+              </DisclosureCard>
             </>
           )}
           {step === "检查与发布" && (
@@ -965,8 +964,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
               >
                 运行完整验证
               </Button>
-              <details className="disclosure-card">
-                <summary>高级：JSON 导入与导出</summary>
+              <DisclosureCard summary="高级：JSON 导入与导出">
                 <Code text={JSON.stringify(values, null, 2)} />
                 <label>
                   导入题目 JSON
@@ -989,7 +987,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                 >
                   载入 JSON
                 </Button>
-              </details>
+              </DisclosureCard>
             </>
           )}
           <div className="sticky-actions">
@@ -1002,8 +1000,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
           </div>
         </form>
       )}
-      <details className="ai-inline" open>
-        <summary>AI 辅助当前草稿</summary>
+      <DisclosureCard className="ai-inline" summary="AI 辅助当前草稿" open>
         <div className="ai-mode-grid" role="radiogroup" aria-label="AI 辅助模式">
           {(
             [
@@ -1065,7 +1062,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
         </div>
         <div className="ai-mode-controls">
           {aiMode === "local" && (
-            <label>
+            <label className="ai-local-target">
               局部修改范围
               <select
                 aria-label="AI 局部修改范围"
@@ -1081,13 +1078,18 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
           )}
           <label className="ai-requirement-field">
             补充要求
-            <input
+            <textarea
               aria-label="AI 修改要求"
+              rows={4}
               value={requirement}
               onChange={(event) => setRequirement(event.target.value)}
               placeholder="补充你的要求，无需再次粘贴题目"
               onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                if (
+                  event.key === "Enter" &&
+                  (event.ctrlKey || event.metaKey) &&
+                  !event.nativeEvent.isComposing
+                ) {
                   event.preventDefault();
                   event.stopPropagation();
                   void runAI();
@@ -1095,22 +1097,25 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
               }}
             />
           </label>
-          <Button
-            disabled={
-              busy ||
-              (!problemSchema.safeParse(values).success && aiMode !== "complete") ||
-              (!!modelConfig.data &&
-                !modelConfig.data.system_configured &&
-                !modelConfig.data.personal_configured)
-            }
-            onClick={() => void runAI()}
-          >
-            {aiMode === "review"
-              ? "开始全面审查"
-              : aiMode === "complete"
-                ? "补全并验证整题"
-                : "生成局部修改"}
-          </Button>
+          <div className="ai-mode-action-row">
+            <span className="muted">按 Ctrl/Cmd + Enter 也可开始。</span>
+            <Button
+              disabled={
+                busy ||
+                (!problemSchema.safeParse(values).success && aiMode !== "complete") ||
+                (!!modelConfig.data &&
+                  !modelConfig.data.system_configured &&
+                  !modelConfig.data.personal_configured)
+              }
+              onClick={() => void runAI()}
+            >
+              {aiMode === "review"
+                ? "开始全面审查"
+                : aiMode === "complete"
+                  ? "补全并验证整题"
+                  : "生成局部修改"}
+            </Button>
+          </div>
         </div>
         <p className="muted">
           {!problemSchema.safeParse(values).success && aiMode !== "complete"
@@ -1129,7 +1134,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
               尚未配置可用模型。<Link to="/account">前往账户配置</Link>
             </p>
           )}
-      </details>
+      </DisclosureCard>
     </div>
   );
 }
@@ -1137,6 +1142,28 @@ function reviewDiff(candidate: Record<string, any> | undefined) {
   if (!candidate) return {};
   const { problem = {}, ...assets } = candidate;
   return { ...problem, ...assets };
+}
+
+export function authoringTaskOrigin(
+  task: Pick<Task, "source_draft_id" | "problem_id" | "action">,
+) {
+  if (task.source_draft_id) {
+    const checkStep = task.action === "review" || task.action === "verify";
+    return {
+      path: `/authoring/drafts/${task.source_draft_id}${
+        checkStep ? "?step=检查与发布" : ""
+      }`,
+      label: "返回原草稿",
+      draftId: task.source_draft_id,
+    };
+  }
+  if (task.problem_id)
+    return {
+      path: `/problems/${task.problem_id}`,
+      label: "返回原题",
+      draftId: undefined,
+    };
+  return { path: "/authoring", label: "返回命题中心", draftId: undefined };
 }
 
 export function AuthoringTask() {
@@ -1155,19 +1182,8 @@ export function AuthoringTask() {
   if (!t) return <p className="skeleton">{error?.message || "读取任务…"}</p>;
   const result = t.result,
     preview = t.preview || {};
-  const sourceDraftId = t.source_draft_id || undefined;
-  const taskBack = sourceDraftId
-    ? `/authoring/drafts/${sourceDraftId}${
-        t.action === "review" || t.action === "verify" ? "?step=检查与发布" : ""
-      }`
-    : t.problem_id
-      ? `/problems/${t.problem_id}`
-      : "/authoring";
-  const taskBackLabel = sourceDraftId
-    ? "返回原草稿"
-    : t.problem_id
-      ? "返回原题"
-      : "返回命题中心";
+  const taskOrigin = authoringTaskOrigin(t);
+  const sourceDraftId = taskOrigin.draftId;
   const saveRecoveryDraft = async () => {
     setBusy(true);
     setActionError("");
@@ -1182,7 +1198,7 @@ export function AuthoringTask() {
     }
   };
   const accept = async () => {
-    const targetDraftId = sourceDraftId || t.draft_id;
+    const targetDraftId = sourceDraftId;
     if (!result || !targetDraftId) return;
     setBusy(true);
     setActionError("");
@@ -1228,7 +1244,7 @@ export function AuthoringTask() {
   };
   return (
     <div className="page">
-      <BackLink to={taskBack}>{taskBackLabel}</BackLink>
+      <BackLink to={taskOrigin.path}>{taskOrigin.label}</BackLink>
       <h1>
         <Icon name={t.action === "verify" ? "check" : "spark"} />
         {t.action === "verify" ? "草稿本地验证" : "AI 命题"}
@@ -1259,12 +1275,11 @@ export function AuthoringTask() {
         <>
           <p className="task-stage-note">局部建议已复审，尚未通过整题验证。</p>
           <div className="ai-review-card"><span className="eyebrow">AI 修改说明</span><RichText text={result.review} /></div>
-          <details className="disclosure-card" open>
-            <summary>查看修改前后差异</summary>
+          <DisclosureCard summary="查看修改前后差异" open>
             <DiffView before={result.baseline} after={result.problem} />
-          </details>
+          </DisclosureCard>
           <Button
-            disabled={busy || t.status !== "completed" || !t.draft_id}
+            disabled={busy || t.status !== "completed" || !sourceDraftId}
             variant="default"
             onClick={() => void accept()}
           >
@@ -1281,13 +1296,12 @@ export function AuthoringTask() {
             <span className="eyebrow">AI 全面审查</span>
             <RichText text={result.review} />
           </div>
-          <details className="disclosure-card" open>
-            <summary>查看审查修改差异</summary>
+          <DisclosureCard summary="查看审查修改差异" open>
             <DiffView
               before={reviewDiff(result.baseline)}
               after={reviewDiff(result.proposal)}
             />
-          </details>
+          </DisclosureCard>
           <Button
             disabled={busy || t.status !== "completed" || !sourceDraftId}
             variant="default"
@@ -1301,10 +1315,9 @@ export function AuthoringTask() {
       )}
       {result?.kind === "review" && <div className="ai-review-card"><span className="eyebrow">AI 审查结果</span><RichText text={result.review} /></div>}
       {result?.initial_problem && (
-        <details className="disclosure-card">
-          <summary>查看复审前后的题面</summary>
+        <DisclosureCard summary="查看复审前后的题面">
           <DiffView before={result.initial_problem} after={result.problem} />
-        </details>
+        </DisclosureCard>
       )}
       <div className="generated-preview">
         {result?.problem ? (
@@ -1336,31 +1349,29 @@ export function AuthoringTask() {
           </>
         )}
         {(result?.reference_solution || preview.reference_solution) && (
-          <details className="disclosure-card">
-            <summary>参考解</summary>
+          <DisclosureCard summary="参考解">
             <Code
               text={result?.reference_solution || preview.reference_solution}
             />
-          </details>
+          </DisclosureCard>
         )}
         {result?.review &&
           result.kind !== "section_patch" &&
           result.kind !== "review" &&
           result.kind !== "review_patch" && (
-            <details className="disclosure-card">
-              <summary>审查意见</summary>
+            <DisclosureCard summary="审查意见">
               <div className="ai-review-card"><RichText text={result.review} /></div>
-            </details>
+            </DisclosureCard>
           )}
       </div>
       {["failed", "cancelled"].includes(t.status) && (
         <div className="notice">
           <p>{t.action === "verify" ? "本地验证未完成。请返回草稿查看并修正检查项，再选择基础检查或完整验证；本地检查不调用模型。" : "已保留当前成果。重新生成会创建新任务并产生费用。"}</p>
           {t.action === "verify" ? (
-            <Button asChild><Link to={t.draft_id ? `/authoring/drafts/${t.draft_id}?step=检查与发布` : "/authoring"}>返回草稿修正并检查</Link></Button>
+            <Button asChild><Link to={taskOrigin.path}>{taskOrigin.label === "返回原草稿" ? "返回草稿修正并检查" : taskOrigin.label}</Link></Button>
           ) : (
           <div className="action-group">
-            {t.draft_id && <Button asChild><Link to={`/authoring/drafts/${t.draft_id}`}>返回原草稿</Link></Button>}
+            {taskOrigin.path !== "/authoring" && <Button asChild><Link to={taskOrigin.path}>{taskOrigin.label}</Link></Button>}
             {t.recovery_draft_id ? (
               <Button variant="default" asChild><Link to={`/authoring/drafts/${t.recovery_draft_id}`}>打开恢复草稿</Link></Button>
             ) : (
@@ -1373,7 +1384,7 @@ export function AuthoringTask() {
                   ...json("POST", {
                     requirement: t.requirement,
                     problem_id: t.problem_id,
-                    draft_id: t.draft_id,
+                    draft_id: sourceDraftId,
                     workflow_version: 2,
                     action: t.action,
                     target_section: t.target_section,

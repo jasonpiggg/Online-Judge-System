@@ -16,6 +16,7 @@ import { Statement } from "../components/Statement";
 import { Code } from "../components/Markdown";
 import { createEditingDraft } from "../problem-actions";
 import { useActionReveal } from "../components/useActionReveal";
+import { DisclosureCard } from "../components/DisclosureCard";
 
 export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
   const [params, setParams] = useSearchParams();
@@ -264,15 +265,12 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
               </label>
             </div>
           )}
-          <details className="disclosure-card">
-            <summary>完整题面与样例</summary>
+          <DisclosureCard summary="完整题面与样例">
             <Statement problem={p} />
-          </details>
-          <details className="disclosure-card">
-            <summary>测试数据（{p.testcases.length} 个）</summary>
+          </DisclosureCard>
+          <DisclosureCard summary={`测试数据（${p.testcases.length} 个）`}>
             {p.testcases.map((c, i) => (
-              <details className="disclosure-card" key={i}>
-                <summary>测试点 {i + 1}</summary>
+              <DisclosureCard summary={`测试点 ${i + 1}`} key={i}>
                 <div className="samples">
                   <div>
                     <h4>输入</h4>
@@ -283,13 +281,12 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
                     <Code text={c.output} />
                   </div>
                 </div>
-              </details>
+              </DisclosureCard>
             ))}
-          </details>
-          <details className="disclosure-card">
-            <summary>原始题目 JSON</summary>
+          </DisclosureCard>
+          <DisclosureCard summary="原始题目 JSON">
             <Code text={JSON.stringify(p, null, 2)} />
-          </details>
+          </DisclosureCard>
         </section>
       )}
     </section>
