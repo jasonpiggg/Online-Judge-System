@@ -39,7 +39,7 @@ export function LanguageSettings({ heading = true }: { heading?: boolean }) {
                 <td>{language.time_limit} 秒</td>
                 <td>{language.memory_limit} MB</td>
                 <td>
-                  <details>
+                  <details className="disclosure-card">
                     <summary>查看命令</summary>
                     <dl>
                       <dt>扩展名</dt>
@@ -60,7 +60,7 @@ export function LanguageSettings({ heading = true }: { heading?: boolean }) {
           </tbody>
         </table>
       </div>
-      <details>
+      <details className="disclosure-card">
         <summary>注册语言 / 更新配置</summary>
         <form
           className="form-grid narrow"

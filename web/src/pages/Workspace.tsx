@@ -8,19 +8,20 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { api, json, errorText } from "../api";
-import type { Problem, User } from "../types";
+import { api, json, errorText, queryClient } from "../api";
+import type { Problem, Submission, User } from "../types";
 import { Statement } from "../components/Statement";
 import { CodeEditor } from "../components/Editor";
 import { Code } from "../components/Markdown";
 import { Button } from "../components/ui/button";
 import { Assistant } from "../components/AI";
-import { ResultPanel } from "../components/Evaluation";
+import { ResultPanel, VerdictBadge } from "../components/Evaluation";
 import { Icon } from "../components/Icon";
 import { readBackup, writeBackup, clearBackup } from "../draft-backup";
 import { BackLink } from "../components/BackLink";
 import { useRegisterActivity } from "../components/Activity";
 import { ErrorNotice } from "../components/ErrorNotice";
+import { Pagination } from "../components/Pagination";
 export const DEFAULT_EDITOR_FONT_SIZE = 14;
 export function Workspace({ user }: { user: User }) {
   const { id = "" } = useParams();
@@ -66,6 +67,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const loadedBackup = useRef("");
   const inFlight = useRef(false);
   const [saveTick, setSaveTick] = useState(0);
+  const [historyPage, setHistoryPage] = useState(1);
   const submitting = useRef(false);
   const assistantPanel = useRef<HTMLDetailsElement>(null);
   const backup = `oj-draft-${user.user_id}-${p.id}-${language}`;
@@ -75,6 +77,23 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const languages = useQuery({
     queryKey: ["languages"],
     queryFn: () => api<{ name: string[] }>("/languages/"),
+  });
+  const history = useQuery({
+    queryKey: ["problem-submissions", p.id, user.user_id, historyPage],
+    queryFn: () =>
+      api<{ total: number; submissions: Submission[] }>(
+        `/submissions/?${new URLSearchParams({
+          problem_id: p.id,
+          user_id: String(user.user_id),
+          page: String(historyPage),
+          page_size: "10",
+          include_metadata: "true",
+        })}`,
+      ),
+    refetchInterval: (query) =>
+      query.state.data?.submissions.some((item) => item.status === "pending")
+        ? 2000
+        : false,
   });
   useEffect(() => {
     generation.current += 1;
@@ -177,6 +196,10 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
         "/submissions/",
         json("POST", { problem_id: p.id, language, code: latest.current }),
       );
+      setHistoryPage(1);
+      await queryClient.invalidateQueries({
+        queryKey: ["problem-submissions", p.id, user.user_id],
+      });
       setParams({
         ...Object.fromEntries(params),
         submission: d.submission_id,
@@ -188,7 +211,13 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
       submitting.current = false;
       setBusy(false);
     }
-  }, [ready, language, p.id, params, setParams]);
+  }, [ready, language, p.id, params, setParams, user.user_id]);
+  useEffect(() => {
+    // Keep the requested page while React Query is loading the new query key.
+    if (!history.data) return;
+    const pages = Math.max(1, Math.ceil(history.data.total / 10));
+    if (historyPage > pages) setHistoryPage(pages);
+  }, [history.data?.total, historyPage]);
   const jump = useCallback((target: string) => {
     if (target === "AI" && assistantPanel.current)
       assistantPanel.current.open = true;
@@ -208,16 +237,20 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
         >
           返回题库
         </BackLink>
-        <div>
+        <div className="problem-switcher" aria-label="相邻题目">
           {index > 0 && (
-            <Link to={`/problems/${state!.ids![index - 1]}`} state={state}>
-              上一题
-            </Link>
+            <Button asChild size="compact">
+              <Link to={`/problems/${state!.ids![index - 1]}`} state={state}>
+                <Icon name="chevronLeft" /> 上一题
+              </Link>
+            </Button>
           )}
           {index >= 0 && index < (state?.ids?.length || 0) - 1 && (
-            <Link to={`/problems/${state!.ids![index + 1]}`} state={state}>
-              下一题 →
-            </Link>
+            <Button asChild size="compact">
+              <Link to={`/problems/${state!.ids![index + 1]}`} state={state}>
+                下一题 <Icon name="chevronRight" />
+              </Link>
+            </Button>
           )}
         </div>
       </div>
@@ -405,10 +438,76 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
           )}
           <div id="section-结果" className="surface result-surface">
             {submission ? (
-              <ResultPanel id={submission} />
+              <ResultPanel
+                id={submission}
+                detailFrom={`/problems/${p.id}?${new URLSearchParams({
+                  submission,
+                  tab: "结果",
+                })}`}
+              />
             ) : (
               <p className="muted empty">提交后，评测结果会显示在这里。</p>
             )}
+            <section className="problem-submission-history" aria-labelledby="problem-submission-history-title">
+              <div className="section-title">
+                <Icon name="chart" />
+                <h2 id="problem-submission-history-title">本题提交记录</h2>
+                {history.data && <span className="muted">共 {history.data.total} 条</span>}
+              </div>
+              {history.error ? (
+                <ErrorNotice title="提交记录暂时无法读取" message={history.error.message} />
+              ) : history.isPending ? (
+                <p className="skeleton">正在读取本题提交记录…</p>
+              ) : history.data?.submissions.length ? (
+                <>
+                  <div className="submission-history-list">
+                    {history.data.submissions.map((item) => {
+                      const selected = item.submission_id === submission;
+                      const returnTo = `/problems/${p.id}?${new URLSearchParams({
+                        submission: item.submission_id,
+                        tab: "结果",
+                      })}`;
+                      return (
+                        <article
+                          className={`submission-history-row${selected ? " selected" : ""}`}
+                          key={item.submission_id}
+                          aria-current={selected ? "true" : undefined}
+                        >
+                          <div>
+                            <strong>提交 #{item.submission_id}</strong>
+                            <span className="muted">
+                              {item.language} · {new Date(item.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <VerdictBadge submission={item} />
+                          <span className="submission-score">
+                            {item.evaluation?.score ?? item.score ?? "—"} /{" "}
+                            {item.evaluation?.max_score ?? item.counts ?? "—"} 分
+                          </span>
+                          <Button asChild size="compact">
+                            <Link
+                              to={`/submissions/${item.submission_id}?${new URLSearchParams({
+                                from: returnTo,
+                              })}`}
+                            >
+                              查看详情 <Icon name="arrow" />
+                            </Link>
+                          </Button>
+                        </article>
+                      );
+                    })}
+                  </div>
+                  <Pagination
+                    page={historyPage}
+                    totalPages={Math.ceil(history.data.total / 10)}
+                    label="本题提交记录分页"
+                    onChange={setHistoryPage}
+                  />
+                </>
+              ) : (
+                <p className="muted empty">还没有提交记录，完成代码后提交第一次评测。</p>
+              )}
+            </section>
           </div>
           <details
             id="section-AI"

@@ -39,9 +39,9 @@ export type Submission = {
   score: number;
   counts: number;
   created_at: string;
-  compile_info?: string;
-  run_info?: string;
-  error_info?: string;
+  compile_info?: unknown;
+  run_info?: unknown;
+  error_info?: unknown;
   problem_deleted?: boolean;
   evaluation?: Evaluation;
 };

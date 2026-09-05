@@ -91,6 +91,7 @@ const problemSchema = z.object({
   public_cases: z.boolean(),
 });
 type FormProblem = z.infer<typeof problemSchema>;
+type AIMode = "local" | "review" | "complete";
 const empty: FormProblem = {
   id: "",
   title: "",
@@ -342,7 +343,8 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
     [requirement, setRequirement] = useState(""),
-    [target, setTarget] = useState("statement"),
+    [aiMode, setAIMode] = useState<AIMode>("local"),
+    [localTarget, setLocalTarget] = useState("statement"),
     [reference, setReference] = useState(draft.reference_solution),
     [brute, setBrute] = useState(draft.brute_solution),
     [generator, setGenerator] = useState(draft.generator_code),
@@ -487,13 +489,28 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
     try {
       const p = form.getValues();
       const complete = problemSchema.safeParse(p).success;
+      if (!complete && aiMode !== "complete") {
+        setError("当前题面尚未完整。请先补全必填字段，或明确选择“补全整题并验证”。");
+        return;
+      }
       const saved = await save(p);
-      const effectiveTarget = complete || target === "review" ? target : "all";
+      const effectiveTarget =
+        aiMode === "review" ? "review" : aiMode === "complete" ? "all" : localTarget;
       const requestText = requirement.trim()
-        ? `用户补充要求：${requirement.trim()}\n请严格检查当前草稿并生成可验证的结果。`
-        : complete
-          ? "请严格检查当前草稿，修复错误并完善质量验证。"
-          : "当前草稿尚未完成。请保留已有内容，补全一道结构完整、可验证的题目。";
+        ? `用户补充要求：${requirement.trim()}\n${
+            aiMode === "review"
+              ? "请全面审查当前草稿，只提出保持题意的必要修正。"
+              : aiMode === "complete"
+                ? "请补全当前草稿并生成可验证的完整结果。"
+                : "请只修改所选局部范围，保留其他字段。"
+          }`
+        : aiMode === "review"
+          ? "请全面审查当前完整草稿，只提出保持题意的必要修正；不要补写缺失资产。"
+          : aiMode === "complete"
+            ? complete
+              ? "请完善当前草稿并完成整题质量验证。"
+              : "当前草稿尚未完成。请保留已有内容，补全一道结构完整、可验证的题目。"
+            : "请只修改所选局部范围，保留其他字段。";
       const body = {
         draft_id: draft.id,
         problem_id: draft.base_problem_id,
@@ -633,7 +650,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
         <section className="notice">
           <h3>本机还有不同版本的草稿</h3>
           <p>云端版本已更新。展开对比并选择保留内容，所有修改会重新验证。</p>
-          <details>
+          <details className="disclosure-card">
             <summary>查看本机备份</summary>
             <Code text={local.current || ""} />
           </details>
@@ -762,7 +779,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                   rows={10}
                 />
               </label>
-              <details>
+              <details className="disclosure-card">
                 <summary>独立对拍与资源限制</summary>
                 <p className="muted">
                   本地验证会运行独立 oracle、生成器和典型错误解，不调用模型。
@@ -948,7 +965,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
               >
                 运行完整验证
               </Button>
-              <details>
+              <details className="disclosure-card">
                 <summary>高级：JSON 导入与导出</summary>
                 <Code text={JSON.stringify(values, null, 2)} />
                 <label>
@@ -987,55 +1004,123 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
       )}
       <details className="ai-inline" open>
         <summary>AI 辅助当前草稿</summary>
-        <div className="filters">
-          <select
-            aria-label="AI 修改范围"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-          >
-            {Object.entries({
-              statement: "润色题面",
-              samples: "完善样例",
-              constraints: "改进约束",
-              testcases: "设计测试",
-              review: "仅审查",
-              all: "完善整题并验证",
-            }).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-          <input
-            aria-label="AI 修改要求"
-            value={requirement}
-            onChange={(e) => setRequirement(e.target.value)}
-            placeholder="补充你的要求，无需再次粘贴题目"
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                event.stopPropagation();
-                void runAI();
-              }
-            }}
-          />
+        <div className="ai-mode-grid" role="radiogroup" aria-label="AI 辅助模式">
+          {(
+            [
+              {
+                id: "local",
+                title: "局部修改",
+                scope: "一个选定区域",
+                result: "差异建议，人工采纳",
+                verification: "不执行整题验证",
+                cost: "较低",
+              },
+              {
+                id: "review",
+                title: "全面审查并修正",
+                scope: "完整题面与已有资产",
+                result: "最小修正 Patch",
+                verification: "采纳后仍需验证",
+                cost: "中等",
+              },
+              {
+                id: "complete",
+                title: "补全整题并验证",
+                scope: "题面、解法与全部验证资产",
+                result: "通过门禁的完整草稿",
+                verification: "执行完整质量验证",
+                cost: "较高",
+              },
+            ] as const
+          ).map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              role="radio"
+              aria-checked={aiMode === mode.id}
+              className={`ai-mode-card${aiMode === mode.id ? " selected" : ""}`}
+              onClick={() => {
+                setAIMode(mode.id);
+                setError("");
+              }}
+            >
+              <span className="ai-mode-title">
+                <Icon
+                  name={
+                    mode.id === "local"
+                      ? "file"
+                      : mode.id === "review"
+                        ? "shield"
+                        : "spark"
+                  }
+                />
+                {mode.title}
+              </span>
+              <small>范围：{mode.scope}</small>
+              <small>产物：{mode.result}</small>
+              <small>验证：{mode.verification}</small>
+              <span className="ai-mode-cost">费用：{mode.cost}</span>
+            </button>
+          ))}
+        </div>
+        <div className="ai-mode-controls">
+          {aiMode === "local" && (
+            <label>
+              局部修改范围
+              <select
+                aria-label="AI 局部修改范围"
+                value={localTarget}
+                onChange={(event) => setLocalTarget(event.target.value)}
+              >
+                <option value="statement">润色题面</option>
+                <option value="samples">完善样例</option>
+                <option value="constraints">改进约束</option>
+                <option value="testcases">设计测试</option>
+              </select>
+            </label>
+          )}
+          <label className="ai-requirement-field">
+            补充要求
+            <input
+              aria-label="AI 修改要求"
+              value={requirement}
+              onChange={(event) => setRequirement(event.target.value)}
+              placeholder="补充你的要求，无需再次粘贴题目"
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void runAI();
+                }
+              }}
+            />
+          </label>
           <Button
             disabled={
               busy ||
+              (!problemSchema.safeParse(values).success && aiMode !== "complete") ||
               (!!modelConfig.data &&
                 !modelConfig.data.system_configured &&
                 !modelConfig.data.personal_configured)
             }
             onClick={() => void runAI()}
           >
-            {problemSchema.safeParse(values).success ? "开始" : "补全草稿"}
+            {aiMode === "review"
+              ? "开始全面审查"
+              : aiMode === "complete"
+                ? "补全并验证整题"
+                : "生成局部修改"}
           </Button>
         </div>
         <p className="muted">
-          {problemSchema.safeParse(values).success
-            ? "使用当前已保存草稿；局部修改需采纳后重新验证。"
-            : "草稿尚未完整，AI 会保留已填写内容并自动补全整题。"}
-          调用产生费用，最多自动修复一次。
+          {!problemSchema.safeParse(values).success && aiMode !== "complete"
+            ? "当前题面缺少必填字段，此模式不会自动切换。请先补全，或选择“补全整题并验证”。"
+            : aiMode === "review"
+              ? "审查只修正已有内容，不补造缺失模块；采纳后必须重新验证。"
+              : aiMode === "complete"
+                ? "该模式可能重构多个区域，并执行参考解、错误解与随机对拍验证。"
+                : "只返回所选范围的修改，其他字段保持不变。"}{" "}
+          模型调用会产生费用，确定性格式错误最多自动修复一次。
         </p>
         {modelConfig.data &&
           !modelConfig.data.system_configured &&
@@ -1048,6 +1133,12 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
     </div>
   );
 }
+function reviewDiff(candidate: Record<string, any> | undefined) {
+  if (!candidate) return {};
+  const { problem = {}, ...assets } = candidate;
+  return { ...problem, ...assets };
+}
+
 export function AuthoringTask() {
   const { id } = useParams();
   const { data: t, error, disconnected } = useTask(id);
@@ -1064,6 +1155,19 @@ export function AuthoringTask() {
   if (!t) return <p className="skeleton">{error?.message || "读取任务…"}</p>;
   const result = t.result,
     preview = t.preview || {};
+  const sourceDraftId = t.source_draft_id || undefined;
+  const taskBack = sourceDraftId
+    ? `/authoring/drafts/${sourceDraftId}${
+        t.action === "review" || t.action === "verify" ? "?step=检查与发布" : ""
+      }`
+    : t.problem_id
+      ? `/problems/${t.problem_id}`
+      : "/authoring";
+  const taskBackLabel = sourceDraftId
+    ? "返回原草稿"
+    : t.problem_id
+      ? "返回原题"
+      : "返回命题中心";
   const saveRecoveryDraft = async () => {
     setBusy(true);
     setActionError("");
@@ -1078,28 +1182,44 @@ export function AuthoringTask() {
     }
   };
   const accept = async () => {
-    if (!result || !t.draft_id) return;
+    const targetDraftId = sourceDraftId || t.draft_id;
+    if (!result || !targetDraftId) return;
     setBusy(true);
+    setActionError("");
     try {
-      const current = await api<Draft>("/problem-drafts/" + t.draft_id);
+      const current = await api<Draft>("/problem-drafts/" + targetDraftId);
       if (current.revision !== result.source_draft_revision)
         throw new Error("草稿已在别处修改，请比较后手动合并建议。");
+      const isReviewPatch = result.kind === "review_patch";
+      const proposal = isReviewPatch ? result.proposal : null;
       const updated = await api<Draft>(
-        "/problem-drafts/" + t.draft_id,
+        "/problem-drafts/" + targetDraftId,
         json("PUT", {
           base_problem_id: current.base_problem_id,
           requirement: current.requirement,
-          problem: result.problem,
-          reference_solution: current.reference_solution,
-          brute_solution: current.brute_solution,
-          generator_code: current.generator_code,
-          review: current.review,
+          problem: proposal?.problem || result.problem,
+          reference_solution: proposal?.reference_solution ?? current.reference_solution,
+          brute_solution: proposal?.brute_solution ?? current.brute_solution,
+          generator_code: proposal?.generator_code ?? current.generator_code,
+          review: isReviewPatch
+            ? {
+                ...current.review,
+                coverage: proposal?.coverage ?? current.review.coverage,
+                wrong_solutions:
+                  proposal?.wrong_solutions ?? current.review.wrong_solutions,
+                review: result.review,
+              }
+            : current.review,
           revision: current.revision,
-          change_summary: "采纳 AI 局部建议",
+          change_summary: isReviewPatch ? "采纳 AI 全面审查" : "采纳 AI 局部建议",
         }),
       );
-      queryClient.setQueryData(["draft", t.draft_id], updated);
-      navigate("/authoring/drafts/" + t.draft_id);
+      queryClient.setQueryData(["draft", targetDraftId], updated);
+      navigate(
+        `/authoring/drafts/${targetDraftId}${
+          isReviewPatch ? "?step=检查与发布" : ""
+        }`,
+      );
     } catch (e) {
       setActionError(errorText(e));
     } finally {
@@ -1108,7 +1228,7 @@ export function AuthoringTask() {
   };
   return (
     <div className="page">
-      <BackLink to="/authoring">返回命题中心</BackLink>
+      <BackLink to={taskBack}>{taskBackLabel}</BackLink>
       <h1>
         <Icon name={t.action === "verify" ? "check" : "spark"} />
         {t.action === "verify" ? "草稿本地验证" : "AI 命题"}
@@ -1139,7 +1259,7 @@ export function AuthoringTask() {
         <>
           <p className="task-stage-note">局部建议已复审，尚未通过整题验证。</p>
           <div className="ai-review-card"><span className="eyebrow">AI 修改说明</span><RichText text={result.review} /></div>
-          <details open>
+          <details className="disclosure-card" open>
             <summary>查看修改前后差异</summary>
             <DiffView before={result.baseline} after={result.problem} />
           </details>
@@ -1152,9 +1272,36 @@ export function AuthoringTask() {
           </Button>
         </>
       )}
+      {result?.kind === "review_patch" && (
+        <>
+          <p className="task-stage-note">
+            全面审查只生成保守修正；采纳后仍需重新运行草稿验证。
+          </p>
+          <div className="ai-review-card">
+            <span className="eyebrow">AI 全面审查</span>
+            <RichText text={result.review} />
+          </div>
+          <details className="disclosure-card" open>
+            <summary>查看审查修改差异</summary>
+            <DiffView
+              before={reviewDiff(result.baseline)}
+              after={reviewDiff(result.proposal)}
+            />
+          </details>
+          <Button
+            disabled={busy || t.status !== "completed" || !sourceDraftId}
+            variant="default"
+            onClick={() => void accept()}
+          >
+            {JSON.stringify(result.baseline) === JSON.stringify(result.proposal)
+              ? "保存审查意见到草稿"
+              : "应用修改到草稿"}
+          </Button>
+        </>
+      )}
       {result?.kind === "review" && <div className="ai-review-card"><span className="eyebrow">AI 审查结果</span><RichText text={result.review} /></div>}
       {result?.initial_problem && (
-        <details>
+        <details className="disclosure-card">
           <summary>查看复审前后的题面</summary>
           <DiffView before={result.initial_problem} after={result.problem} />
         </details>
@@ -1189,7 +1336,7 @@ export function AuthoringTask() {
           </>
         )}
         {(result?.reference_solution || preview.reference_solution) && (
-          <details>
+          <details className="disclosure-card">
             <summary>参考解</summary>
             <Code
               text={result?.reference_solution || preview.reference_solution}
@@ -1198,8 +1345,9 @@ export function AuthoringTask() {
         )}
         {result?.review &&
           result.kind !== "section_patch" &&
-          result.kind !== "review" && (
-            <details>
+          result.kind !== "review" &&
+          result.kind !== "review_patch" && (
+            <details className="disclosure-card">
               <summary>审查意见</summary>
               <div className="ai-review-card"><RichText text={result.review} /></div>
             </details>

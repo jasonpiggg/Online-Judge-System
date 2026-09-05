@@ -41,7 +41,7 @@ export function Statement({ problem: p }: { problem: Problem }) {
         <RichText text={p.constraints} />
       </section>
       {p.hint && (
-        <details>
+        <details className="disclosure-card">
           <summary>解题提示</summary>
           <RichText text={p.hint} />
         </details>

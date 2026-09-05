@@ -69,6 +69,7 @@ export function EvaluationView({
   const [selected, setSelected] = useState<number | null>(null);
   const detailReveal = useActionReveal<HTMLDivElement>();
   const e = s.evaluation;
+  const hasRawLogs = !!(s.compile_info || s.run_info || s.error_info);
   const compiled = e?.verdict === "CE";
   const available = compiled ? [] : cases?.filter((c) => c.result !== "CE");
   const filtered = available?.filter((c) => !onlyFailed || c.result !== "AC");
@@ -206,8 +207,8 @@ export function EvaluationView({
           )}
         </div>
       )}
-      {s.status !== "pending" && (
-        <details className="raw-logs">
+      {s.status !== "pending" && hasRawLogs && (
+        <details className="raw-logs disclosure-card">
           <summary>原始运行日志</summary>
           {["compile_info", "run_info", "error_info"].map((k) =>
             s[k as keyof Submission] ? (
@@ -222,9 +223,11 @@ export function EvaluationView({
 export function ResultPanel({
   id,
   detailLink = true,
+  detailFrom,
 }: {
   id: string;
   detailLink?: boolean;
+  detailFrom?: string;
 }) {
   const { data, error } = useQuery({
     queryKey: ["submission", id],
@@ -261,9 +264,19 @@ export function ResultPanel({
         <p className="skeleton">读取评测结果…</p>
       )}
       {detailLink && (
-        <Link className="detail-link" to={`/submissions/${id}`}>
-          查看提交详情 →
-        </Link>
+        <div className="result-actions">
+          <Button asChild size="compact">
+            <Link
+              to={`/submissions/${id}${
+                detailFrom
+                  ? `?${new URLSearchParams({ from: detailFrom })}`
+                  : ""
+              }`}
+            >
+              查看提交详情 <Icon name="arrow" />
+            </Link>
+          </Button>
+        </div>
       )}
     </section>
   );

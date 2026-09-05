@@ -134,10 +134,12 @@ export default function App() {
               <Icon name="spark" />
               命题中心
             </NavLink>
-            <NavLink to="/resources">
-              <Icon name="code" />
-              资源
-            </NavLink>
+            {user.role !== "admin" && (
+              <NavLink to="/resources">
+                <Icon name="code" />
+                资源
+              </NavLink>
+            )}
             {user.role === "admin" && (
               <NavLink to="/admin">
                 <Icon name="shield" />
@@ -173,7 +175,7 @@ export default function App() {
             />
             <Route path="/account" element={<Account user={user} />} />
             <Route path="/resources" element={<Resources />} />
-            <Route path="/logs/submissions/:id" element={<PublicLog />} />
+            <Route path="/logs/submissions/:id" element={<PublicLog user={user} />} />
             <Route
               path="/admin"
               element={

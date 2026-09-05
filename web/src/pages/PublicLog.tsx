@@ -1,16 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
-import type { CaseResult, Evaluation, Submission } from "../types";
+import type { CaseResult, Evaluation, Submission, User } from "../types";
 import { BackLink } from "../components/BackLink";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { EvaluationView } from "../components/Evaluation";
 import { Icon } from "../components/Icon";
 import { useRegisterActivity } from "../components/Activity";
 
-type PublicLogResult = { details: CaseResult[]; score: number | null; counts: number | null };
+type PublicLogResult = {
+  details: CaseResult[];
+  status: string;
+  score: number | null;
+  counts: number | null;
+  can_view_raw_logs: boolean;
+  raw_logs?: Pick<Submission, "compile_info" | "run_info" | "error_info">;
+};
 
-export function PublicLog() {
+export function PublicLog({ user }: { user: User }) {
   const { id = "" } = useParams();
   const query = useQuery({
     queryKey: ["public-log", id],
@@ -24,10 +31,19 @@ export function PublicLog() {
   }, {}) || {};
   const total = data?.details.length ?? null;
   const passed = data ? counts.AC || 0 : null;
-  const allPassed = !!total && passed === total;
-  const verdict = allPassed ? "AC" : data ? (data.details.find((item) => item.result !== "AC")?.result || "unknown") : "unknown";
+  const allPassed = data?.status === "success" && !!total && passed === total;
+  const verdict =
+    data?.status === "pending"
+      ? "pending"
+      : data?.status === "error"
+        ? "error"
+        : allPassed
+          ? "AC"
+          : data
+            ? data.details.find((item) => item.result !== "AC")?.result || "unknown"
+            : "unknown";
   const evaluation: Evaluation = {
-    status: data ? "success" : "pending",
+    status: data?.status || "pending",
     verdict,
     score: data?.score ?? null,
     max_score: data?.counts ?? null,
@@ -37,12 +53,37 @@ export function PublicLog() {
     all_passed: allPassed,
     result_counts: counts,
   };
-  const submission: Submission = { submission_id: id, problem_id: "", language: "", status: data ? "success" : "pending", score: data?.score || 0, counts: data?.counts || 0, created_at: "", evaluation };
+  const submission: Submission = {
+    submission_id: id,
+    problem_id: "",
+    language: "",
+    status: data?.status || "pending",
+    score: data?.score || 0,
+    counts: data?.counts || 0,
+    created_at: "",
+    evaluation,
+    ...data?.raw_logs,
+  };
   return (
     <div className="page public-log-page">
-      <BackLink to="/resources?tab=公开日志">返回公开日志查询</BackLink>
-      <div className="page-heading"><div><h1><Icon name="chart" />提交 #{id} 的评测日志</h1><p className="muted">此页面只展示服务器允许当前账号查看的测试点状态，不包含提交者源码、输入或标准输出。</p></div></div>
-      {query.error ? <ErrorNotice title="无法查看这份评测日志" message={query.error.message} /> : data ? <EvaluationView submission={submission} cases={data.details} /> : <p className="skeleton">正在检查权限并读取日志…</p>}
+      <BackLink to={user.role === "admin" ? "/admin?tab=提交" : "/resources?tab=公开日志"}>
+        {user.role === "admin" ? "返回管理 → 提交" : "返回资源 → 公开日志"}
+      </BackLink>
+      <div className="page-heading"><div><h1><Icon name="chart" />提交 #{id} 的评测日志</h1><p className="muted">逐点状态按题目日志策略开放；提交者本人和管理员还可查看原始编译与运行日志。</p></div></div>
+      {query.error ? (
+        <ErrorNotice title="无法查看这份评测日志" message={query.error.message} />
+      ) : data ? (
+        <>
+          <EvaluationView submission={submission} cases={data.details} />
+          {!data.can_view_raw_logs && (
+            <p className="permission-note">
+              <Icon name="shield" /> 按实验权限，此公开视图不包含源码、隐藏输入、标准输出或原始编译日志。
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="skeleton">正在检查权限并读取日志…</p>
+      )}
     </div>
   );
 }

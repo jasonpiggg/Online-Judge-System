@@ -23,7 +23,7 @@ export function ModelSettings() {
             ? "正在使用个人模型"
             : "尚未配置模型"}
       </p>
-      <details>
+      <details className="disclosure-card">
         <summary>个人模型配置</summary>
         <form
           className="form-grid"
@@ -156,7 +156,7 @@ export function Account({ user }: { user: User }) {
         </div>
       </div>
       <ModelSettings />
-      <details className="account-language-settings">
+      <details className="account-language-settings disclosure-card">
         <summary>评测语言配置</summary>
         <LanguageSettings heading={false} />
       </details>
