@@ -1,8 +1,7 @@
 import { createEditingDraft } from "../problem-actions";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Link,
   useLocation,
   useNavigate,
   useParams,
@@ -19,7 +18,7 @@ import { ResultPanel, VerdictBadge } from "../components/Evaluation";
 import { Icon } from "../components/Icon";
 import { readBackup, writeBackup, clearBackup } from "../draft-backup";
 import { BackLink } from "../components/BackLink";
-import { useRegisterActivity } from "../components/Activity";
+import { TaskLink, useActivity, useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { Pagination } from "../components/Pagination";
 export const DEFAULT_EDITOR_FONT_SIZE = 14;
@@ -29,6 +28,7 @@ export function Workspace({ user }: { user: User }) {
     queryKey: ["problem", id],
     queryFn: () => api<Problem>(`/problems/${id}`),
   });
+  useRecoverUnavailableTask(error);
   return error ? (
     <ErrorNotice title="题目暂时无法打开" message={error.message} />
   ) : p ? (
@@ -39,8 +39,9 @@ export function Workspace({ user }: { user: User }) {
 }
 function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const navigate = useNavigate();
+  const { activeSlot, navigateInSlot, openInNewSlot, replaceCurrent } = useActivity();
   const location = useLocation();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const state = location.state as {
     listSearch?: string;
     ids?: string[];
@@ -71,7 +72,13 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const submitting = useRef(false);
   const assistantPanel = useRef<HTMLDetailsElement>(null);
   const backup = `oj-draft-${user.user_id}-${p.id}-${language}`;
-  const tab = params.get("tab") || "题目";
+  const sections = ["题目", "代码", "结果", "AI"] as const;
+  type Section = (typeof sections)[number];
+  const scrollTarget = useRef<Section | null>(null);
+  const userScrolling = useRef(false);
+  const scrollIntentTimer = useRef<number | null>(null);
+  const requestedTab = params.get("tab");
+  const tab: Section = sections.includes(requestedTab as Section) ? requestedTab as Section : "题目";
   const submission = params.get("submission");
   const index = state?.ids?.indexOf(p.id) ?? -1;
   const languages = useQuery({
@@ -200,56 +207,128 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
       await queryClient.invalidateQueries({
         queryKey: ["problem-submissions", p.id, user.user_id],
       });
-      setParams({
-        ...Object.fromEntries(params),
-        submission: d.submission_id,
-        tab: "结果",
-      });
+      const next = new URLSearchParams(params);
+      next.set("submission", d.submission_id);
+      next.set("tab", "结果");
+      replaceCurrent(`${location.pathname}?${next}`, location.state as object);
     } catch (e) {
       setError(errorText(e));
     } finally {
       submitting.current = false;
       setBusy(false);
     }
-  }, [ready, language, p.id, params, setParams, user.user_id]);
+  }, [ready, language, p.id, params, replaceCurrent, location.pathname, location.state, user.user_id]);
   useEffect(() => {
     // Keep the requested page while React Query is loading the new query key.
     if (!history.data) return;
     const pages = Math.max(1, Math.ceil(history.data.total / 10));
     if (historyPage > pages) setHistoryPage(pages);
   }, [history.data?.total, historyPage]);
-  const jump = useCallback((target: string) => {
+  const jump = useCallback((target: Section, smooth = false) => {
+    scrollTarget.current = target;
     if (target === "AI" && assistantPanel.current)
       assistantPanel.current.open = true;
     document
       .getElementById(`section-${target}`)
-      ?.scrollIntoView({ block: "start", behavior: "instant" });
+      ?.scrollIntoView({
+        block: "start",
+        behavior: smooth && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto",
+      });
   }, []);
+  useLayoutEffect(() => {
+    if (!activeSlot) return;
+    if (!requestedTab || requestedTab === tab) jump(tab);
+    else {
+      const next = new URLSearchParams(params);
+      next.set("tab", "题目");
+      replaceCurrent(`${location.pathname}?${next}`, location.state as object);
+    }
+  }, [activeSlot?.id, location.key, p.id]);
   useEffect(() => {
-    if (params.get("tab")) requestAnimationFrame(() => jump(tab));
-  }, [tab, submission, jump, params]);
+    if (!activeSlot) return;
+    let frame = 0;
+    userScrolling.current = false;
+    const markUserScroll = () => {
+      userScrolling.current = true;
+      scrollTarget.current = null;
+      if (scrollIntentTimer.current !== null)
+        window.clearTimeout(scrollIntentTimer.current);
+      scrollIntentTimer.current = window.setTimeout(() => {
+        userScrolling.current = false;
+        scrollIntentTimer.current = null;
+      }, 240);
+    };
+    const markKeyboardScroll = (event: KeyboardEvent) => {
+      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key))
+        markUserScroll();
+    };
+    const sync = () => {
+      frame = 0;
+      if (!userScrolling.current) return;
+      const threshold = Math.min(180, window.innerHeight * 0.25);
+      let current: Section = "题目";
+      const intended = scrollTarget.current;
+      if (intended) {
+        const rect = document.getElementById(`section-${intended}`)?.getBoundingClientRect();
+        const atDocumentEnd = window.innerHeight + window.scrollY >=
+          document.documentElement.scrollHeight - 4;
+        // Keep an explicit/deep-linked target while it is aligned with the sticky
+        // header. At the document end, short sections may only align near the
+        // viewport bottom, which is still a valid target position.
+        const stillAtTarget = rect && rect.bottom > 0 && (
+          rect.top <= threshold + 16 || (atDocumentEnd && rect.top < window.innerHeight)
+        );
+        if (stillAtTarget) return;
+        scrollTarget.current = null;
+      }
+      for (const section of sections) {
+        const node = document.getElementById(`section-${section}`);
+        if (node && node.getBoundingClientRect().top <= threshold) current = section;
+      }
+      const urlTab = new URLSearchParams(location.search).get("tab") || "题目";
+      if (current !== urlTab) {
+        if (current === "AI" && assistantPanel.current) assistantPanel.current.open = true;
+        const next = new URLSearchParams(location.search);
+        next.set("tab", current);
+        replaceCurrent(`${location.pathname}?${next}`, location.state as object);
+      }
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(sync);
+    };
+    window.addEventListener("wheel", markUserScroll, { passive: true });
+    window.addEventListener("touchmove", markUserScroll, { passive: true });
+    window.addEventListener("keydown", markKeyboardScroll);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", markUserScroll);
+      window.removeEventListener("touchmove", markUserScroll);
+      window.removeEventListener("keydown", markKeyboardScroll);
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+      if (scrollIntentTimer.current !== null) {
+        window.clearTimeout(scrollIntentTimer.current);
+        scrollIntentTimer.current = null;
+      }
+    };
+  }, [activeSlot?.id, location.pathname, location.search, location.state, replaceCurrent]);
   return (
     <div className="workpage">
       <div className="work-nav">
-        <BackLink
-          to={"/problems" + (state?.listSearch ? "?" + state.listSearch : "")}
-          onClick={() => sessionStorage.setItem("oj-return-library", "1")}
-        >
-          返回题库
-        </BackLink>
+        <BackLink />
         <div className="problem-switcher" aria-label="相邻题目">
           {index > 0 && (
             <Button asChild size="compact">
-              <Link to={`/problems/${state!.ids![index - 1]}`} state={state}>
+              <TaskLink to={`/problems/${state!.ids![index - 1]}`} state={state}>
                 <Icon name="chevronLeft" /> 上一题
-              </Link>
+              </TaskLink>
             </Button>
           )}
           {index >= 0 && index < (state?.ids?.length || 0) - 1 && (
             <Button asChild size="compact">
-              <Link to={`/problems/${state!.ids![index + 1]}`} state={state}>
+              <TaskLink to={`/problems/${state!.ids![index + 1]}`} state={state}>
                 下一题 <Icon name="chevronRight" />
-              </Link>
+              </TaskLink>
             </Button>
           )}
         </div>
@@ -270,13 +349,28 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
             onClick={async () => {
               try {
                 const draft = await createEditingDraft(p);
-                navigate("/authoring/drafts/" + draft.id);
+                navigateInSlot("/authoring/drafts/" + draft.id);
               } catch (e) {
                 setError(errorText(e));
               }
             }}
           >
             编辑题目
+          </Button>
+          <Button
+            variant="outline"
+            title="在新任务标签打开编辑页"
+            aria-label="在新任务标签打开编辑页"
+            onClick={async () => {
+              try {
+                const draft = await createEditingDraft(p);
+                openInNewSlot("/authoring/drafts/" + draft.id);
+              } catch (e) {
+                setError(errorText(e));
+              }
+            }}
+          >
+            <Icon name="newTab" /> 新任务标签
           </Button>
           {user.role === "admin" && (
             <Button
@@ -301,16 +395,15 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
         </div>
       </div>
       <nav className="section-nav" aria-label="做题快捷跳转">
-        {["题目", "代码", "结果", "AI"].map((t) => (
+        {sections.map((t) => (
           <Button
             key={t}
             variant={tab === t ? "default" : "ghost"}
             onClick={() => {
-              setParams(
-                { ...Object.fromEntries(params), tab: t },
-                { replace: true },
-              );
-              jump(t);
+              const next = new URLSearchParams(params);
+              next.set("tab", t);
+              replaceCurrent(`${location.pathname}?${next}`, location.state as object);
+              jump(t, true);
             }}
           >
             <Icon
@@ -440,6 +533,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
             {submission ? (
               <ResultPanel
                 id={submission}
+                taskLink
                 detailFrom={`/problems/${p.id}?${new URLSearchParams({
                   submission,
                   tab: "结果",
@@ -485,13 +579,13 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
                             {item.evaluation?.max_score ?? item.counts ?? "—"} 分
                           </span>
                           <Button asChild size="compact">
-                            <Link
+                            <TaskLink
                               to={`/submissions/${item.submission_id}?${new URLSearchParams({
                                 from: returnTo,
                               })}`}
                             >
                               查看详情 <Icon name="arrow" />
-                            </Link>
+                            </TaskLink>
                           </Button>
                         </article>
                       );

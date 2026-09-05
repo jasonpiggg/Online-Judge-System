@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { CaseResult, Evaluation, Submission, User } from "../types";
 import { BackLink } from "../components/BackLink";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { EvaluationView } from "../components/Evaluation";
 import { Icon } from "../components/Icon";
-import { useRegisterActivity } from "../components/Activity";
+import { useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
 
 type PublicLogResult = {
   details: CaseResult[];
@@ -14,13 +14,13 @@ type PublicLogResult = {
   counts: number | null;
 };
 
-export function PublicLog({ user }: { user: User }) {
+export function PublicLog({ user: _user }: { user: User }) {
   const { id = "" } = useParams();
-  const [params] = useSearchParams();
   const query = useQuery({
     queryKey: ["public-log", id],
     queryFn: () => api<PublicLogResult>(`/submissions/${id}/log`),
   });
+  useRecoverUnavailableTask(query.error);
   useRegisterActivity({ id: `submission:${id}`, kind: "submission", title: `日志 #${id}`, path: `/logs/submissions/${id}`, status: query.isPending ? "读取中" : query.error ? "不可查看" : "已加载" });
   const data = query.data;
   const counts = data?.details.reduce<Record<string, number>>((all, item) => {
@@ -60,14 +60,10 @@ export function PublicLog({ user }: { user: User }) {
     created_at: "",
     evaluation,
   };
-  const fallback = params.get("from") || (user.role === "admin" ? "/admin?tab=评测日志" : "/submissions");
-  const safeFallback = fallback.startsWith("/") && !fallback.startsWith("//") ? fallback : "/submissions";
   const unavailable = query.error instanceof ApiError ? query.error.status : 0;
   return (
     <div className="page public-log-page">
-      <BackLink to={safeFallback}>
-        返回上一步
-      </BackLink>
+      <BackLink />
       <div className="page-heading"><div><h1><Icon name="chart" />提交 #{id} 的评测日志</h1><p className="muted">课程评测日志只展示逐测试点结果、时间、内存与总分；编译、运行或任务错误请从有权限的提交详情查看。</p></div></div>
       {query.error ? (
         <>

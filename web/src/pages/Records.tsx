@@ -17,30 +17,14 @@ import { Pagination } from "../components/Pagination";
 import { BackLink } from "../components/BackLink";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { DisclosureCard } from "../components/DisclosureCard";
-import { useRegisterActivity } from "../components/Activity";
-
-export function submissionBackPath(
-  from: string,
-  submission: Submission | undefined,
-  isAdmin: boolean,
-) {
-  if (from.startsWith("/submissions?")) return from;
-  if (isAdmin && from.startsWith("/admin?")) return from;
-  if (submission && !submission.problem_deleted) {
-    const problemPath = `/problems/${submission.problem_id}`;
-    if (from === problemPath || from.startsWith(problemPath + "?")) return from;
-  }
-  return "/submissions";
-}
+import { NewTaskButton, TaskLink, useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
 
 export function Records({
   user,
   adminView = false,
-  logView = false,
 }: {
   user: User;
   adminView?: boolean;
-  logView?: boolean;
 }) {
   const location = useLocation();
   const [params, setParams] = useSearchParams();
@@ -83,12 +67,10 @@ export function Records({
         <div>
           <Heading>
             <Icon name="chart" />
-            {logView ? "评测日志" : isAdmin ? "全站提交" : "我的提交"}
+            {isAdmin ? "全站提交" : "我的提交"}
           </Heading>
           <p className="muted">
-            {logView
-              ? "浏览全站日志索引，按用户、题号、状态和结果筛选后查看逐测试点结果。"
-              : isAdmin
+            {isAdmin
               ? "查看用户代码、评测明细，或按用户与题号定位记录。"
               : "默认展示你的全部提交；可筛选后直接查看提交详情或评测日志。"}
           </p>
@@ -164,18 +146,18 @@ export function Records({
                   {data.submissions.map((s) => (
                     <tr key={s.submission_id}>
                       <td>
-                        <Link
+                        <TaskLink
                           to={`/submissions/${s.submission_id}?${new URLSearchParams({ from: returnTo })}`}
                         >
                           #{s.submission_id}
-                        </Link>
+                        </TaskLink>
                       </td>
                       <td>
-                        <Link
+                        <TaskLink
                           to={`/submissions/${s.submission_id}?${new URLSearchParams({ from: returnTo })}`}
                         >
                           <VerdictBadge submission={s} />
-                        </Link>
+                        </TaskLink>
                       </td>
                       {isAdmin && (
                         <td>
@@ -189,7 +171,7 @@ export function Records({
                         {s.problem_deleted ? (
                           <span>{s.problem_id} <small className="cell-note">题目已删除</small></span>
                         ) : (
-                          <Link to={`/problems/${s.problem_id}`}>{s.problem_id}</Link>
+                          <TaskLink to={`/problems/${s.problem_id}`}>{s.problem_id}</TaskLink>
                         )}
                       </td>
                       <td>
@@ -200,11 +182,11 @@ export function Records({
                       </td>
                       <td>
                         <Button asChild size="compact" variant="outline">
-                          <Link
+                          <TaskLink
                             to={`/logs/submissions/${s.submission_id}?${new URLSearchParams({ from: returnTo })}`}
                           >
                             查看日志
-                          </Link>
+                          </TaskLink>
                         </Button>
                       </td>
                     </tr>
@@ -242,8 +224,6 @@ export function Records({
 export function SubmissionPage({ user }: { user: User }) {
   const { id } = useParams();
   const location = useLocation();
-  const [params] = useSearchParams();
-  const from = params.get("from") || "";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const { data: s, error: loadError } = useQuery({
@@ -251,12 +231,7 @@ export function SubmissionPage({ user }: { user: User }) {
     queryFn: () => api<Submission>(`/submissions/${id}?include_metadata=true`),
     refetchInterval: (q) => (q.state.data?.status === "pending" ? 1000 : false),
   });
-  const back = submissionBackPath(from, s, user.role === "admin");
-  const backLabel = back.startsWith("/problems/")
-    ? "返回原题"
-    : back.startsWith("/admin?")
-      ? "返回管理提交"
-      : "返回提交列表";
+  useRecoverUnavailableTask(loadError);
   useRegisterActivity({
     id: `submission:${id}`,
     kind: "submission",
@@ -266,7 +241,7 @@ export function SubmissionPage({ user }: { user: User }) {
   });
   return (
     <div className="page">
-      <BackLink to={back}>{backLabel}</BackLink>
+      <BackLink />
       <h1>提交 #{id}</h1>
       {loadError && <ErrorNotice title="无法读取提交详情" message={loadError.message} />}
       {s && (
@@ -276,11 +251,17 @@ export function SubmissionPage({ user }: { user: User }) {
               <Icon name="chart" /> 提交详情
             </span>
             {!s.problem_deleted && (
-              <Button asChild>
-                <Link to={`/problems/${s.problem_id}?submission=${id}&tab=代码`}>
-                  返回题目继续修改
-                </Link>
-              </Button>
+              <>
+                <Button asChild>
+                  <TaskLink to={`/problems/${s.problem_id}?submission=${id}&tab=代码`}>
+                    继续修改题目
+                  </TaskLink>
+                </Button>
+                <NewTaskButton
+                  to={`/problems/${s.problem_id}?submission=${id}&tab=代码`}
+                  label="在新任务标签打开题目"
+                />
+              </>
             )}
           </div>
           <p className="muted">

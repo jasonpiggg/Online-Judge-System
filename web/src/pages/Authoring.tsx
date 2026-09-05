@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Link,
-  useNavigate,
   useParams,
   useSearchParams,
 } from "react-router-dom";
@@ -20,7 +19,7 @@ import { TaskProgress, terminal, useTask, type Task } from "../components/AI";
 import { BackLink } from "../components/BackLink";
 import { DiffView } from "../components/DiffView";
 import { ErrorNotice } from "../components/ErrorNotice";
-import { useActivity, useRegisterActivity } from "../components/Activity";
+import { NewTaskButton, TaskLink, useActivity, useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
 import { Pagination } from "../components/Pagination";
 import { useActionReveal } from "../components/useActionReveal";
 import { DisclosureCard } from "../components/DisclosureCard";
@@ -136,8 +135,7 @@ function clean(p: Problem): FormProblem {
   };
 }
 export function Authoring() {
-  const navigate = useNavigate();
-  const { remove: removeActivity } = useActivity();
+  const { remove: removeActivity, openRoot } = useActivity();
   const [searchParams, setSearchParams] = useSearchParams();
   const draftPage = Math.max(1, Number(searchParams.get("draft_page")) || 1);
   const taskPage = Math.max(1, Number(searchParams.get("task_page")) || 1);
@@ -197,7 +195,7 @@ export function Authoring() {
     setBusy(true);
     try {
       const d = await api<Draft>("/problem-drafts/", json("POST", {}));
-      navigate("/authoring/drafts/" + d.id);
+      openRoot("/authoring/drafts/" + d.id);
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -216,7 +214,7 @@ export function Authoring() {
         headers: { "Idempotency-Key": pending.current.key },
       });
       pending.current = undefined;
-      navigate("/authoring/tasks/" + r.task_id);
+      openRoot("/authoring/tasks/" + r.task_id);
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -281,7 +279,7 @@ export function Authoring() {
       <div className="draft-list">
         {drafts.data?.items.map((d) => (
             <div className="draft-row managed-row" key={d.id}>
-              <Link to={"/authoring/drafts/" + d.id}>
+              <TaskLink to={"/authoring/drafts/" + d.id}>
                 <strong>{d.problem?.title || "未命名题目"}</strong>
                 <span className="muted">
                 {
@@ -296,7 +294,7 @@ export function Authoring() {
                 }{" "}
                 · {d.status === "ready" ? (d.verification_level === "full" ? "完整验证" : "基础检查") + " · " : ""}版本 {d.revision}
                 </span>
-              </Link>
+              </TaskLink>
               <Button variant="ghost" disabled={busy} onClick={() => void archive("draft", d.id)}>归档</Button>
             </div>
           ))}
@@ -308,10 +306,10 @@ export function Authoring() {
       <h2>AI 任务</h2>
       {tasks.data?.items.map((t) => (
         <div className="draft-row managed-row" key={t.id}>
-          <Link to={"/authoring/tasks/" + t.id}>
+          <TaskLink to={"/authoring/tasks/" + t.id}>
             <span>{t.progress}</span>
             <span className="muted">{new Date(t.created_at).toLocaleString()}</span>
-          </Link>
+          </TaskLink>
           <Button variant="ghost" disabled={busy} onClick={() => void archive("task", t.id)}>归档</Button>
         </div>
       ))}
@@ -327,6 +325,7 @@ export function DraftPage({ user }: { user: User }) {
     queryFn: () => api<Draft>("/problem-drafts/" + id),
     refetchOnMount: "always",
   });
+  useRecoverUnavailableTask(error);
   return error ? (
     <p role="alert">{error.message}</p>
   ) : data ? (
@@ -336,9 +335,14 @@ export function DraftPage({ user }: { user: User }) {
   );
 }
 function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
-  const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
+  const { navigateInSlot, replaceCurrent } = useActivity();
+  const [params] = useSearchParams();
   const step = params.get("step") || "题面与样例";
+  const changeStep = (nextStep: string) => {
+    const next = new URLSearchParams(params);
+    next.set("step", nextStep);
+    replaceCurrent(`/authoring/drafts/${draft.id}?${next}`);
+  };
   const stepReveal = useActionReveal<HTMLFormElement>();
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
@@ -533,7 +537,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
         headers: { "Idempotency-Key": pending.current.key },
       });
       pending.current = undefined;
-      navigate("/authoring/tasks/" + t.task_id);
+      navigateInSlot("/authoring/tasks/" + t.task_id);
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -557,7 +561,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
         },
       );
       pending.current = undefined;
-      navigate("/authoring/tasks/" + task.task_id);
+      navigateInSlot("/authoring/tasks/" + task.task_id);
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -620,7 +624,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
   };
   return (
     <div className="page">
-      <BackLink to="/authoring">返回命题中心</BackLink>
+      <BackLink />
       <div className="row">
         <h1>{values.title || "创建题目"}</h1>
         <Button onClick={() => setPreview(!preview)}>
@@ -633,7 +637,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
             key={t}
             variant={step === t ? "default" : "ghost"}
             onClick={() => {
-              setParams({ step: t });
+              changeStep(t);
               stepReveal.reveal();
             }}
             aria-current={step === t ? "step" : undefined}
@@ -917,12 +921,12 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                     <li className="skipped">Markdown 与数学公式语法：运行后确认</li>
                     <li className="skipped">{reference.trim() ? "待运行参考解的全部样例和测试" : "未提供参考解，将跳过自动输出核对"}</li>
                   </ul>
-                  {!schemaValid && <Button type="button" onClick={() => { setParams({ step: "题面与样例" }); stepReveal.reveal(); }}>补全题目字段</Button>}
+                  {!schemaValid && <Button type="button" onClick={() => { changeStep("题面与样例"); stepReveal.reveal(); }}>补全题目字段</Button>}
                 </section>
                 <section>
                   <span className="eyebrow"><Icon name="shield" /> 完整验证</span>
                   <h3>AI 命题质量资产</h3>
-                  {fullIssues.length ? <><p className="muted">还缺少：{fullIssues.join("、")}</p><Button type="button" onClick={() => { setParams({ step: "测试与解法" }); stepReveal.reveal(); }}>前往补充验证资产</Button></> : <p className="status-good">完整验证所需内容已填写。</p>}
+                  {fullIssues.length ? <><p className="muted">还缺少：{fullIssues.join("、")}</p><Button type="button" onClick={() => { changeStep("测试与解法"); stepReveal.reveal(); }}>前往补充验证资产</Button></> : <p className="status-good">完整验证所需内容已填写。</p>}
                 </section>
               </div>
               {draft.verification_summary && <VerificationReport report={draft.verification_summary} />}
@@ -940,7 +944,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                       `/problem-drafts/${draft.id}/publish`,
                       json("POST"),
                     );
-                    navigate("/problems/" + result.id);
+                    navigateInSlot("/problems/" + result.id);
                   } catch (e) {
                     setError(errorText(e));
                   } finally {
@@ -1153,23 +1157,24 @@ export function authoringTaskOrigin(
       path: `/authoring/drafts/${task.source_draft_id}${
         checkStep ? "?step=检查与发布" : ""
       }`,
-      label: "返回原草稿",
+      source: "draft" as const,
       draftId: task.source_draft_id,
     };
   }
   if (task.problem_id)
     return {
       path: `/problems/${task.problem_id}`,
-      label: "返回原题",
+      source: "problem" as const,
       draftId: undefined,
     };
-  return { path: "/authoring", label: "返回命题中心", draftId: undefined };
+  return { path: "/authoring", source: "authoring" as const, draftId: undefined };
 }
 
 export function AuthoringTask() {
   const { id } = useParams();
   const { data: t, error, disconnected } = useTask(id);
-  const navigate = useNavigate();
+  useRecoverUnavailableTask(error);
+  const { navigateInSlot } = useActivity();
   const [actionError, setActionError] = useState(""),
     [busy, setBusy] = useState(false);
   useRegisterActivity(t ? {
@@ -1190,7 +1195,7 @@ export function AuthoringTask() {
     try {
       const recovered = await api<{ draft_id: string }>(`/ai/problem-tasks/${t.task_id}/save-draft`, json("POST"));
       await queryClient.invalidateQueries({ queryKey: ["task", t.task_id] });
-      navigate(`/authoring/drafts/${recovered.draft_id}`);
+      navigateInSlot(`/authoring/drafts/${recovered.draft_id}`);
     } catch (e) {
       setActionError(errorText(e));
     } finally {
@@ -1231,7 +1236,7 @@ export function AuthoringTask() {
         }),
       );
       queryClient.setQueryData(["draft", targetDraftId], updated);
-      navigate(
+      navigateInSlot(
         `/authoring/drafts/${targetDraftId}${
           isReviewPatch ? "?step=检查与发布" : ""
         }`,
@@ -1244,7 +1249,7 @@ export function AuthoringTask() {
   };
   return (
     <div className="page">
-      <BackLink to={taskOrigin.path}>{taskOrigin.label}</BackLink>
+      <BackLink />
       <h1>
         <Icon name={t.action === "verify" ? "check" : "spark"} />
         {t.action === "verify" ? "草稿本地验证" : "AI 命题"}
@@ -1263,9 +1268,9 @@ export function AuthoringTask() {
         t.draft_id &&
         (result?.verification?.publishable || result?.verification?.quality_gate_passed) && (
           <Button variant="default" asChild>
-            <Link to={"/authoring/drafts/" + t.draft_id + "?step=检查与发布"}>
+            <TaskLink to={"/authoring/drafts/" + t.draft_id + "?step=检查与发布"}>
               打开已验证草稿
-            </Link>
+            </TaskLink>
           </Button>
         )}
       {result?.kind === "verification" && result.verification && (
@@ -1368,12 +1373,15 @@ export function AuthoringTask() {
         <div className="notice">
           <p>{t.action === "verify" ? "本地验证未完成。请返回草稿查看并修正检查项，再选择基础检查或完整验证；本地检查不调用模型。" : "已保留当前成果。重新生成会创建新任务并产生费用。"}</p>
           {t.action === "verify" ? (
-            <Button asChild><Link to={taskOrigin.path}>{taskOrigin.label === "返回原草稿" ? "返回草稿修正并检查" : taskOrigin.label}</Link></Button>
+            <Button asChild><TaskLink to={taskOrigin.path}>{taskOrigin.source === "draft" ? "继续修正并检查草稿" : "打开来源页面"}</TaskLink></Button>
           ) : (
           <div className="action-group">
-            {taskOrigin.path !== "/authoring" && <Button asChild><Link to={taskOrigin.path}>{taskOrigin.label}</Link></Button>}
+            {taskOrigin.path !== "/authoring" && <>
+              <Button asChild><TaskLink to={taskOrigin.path}>打开来源页面</TaskLink></Button>
+              <NewTaskButton to={taskOrigin.path} label="在新任务标签打开来源页面" />
+            </>}
             {t.recovery_draft_id ? (
-              <Button variant="default" asChild><Link to={`/authoring/drafts/${t.recovery_draft_id}`}>打开恢复草稿</Link></Button>
+              <Button variant="default" asChild><TaskLink to={`/authoring/drafts/${t.recovery_draft_id}`}>打开恢复草稿</TaskLink></Button>
             ) : (
               <Button variant="default" disabled={busy} onClick={() => void saveRecoveryDraft()}>将当前成果另存为草稿</Button>
             )}
@@ -1393,7 +1401,7 @@ export function AuthoringTask() {
                   }),
                   headers: { "Idempotency-Key": crypto.randomUUID() },
                 });
-                navigate("/authoring/tasks/" + r.task_id);
+                navigateInSlot("/authoring/tasks/" + r.task_id);
               } catch (e) {
                 setActionError(errorText(e));
               } finally {
