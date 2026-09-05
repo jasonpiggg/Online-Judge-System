@@ -5,6 +5,7 @@ import contextlib
 import os
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -20,6 +21,17 @@ from oj.schemas import Language, Problem, TestCase
 MAX_OUTPUT_BYTES = 1_000_000
 MAX_PROCESS_COUNT = 32
 COMPILE_TIMEOUT_SECONDS = 30
+JUDGE_ENV = {
+    # Resolve Python from the same managed environment as the server so course
+    # scientific packages are available without accepting arbitrary executables.
+    "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""),
+    "LANG": "C.UTF-8",
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1",
+}
 
 
 @dataclass(frozen=True)
@@ -180,7 +192,7 @@ async def _run_case(
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env={"PATH": os.environ.get("PATH", ""), "LANG": "C.UTF-8"},
+        env=JUDGE_ENV,
         cwd=directory,
         **_process_options(memory_limit),
     )
@@ -243,7 +255,7 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
                     *argv,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
-                    env={"PATH": os.environ.get("PATH", ""), "LANG": "C.UTF-8"},
+                    env=JUDGE_ENV,
                     cwd=directory,
                     **_process_options(512),
                 )

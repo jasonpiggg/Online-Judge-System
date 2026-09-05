@@ -36,9 +36,11 @@ export function submissionBackPath(
 export function Records({
   user,
   adminView = false,
+  logView = false,
 }: {
   user: User;
   adminView?: boolean;
+  logView?: boolean;
 }) {
   const location = useLocation();
   const [params, setParams] = useSearchParams();
@@ -81,12 +83,14 @@ export function Records({
         <div>
           <Heading>
             <Icon name="chart" />
-            {isAdmin ? "全站提交" : "我的提交"}
+            {logView ? "评测日志" : isAdmin ? "全站提交" : "我的提交"}
           </Heading>
           <p className="muted">
-            {isAdmin
+            {logView
+              ? "浏览全站日志索引，按用户、题号、状态和结果筛选后查看逐测试点结果。"
+              : isAdmin
               ? "查看用户代码、评测明细，或按用户与题号定位记录。"
-              : "每一次尝试，都离答案更近一步。"}
+              : "默认展示你的全部提交；可筛选后直接查看提交详情或评测日志。"}
           </p>
         </div>
         {!adminView && user.role === "admin" && (
@@ -153,6 +157,7 @@ export function Records({
                     <th>题号</th>
                     <th>语言</th>
                     <th>提交时间</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -192,6 +197,15 @@ export function Records({
                       </td>
                       <td className="time-cell">
                         {new Date(s.created_at).toLocaleString()}
+                      </td>
+                      <td>
+                        <Button asChild size="compact" variant="outline">
+                          <Link
+                            to={`/logs/submissions/${s.submission_id}?${new URLSearchParams({ from: returnTo })}`}
+                          >
+                            查看日志
+                          </Link>
+                        </Button>
                       </td>
                     </tr>
                   ))}

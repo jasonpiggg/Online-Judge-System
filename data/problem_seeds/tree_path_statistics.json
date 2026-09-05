@@ -1,0 +1,51 @@
+{
+  "id": "tree_path_statistics",
+  "title": "树上路径统计",
+  "description": "给定一棵树和多条路径，按输入边顺序统计每条边被多少条路径经过。",
+  "input_description": "第一行 n q，随后 n-1 行边，再 q 行路径端点。",
+  "output_description": "输出 n-1 个边使用次数。",
+  "samples": [
+    {
+      "input": "2 2\n1 2\n1 2\n2 1\n",
+      "output": "2\n"
+    },
+    {
+      "input": "3 2\n1 2\n2 3\n1 3\n1 2\n",
+      "output": "2 1\n"
+    }
+  ],
+  "constraints": "2 ≤ n,q ≤ 200000。",
+  "testcases": [
+    {
+      "input": "2 2\n1 2\n1 2\n2 1\n",
+      "output": "2\n"
+    },
+    {
+      "input": "3 2\n1 2\n2 3\n1 3\n1 2\n",
+      "output": "2 1\n"
+    },
+    {
+      "input": "4 2\n1 2\n1 3\n1 4\n2 3\n3 4\n",
+      "output": "1 2 1\n"
+    },
+    {
+      "input": "5 3\n1 2\n2 3\n3 4\n4 5\n1 5\n2 4\n3 3\n",
+      "output": "1 2 2 1\n"
+    },
+    {
+      "input": "4 1\n1 2\n2 3\n3 4\n4 4\n",
+      "output": "0 0 0\n"
+    }
+  ],
+  "hint": "对路径端点做树上差分，再自底向上累加。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "树",
+    "差分"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "困难",
+  "public_cases": false
+}

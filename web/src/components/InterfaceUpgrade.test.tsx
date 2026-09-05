@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
-import { ActivityBar, ActivityProvider, upsertActivity, useRegisterActivity } from "./Activity";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import { ActivityBar, ActivityProvider, routeIdentity, upsertActivity, useRegisterActivity } from "./Activity";
 import { BackLink } from "./BackLink";
 import { DiffView } from "./DiffView";
 import { ErrorNotice } from "./ErrorNotice";
@@ -13,7 +13,10 @@ import { DisclosureCard } from "./DisclosureCard";
 import { Button } from "./ui/button";
 
 afterEach(cleanup);
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  sessionStorage.clear();
+});
 
 function RegisteredTask({ unsafe = false }: { unsafe?: boolean }) {
   useRegisterActivity({
@@ -59,6 +62,43 @@ describe("activity task tabs", () => {
     render(<MemoryRouter><ActivityProvider userId="7"><ActivityBar /></ActivityProvider></MemoryRouter>);
     expect(screen.queryByLabelText("进行中的任务")).not.toBeInTheDocument();
   });
+
+  it("normalizes transient query parameters and preserves protected tasks at the cap", () => {
+    expect(routeIdentity("/problems/p1?from=%2Fsubmissions&tab=代码")).toBe("/problems/p1");
+    const entries = Array.from({ length: 20 }, (_, index) => ({
+      id: `problem:${index}`,
+      kind: "problem" as const,
+      title: `P${index}`,
+      path: `/problems/${index}`,
+      touchedAt: index,
+      unsafeToClose: index === 19,
+    }));
+    const updated = upsertActivity(
+      entries,
+      { id: "problem:new", kind: "problem", title: "New", path: "/problems/new" },
+      "/problems/18?tab=代码",
+    );
+    expect(updated).toHaveLength(20);
+    expect(updated.some((entry) => entry.id === "problem:19")).toBe(true);
+    expect(updated.some((entry) => entry.id === "problem:18")).toBe(true);
+    expect(updated.some((entry) => entry.id === "problem:17")).toBe(false);
+  });
+
+  it("promotes the current overflow task into the visible active tabs", () => {
+    localStorage.setItem("oj-activities-7", JSON.stringify(Array.from({ length: 8 }, (_, index) => ({
+      id: `problem:${index}`,
+      kind: "problem",
+      title: `P${index}`,
+      path: `/problems/${index}?tab=代码`,
+      touchedAt: index,
+    }))));
+    const { container } = render(
+      <MemoryRouter initialEntries={["/problems/7?submission=2"]}>
+        <ActivityProvider userId="7"><ActivityBar /></ActivityProvider>
+      </MemoryRouter>,
+    );
+    expect(container.querySelector(".activity-tab.active")?.textContent).toContain("P7");
+  });
 });
 
 it("renders field differences in split and unified layouts", () => {
@@ -73,6 +113,23 @@ it("uses polished back navigation and actionable errors", () => {
   render(<MemoryRouter><BackLink to="/problems">返回题库</BackLink><ErrorNotice message="permission denied" /></MemoryRouter>);
   expect(screen.getByRole("link", { name: "返回题库" })).toHaveClass("back-link");
   expect(screen.getByText(/联系管理员/)).toBeInTheDocument();
+});
+
+function CurrentPath() {
+  return <output aria-label="current-path">{useLocation().pathname}</output>;
+}
+
+it("uses application history before the safe back fallback", () => {
+  sessionStorage.setItem("oj-navigation-user", "7");
+  sessionStorage.setItem("oj-navigation-start-index", "1");
+  window.history.replaceState({ idx: 2 }, "");
+  render(
+    <MemoryRouter initialEntries={["/origin", "/detail"]} initialIndex={1}>
+      <BackLink to="/fallback">返回上一步</BackLink><CurrentPath />
+    </MemoryRouter>,
+  );
+  fireEvent.click(screen.getByRole("link", { name: "返回上一步" }));
+  expect(screen.getByLabelText("current-path")).toHaveTextContent("/origin");
 });
 
 it("wraps disclosure content and keeps link and native buttons on shared sizes", () => {

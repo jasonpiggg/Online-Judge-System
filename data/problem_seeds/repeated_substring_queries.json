@@ -1,0 +1,51 @@
+{
+  "id": "repeated_substring_queries",
+  "title": "重复子串查询",
+  "description": "对每个 k，求至少出现 k 次的最长子串长度，出现可重叠。",
+  "input_description": "第一行小写字符串，第二行 q，随后 q 行 k。",
+  "output_description": "每个询问输出最大长度；不存在输出 0。",
+  "samples": [
+    {
+      "input": "aaaa\n3\n2\n3\n4\n",
+      "output": "3\n2\n1\n"
+    },
+    {
+      "input": "banana\n2\n2\n3\n",
+      "output": "3\n1\n"
+    }
+  ],
+  "constraints": "字符串长度和 q 均不超过 200000，2 ≤ k。",
+  "testcases": [
+    {
+      "input": "aaaa\n3\n2\n3\n4\n",
+      "output": "3\n2\n1\n"
+    },
+    {
+      "input": "banana\n2\n2\n3\n",
+      "output": "3\n1\n"
+    },
+    {
+      "input": "abc\n2\n2\n4\n",
+      "output": "0\n0\n"
+    },
+    {
+      "input": "abababa\n2\n2\n3\n",
+      "output": "5\n3\n"
+    },
+    {
+      "input": "mississippi\n3\n2\n3\n5\n",
+      "output": "4\n1\n0\n"
+    }
+  ],
+  "hint": "后缀数组的 LCP 区间可转化为离线查询。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "后缀数组",
+    "字符串"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "挑战",
+  "public_cases": false
+}

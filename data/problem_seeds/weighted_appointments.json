@@ -1,0 +1,51 @@
+{
+  "id": "weighted_appointments",
+  "title": "带权预约",
+  "description": "每个半开预约区间 [s,e) 有收益，选择互不重叠的预约使总收益最大。",
+  "input_description": "第一行 n，随后 n 行 s e value。",
+  "output_description": "输出最大总收益。",
+  "samples": [
+    {
+      "input": "1\n0 1 5\n",
+      "output": "5\n"
+    },
+    {
+      "input": "3\n1 3 5\n3 5 6\n2 4 20\n",
+      "output": "20\n"
+    }
+  ],
+  "constraints": "1 ≤ n ≤ 200000，0 ≤ s < e ≤ 10^9。",
+  "testcases": [
+    {
+      "input": "1\n0 1 5\n",
+      "output": "5\n"
+    },
+    {
+      "input": "3\n1 3 5\n3 5 6\n2 4 20\n",
+      "output": "20\n"
+    },
+    {
+      "input": "4\n1 2 3\n2 3 4\n3 4 5\n1 4 20\n",
+      "output": "20\n"
+    },
+    {
+      "input": "3\n0 10 1\n0 5 10\n5 10 10\n",
+      "output": "20\n"
+    },
+    {
+      "input": "5\n1 2 2\n2 5 8\n1 4 7\n5 6 3\n4 6 9\n",
+      "output": "16\n"
+    }
+  ],
+  "hint": "按结束时间排序，并二分最后一个相容区间。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "动态规划",
+    "二分"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "困难",
+  "public_cases": false
+}

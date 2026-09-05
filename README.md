@@ -108,6 +108,8 @@ Linux 使用 `scripts/run.sh --legacy` 可启动兼容界面。
 再在 `web/` 执行 `npm run dev`，打开 `http://127.0.0.1:5173`；Vite 代理 `/api`。
 新版使用浏览器 Session Cookie，旧版会话无需迁移。页面与 AI 验收记录见
 [新版前端与 AI 工作流](docs/web-ai-experience.md)。
+两套 100 分钟期末练习的题目顺序、允许 API 与作答建议见
+[期末模拟卷说明](docs/final-mock-exams.md)。
 
 初始管理员：
 

@@ -1,0 +1,51 @@
+{
+  "id": "word_frequency_winner",
+  "title": "词频冠军",
+  "description": "找出出现次数最多的单词；次数相同时输出字典序最小者。",
+  "input_description": "一行由小写单词和空格组成的文本。",
+  "output_description": "输出单词及出现次数。",
+  "samples": [
+    {
+      "input": "a\n",
+      "output": "a 1\n"
+    },
+    {
+      "input": "cat dog cat\n",
+      "output": "cat 2\n"
+    }
+  ],
+  "constraints": "单词总数 1..100000。",
+  "testcases": [
+    {
+      "input": "a\n",
+      "output": "a 1\n"
+    },
+    {
+      "input": "cat dog cat\n",
+      "output": "cat 2\n"
+    },
+    {
+      "input": "b a b a\n",
+      "output": "a 2\n"
+    },
+    {
+      "input": "red blue green red blue red\n",
+      "output": "red 3\n"
+    },
+    {
+      "input": "z y x\n",
+      "output": "x 1\n"
+    }
+  ],
+  "hint": "计数后按次数降序、单词升序比较。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "哈希表",
+    "字符串"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "简单",
+  "public_cases": false
+}

@@ -1,0 +1,51 @@
+{
+  "id": "multi_pattern_matching",
+  "title": "多模式匹配",
+  "description": "统计每个模式串在文本中出现的次数，允许重叠。",
+  "input_description": "第一行小写文本，第二行 k，随后 k 行模式串。",
+  "output_description": "按输入顺序输出每个模式的出现次数。",
+  "samples": [
+    {
+      "input": "aaaa\n2\na\naa\n",
+      "output": "4\n3\n"
+    },
+    {
+      "input": "abcabc\n3\nabc\nbc\nc\n",
+      "output": "2\n2\n2\n"
+    }
+  ],
+  "constraints": "文本和模式总长度不超过 500000。",
+  "testcases": [
+    {
+      "input": "aaaa\n2\na\naa\n",
+      "output": "4\n3\n"
+    },
+    {
+      "input": "abcabc\n3\nabc\nbc\nc\n",
+      "output": "2\n2\n2\n"
+    },
+    {
+      "input": "xyz\n2\na\nxyz\n",
+      "output": "0\n1\n"
+    },
+    {
+      "input": "abababa\n3\naba\nbab\nab\n",
+      "output": "3\n2\n3\n"
+    },
+    {
+      "input": "mississippi\n4\nissi\nss\ni\nppi\n",
+      "output": "2\n2\n4\n1\n"
+    }
+  ],
+  "hint": "构建 AC 自动机并沿 fail 树汇总出现次数。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "AC 自动机",
+    "字符串"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "困难",
+  "public_cases": false
+}

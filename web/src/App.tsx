@@ -8,7 +8,7 @@ import {
   Routes,
   useLocation,
 } from "react-router-dom";
-import { api, json, errorText, queryClient, setApiUser } from "./api";
+import { api, ApiError, json, errorText, queryClient, setApiUser } from "./api";
 import type { User } from "./types";
 import { Library } from "./pages/Library";
 import { Button } from "./components/ui/button";
@@ -21,22 +21,31 @@ import "./style.css";
 import { Icon } from "./components/Icon";
 import { ActivityBar, ActivityProvider } from "./components/Activity";
 import { PublicLog } from "./pages/PublicLog";
+import { useNavigationBoundary } from "./components/BackLink";
 const Workspace = lazy(() =>
   import("./pages/Workspace").then((m) => ({ default: m.Workspace })),
 );
-function Login() {
+export function Login() {
   const loginTab = useRef<HTMLButtonElement>(null);
   const registerTab = useRef<HTMLButtonElement>(null);
+  const usernameInput = useRef<HTMLInputElement>(null);
+  const passwordInput = useRef<HTMLInputElement>(null);
   const [register, setRegister] = useState(false),
     [error, setError] = useState(""),
+    [errorId, setErrorId] = useState(""),
     [busy, setBusy] = useState(false),
     [password, setPassword] = useState(""),
     [confirmation, setConfirmation] = useState(""),
     [showPassword, setShowPassword] = useState(false);
+  useEffect(() => {
+    if (errorId === "user_not_found") usernameInput.current?.focus();
+    else if (errorId) passwordInput.current?.focus();
+  }, [errorId]);
   const changeMode = (next: boolean) => {
     if (busy || next === register) return;
     setRegister(next);
     setError("");
+    setErrorId("");
     setPassword("");
     setConfirmation("");
     setShowPassword(false);
@@ -95,6 +104,7 @@ function Login() {
           if (busy) return;
           setBusy(true);
           setError("");
+          setErrorId("");
           const data = new FormData(e.currentTarget);
           const body = {
             username: data.get("username"),
@@ -114,6 +124,10 @@ function Login() {
             await queryClient.invalidateQueries({ queryKey: ["me"] });
           } catch (e) {
             setError(errorText(e));
+            setErrorId(e instanceof ApiError ? e.details?.id || "" : "");
+            if (!register) {
+              setPassword("");
+            }
           } finally {
             setBusy(false);
           }
@@ -122,22 +136,42 @@ function Login() {
         <label>
           用户名
           <input
+            ref={usernameInput}
             name="username"
+            aria-label="用户名"
+            aria-invalid={errorId === "user_not_found" || undefined}
+            aria-describedby={errorId === "user_not_found" ? "username-error" : undefined}
             autoComplete="username"
             minLength={register ? 3 : undefined}
             required
             disabled={busy}
+            onChange={() => {
+              if (errorId === "user_not_found") {
+                setError("");
+                setErrorId("");
+              }
+            }}
           />
+          {errorId === "user_not_found" && <small id="username-error" className="field-error">没有找到这个用户，请检查拼写。</small>}
         </label>
         <label>
           密码
           <span className="password-field">
             <input
+              ref={passwordInput}
               aria-label="密码"
+              aria-invalid={errorId === "incorrect_password" || undefined}
+              aria-describedby={errorId === "incorrect_password" ? "password-error" : undefined}
               type={showPassword ? "text" : "password"}
               name="password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                if (errorId === "incorrect_password") {
+                  setError("");
+                  setErrorId("");
+                }
+              }}
               autoComplete={register ? "new-password" : "current-password"}
               required
               minLength={register ? 6 : undefined}
@@ -154,6 +188,7 @@ function Login() {
               {showPassword ? "隐藏" : "显示"}
             </button>
           </span>
+          {errorId === "incorrect_password" && <small id="password-error" className="field-error">密码不正确，请重新输入。</small>}
         </label>
         {register && (
           <label>
@@ -186,6 +221,7 @@ export default function App() {
     queryFn: () => api<User>("/auth/me"),
   });
   const location = useLocation();
+  useNavigationBoundary(me.data ? String(me.data.user_id) : undefined);
   useEffect(() => {
     const expired = () => {
       setApiUser();

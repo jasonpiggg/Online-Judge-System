@@ -1,0 +1,51 @@
+{
+  "id": "coin_change",
+  "title": "零钱换算",
+  "description": "把给定的整数金额按 100、50、20、10、5、1 六种面额贪心换算。",
+  "input_description": "一行一个整数金额。",
+  "output_description": "依次输出六种面额的张数。",
+  "samples": [
+    {
+      "input": "0\n",
+      "output": "0 0 0 0 0 0\n"
+    },
+    {
+      "input": "1\n",
+      "output": "0 0 0 0 0 1\n"
+    }
+  ],
+  "constraints": "0 ≤ 金额 ≤ 10^9。",
+  "testcases": [
+    {
+      "input": "0\n",
+      "output": "0 0 0 0 0 0\n"
+    },
+    {
+      "input": "1\n",
+      "output": "0 0 0 0 0 1\n"
+    },
+    {
+      "input": "76\n",
+      "output": "0 1 1 0 1 1\n"
+    },
+    {
+      "input": "186\n",
+      "output": "1 1 1 1 1 1\n"
+    },
+    {
+      "input": "999\n",
+      "output": "9 1 2 0 1 4\n"
+    }
+  ],
+  "hint": "从最大面额开始整除并取余。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "模拟",
+    "算术"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "入门",
+  "public_cases": false
+}

@@ -1,0 +1,51 @@
+{
+  "id": "tree_chain_operations",
+  "title": "树链修改与查询",
+  "description": "维护树上节点权值，支持路径加法与路径求和。",
+  "input_description": "第一行 n q，第二行节点权值，随后 n-1 行边，再 q 行 ADD u v x 或 SUM u v。",
+  "output_description": "每个 SUM 输出一行。",
+  "samples": [
+    {
+      "input": "2 3\n1 2\n1 2\nSUM 1 2\nADD 1 2 3\nSUM 1 1\n",
+      "output": "3\n4\n"
+    },
+    {
+      "input": "3 2\n1 1 1\n1 2\n2 3\nADD 1 3 2\nSUM 1 3\n",
+      "output": "9\n"
+    }
+  ],
+  "constraints": "1 ≤ n,q ≤ 200000。",
+  "testcases": [
+    {
+      "input": "2 3\n1 2\n1 2\nSUM 1 2\nADD 1 2 3\nSUM 1 1\n",
+      "output": "3\n4\n"
+    },
+    {
+      "input": "3 2\n1 1 1\n1 2\n2 3\nADD 1 3 2\nSUM 1 3\n",
+      "output": "9\n"
+    },
+    {
+      "input": "4 3\n1 2 3 4\n1 2\n1 3\n1 4\nSUM 2 3\nADD 3 4 -1\nSUM 3 4\n",
+      "output": "6\n5\n"
+    },
+    {
+      "input": "1 2\n5\nSUM 1 1\nADD 1 1 10\n",
+      "output": "5\n"
+    },
+    {
+      "input": "5 3\n0 0 0 0 0\n1 2\n2 3\n3 4\n4 5\nADD 2 4 7\nSUM 1 5\nSUM 2 3\n",
+      "output": "21\n14\n"
+    }
+  ],
+  "hint": "重链剖分把路径拆成若干连续区间。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "重链剖分",
+    "线段树"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "挑战",
+  "public_cases": false
+}

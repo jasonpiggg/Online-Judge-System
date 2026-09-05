@@ -1,0 +1,72 @@
+{
+  "id": "mock_b_crawler_queue",
+  "title": "单线程爬虫队列",
+  "description": "模拟单线程爬虫。ADD 仅把从未入队且未访问的 URL 加入队尾；POP 访问队首或输出 EMPTY；STAT 输出待访问数和已访问数。",
+  "input_description": "第一行 q，随后为 ADD url、POP 或 STAT。",
+  "output_description": "依次输出 POP 与 STAT 的结果。",
+  "samples": [
+    {
+      "input": "5\nADD /a\nADD /b\nPOP\nSTAT\nADD /a\n\n",
+      "output": "/a\n1 1\n"
+    },
+    {
+      "input": "6\nADD /a\nADD /b\nPOP\nSTAT\nADD /a\nADD /x0\n",
+      "output": "/a\n1 1\n"
+    }
+  ],
+  "constraints": "1 ≤ q ≤ 200000，URL 不含空格。",
+  "testcases": [
+    {
+      "input": "5\nADD /a\nADD /b\nPOP\nSTAT\nADD /a\n\n",
+      "output": "/a\n1 1\n"
+    },
+    {
+      "input": "6\nADD /a\nADD /b\nPOP\nSTAT\nADD /a\nADD /x0\n",
+      "output": "/a\n1 1\n"
+    },
+    {
+      "input": "7\nADD /a\nADD /b\nPOP\nSTAT\nADD /a\nADD /x0\nPOP\n",
+      "output": "/a\n1 1\n/b\n"
+    },
+    {
+      "input": "8\nADD /a\nADD /b\nPOP\nSTAT\nADD /a\nADD /x0\nPOP\nADD /x2\n",
+      "output": "/a\n1 1\n/b\n"
+    },
+    {
+      "input": "9\nADD /a\nADD /b\nPOP\nSTAT\nADD /a\nADD /x0\nPOP\nADD /x2\nPOP\n",
+      "output": "/a\n1 1\n/b\n/x0\n"
+    },
+    {
+      "input": "10\nADD /a\nADD /b\nPOP\nSTAT\nADD /a\nADD /x0\nPOP\nADD /x2\nPOP\nADD /x4\n",
+      "output": "/a\n1 1\n/b\n/x0\n"
+    },
+    {
+      "input": "11\nADD /a\nADD /b\nPOP\nSTAT\nADD /a\nADD /x0\nPOP\nADD /x2\nPOP\nADD /x4\nPOP\n",
+      "output": "/a\n1 1\n/b\n/x0\n/x2\n"
+    },
+    {
+      "input": "12\nADD /a\nADD /b\nPOP\nSTAT\nADD /a\nADD /x0\nPOP\nADD /x2\nPOP\nADD /x4\nPOP\nADD /x6\n",
+      "output": "/a\n1 1\n/b\n/x0\n/x2\n"
+    },
+    {
+      "input": "13\nADD /a\nADD /b\nPOP\nSTAT\nADD /a\nADD /x0\nPOP\nADD /x2\nPOP\nADD /x4\nPOP\nADD /x6\nPOP\n",
+      "output": "/a\n1 1\n/b\n/x0\n/x2\n/x4\n"
+    },
+    {
+      "input": "14\nADD /a\nADD /b\nPOP\nSTAT\nADD /a\nADD /x0\nPOP\nADD /x2\nPOP\nADD /x4\nPOP\nADD /x6\nPOP\nADD /x8\n",
+      "output": "/a\n1 1\n/b\n/x0\n/x2\n/x4\n"
+    }
+  ],
+  "hint": "同时维护队列、queued 集合和 visited 集合。",
+  "source": "程序设计训练期末模拟卷 B",
+  "tags": [
+    "模拟卷B",
+    "大模拟",
+    "队列"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "",
+  "public_cases": false
+}

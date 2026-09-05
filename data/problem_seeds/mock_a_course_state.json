@@ -1,0 +1,72 @@
+{
+  "id": "mock_a_course_state",
+  "title": "选课系统状态机",
+  "description": "维护当前选课集合。ADD 重复课程和 DROP 不存在课程均为幂等操作；HAS 查询是否存在；LIST 按字典序列出全部课程。",
+  "input_description": "第一行操作数 q，随后为 ADD id、DROP id、HAS id 或 LIST。",
+  "output_description": "依次输出 HAS 和 LIST 的结果；空列表输出 EMPTY。",
+  "samples": [
+    {
+      "input": "4\nADD c1\nHAS c1\nDROP c1\nLIST\n\n",
+      "output": "YES\nEMPTY\n"
+    },
+    {
+      "input": "5\nADD c1\nHAS c1\nDROP c1\nLIST\nADD c2\n",
+      "output": "YES\nEMPTY\n"
+    }
+  ],
+  "constraints": "1 ≤ q ≤ 200000。",
+  "testcases": [
+    {
+      "input": "4\nADD c1\nHAS c1\nDROP c1\nLIST\n\n",
+      "output": "YES\nEMPTY\n"
+    },
+    {
+      "input": "5\nADD c1\nHAS c1\nDROP c1\nLIST\nADD c2\n",
+      "output": "YES\nEMPTY\n"
+    },
+    {
+      "input": "6\nADD c1\nHAS c1\nDROP c1\nLIST\nADD c2\nHAS c2\n",
+      "output": "YES\nEMPTY\nYES\n"
+    },
+    {
+      "input": "7\nADD c1\nHAS c1\nDROP c1\nLIST\nADD c2\nHAS c2\nADD c2\n",
+      "output": "YES\nEMPTY\nYES\n"
+    },
+    {
+      "input": "8\nADD c1\nHAS c1\nDROP c1\nLIST\nADD c2\nHAS c2\nADD c2\nHAS c2\n",
+      "output": "YES\nEMPTY\nYES\nYES\n"
+    },
+    {
+      "input": "9\nADD c1\nHAS c1\nDROP c1\nLIST\nADD c2\nHAS c2\nADD c2\nHAS c2\nADD c2\n",
+      "output": "YES\nEMPTY\nYES\nYES\n"
+    },
+    {
+      "input": "10\nADD c1\nHAS c1\nDROP c1\nLIST\nADD c2\nHAS c2\nADD c2\nHAS c2\nADD c2\nHAS c2\n",
+      "output": "YES\nEMPTY\nYES\nYES\nYES\n"
+    },
+    {
+      "input": "11\nADD c1\nHAS c1\nDROP c1\nLIST\nADD c2\nHAS c2\nADD c2\nHAS c2\nADD c2\nHAS c2\nADD c2\n",
+      "output": "YES\nEMPTY\nYES\nYES\nYES\n"
+    },
+    {
+      "input": "12\nADD c1\nHAS c1\nDROP c1\nLIST\nADD c2\nHAS c2\nADD c2\nHAS c2\nADD c2\nHAS c2\nADD c2\nHAS c2\n",
+      "output": "YES\nEMPTY\nYES\nYES\nYES\nYES\n"
+    },
+    {
+      "input": "13\nADD c1\nHAS c1\nDROP c1\nLIST\nADD c2\nHAS c2\nADD c2\nHAS c2\nADD c2\nHAS c2\nADD c2\nHAS c2\nADD c2\n",
+      "output": "YES\nEMPTY\nYES\nYES\nYES\nYES\n"
+    }
+  ],
+  "hint": "用集合保存状态，仅在 LIST 时排序。",
+  "source": "程序设计训练期末模拟卷 A",
+  "tags": [
+    "模拟卷A",
+    "大模拟",
+    "状态机"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "",
+  "public_cases": false
+}

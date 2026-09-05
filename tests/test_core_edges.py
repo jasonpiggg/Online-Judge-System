@@ -62,10 +62,9 @@ def test_language_requires_operands(run: str, compile: str | None) -> None:
         validate_language(Language(name="py", file_ext=".py", run_cmd=run, compile_cmd=compile))
 
 
-def test_missing_python_uses_current_interpreter(monkeypatch: Any) -> None:
+def test_python_uses_current_managed_interpreter() -> None:
     import sys
 
-    monkeypatch.setattr("oj.languages.shutil.which", lambda _: None)
     assert command_argv("python {src}", src="a.py", exe="a")[0] == sys.executable
 
 

@@ -21,7 +21,11 @@ class StrictModel(BaseModel):
 
 
 class Credentials(StrictModel):
-    username: str = Field(min_length=3, max_length=40)
+    username: str = Field(
+        min_length=3,
+        max_length=40,
+        pattern=r"^[^\s\x00-\x1f\x7f]+$",
+    )
     password: str = Field(min_length=6, max_length=200)
 
 

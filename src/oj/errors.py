@@ -21,9 +21,22 @@ def response(code: int = 200, msg: str = "success", data: Any = None) -> JSONRes
 
 
 class APIError(Exception):
-    def __init__(self, code: int, msg: str) -> None:
+    def __init__(
+        self,
+        code: int,
+        msg: str,
+        *,
+        error_id: str | None = None,
+        title: str | None = None,
+        suggestion: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         self.code = code
         self.msg = msg
+        self.error_id = error_id
+        self.title = title
+        self.suggestion = suggestion
+        self.headers = headers or {}
         super().__init__(msg)
 
 
@@ -75,9 +88,17 @@ def _error_details(code: int, msg: str) -> dict[str, Any]:
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(APIError)
     async def api_error_handler(_request: Request, exc: APIError) -> JSONResponse:
+        details = _error_details(exc.code, exc.msg)
+        if exc.error_id:
+            details["id"] = exc.error_id
+        if exc.title:
+            details["title"] = exc.title
+        if exc.suggestion:
+            details["suggestion"] = exc.suggestion
         return JSONResponse(
             status_code=exc.code,
-            content=payload(exc.code, exc.msg, error=_error_details(exc.code, exc.msg)),
+            content=payload(exc.code, exc.msg, error=details),
+            headers=exc.headers,
         )
 
     @app.exception_handler(RequestValidationError)
@@ -89,6 +110,7 @@ def install_error_handlers(app: FastAPI) -> None:
             for item in exc.errors()
         ]
         details = _error_details(400, "invalid request parameters")
+        details["id"] = "validation_error"
         details["fields"] = fields
         return JSONResponse(
             status_code=400,

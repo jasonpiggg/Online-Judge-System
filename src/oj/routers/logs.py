@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime
-from typing import cast
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
@@ -11,17 +9,6 @@ from oj.auth import CurrentUser, get_current_user, require_admin
 from oj.errors import APIError, response
 
 router = APIRouter(prefix="/api")
-
-
-def _decode_raw_log(value: str | None) -> object | None:
-    if not value:
-        return None
-    try:
-        return cast(object, json.loads(value))
-    except json.JSONDecodeError:
-        # Preserve readable legacy diagnostics without turning an authorized log lookup into a 500.
-        return value
-
 
 @router.get("/logs/roles/")
 async def role_logs(
@@ -60,15 +47,18 @@ async def submission_log(
     user: CurrentUser = Depends(get_current_user),
 ) -> JSONResponse:
     submission = await request.app.state.db.fetchone(
-        "SELECT user_id,problem_id,status,score,counts,compile_info,run_info,error_info "
+        "SELECT user_id,problem_id,score,counts "
         "FROM submissions WHERE id=?",
         (submission_id,),
     )
     if submission is None:
         raise APIError(404, "submission not found")
     problem = await request.app.state.problems.get(submission["problem_id"])
-    private_access = user.role == "admin" or submission["user_id"] == user.id
-    allowed = bool(private_access or (problem and problem.public_cases))
+    allowed = bool(
+        user.role == "admin"
+        or submission["user_id"] == user.id
+        or (problem and problem.public_cases)
+    )
     await _audit(request, user.id, submission["problem_id"], 200 if allowed else 403)
     if not allowed:
         raise APIError(403, "permission denied")
@@ -86,20 +76,13 @@ async def submission_log(
         }
         for row in rows
     ]
-    data = {
-        "details": details,
-        "status": submission["status"],
-        "score": submission["score"],
-        "counts": submission["counts"],
-        "can_view_raw_logs": private_access,
-    }
-    if private_access:
-        data["raw_logs"] = {
-            "compile_info": _decode_raw_log(submission["compile_info"]),
-            "run_info": _decode_raw_log(submission["run_info"]),
-            "error_info": submission["error_info"] or "",
+    return response(
+        data={
+            "details": details,
+            "score": submission["score"],
+            "counts": submission["counts"],
         }
-    return response(data=data)
+    )
 
 
 @router.get("/logs/access/")

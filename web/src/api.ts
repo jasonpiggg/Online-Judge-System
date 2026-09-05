@@ -15,6 +15,7 @@ export class ApiError extends Error {
       retryable?: boolean;
       fields?: Array<{ field: string; message: string }>;
     },
+    public retryAfter?: number,
   ) {
     super(
       details?.title && details?.suggestion
@@ -52,6 +53,7 @@ export async function api<T>(
       response.status,
       value.msg || "请求失败，请重试",
       value.error,
+      Number(response.headers.get("Retry-After")) || undefined,
     );
   }
   return value.data as T;

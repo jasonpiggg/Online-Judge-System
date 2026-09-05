@@ -1,0 +1,51 @@
+{
+  "id": "obstacle_shortest_path",
+  "title": "带障碍最短路",
+  "description": "在网格中从 S 四方向移动到 E，# 不可经过，求最少步数。",
+  "input_description": "第一行 n m，随后 n 行网格。",
+  "output_description": "不可达输出 -1，否则输出最少步数。",
+  "samples": [
+    {
+      "input": "1 2\nSE\n",
+      "output": "1\n"
+    },
+    {
+      "input": "2 2\nS#\n.E\n",
+      "output": "2\n"
+    }
+  ],
+  "constraints": "1 ≤ n,m ≤ 1000，恰有一个 S 和 E。",
+  "testcases": [
+    {
+      "input": "1 2\nSE\n",
+      "output": "1\n"
+    },
+    {
+      "input": "2 2\nS#\n.E\n",
+      "output": "2\n"
+    },
+    {
+      "input": "3 3\nS..\n##.\n..E\n",
+      "output": "4\n"
+    },
+    {
+      "input": "3 4\nS#..\n.#E.\n....\n",
+      "output": "5\n"
+    },
+    {
+      "input": "4 4\nS...\n.##.\n....\n...E\n",
+      "output": "6\n"
+    }
+  ],
+  "hint": "无权图最短路使用 BFS。",
+  "source": "Atelier OJ 分级题库",
+  "tags": [
+    "BFS",
+    "网格"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 256,
+  "author": "Atelier OJ",
+  "difficulty": "中等",
+  "public_cases": false
+}

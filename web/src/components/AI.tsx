@@ -182,13 +182,12 @@ export function TaskProgress({
       </p>
       {(task.error || error) && <ErrorNotice title="任务没有完成" message={task.error || error} />}
       <DisclosureCard summary="用量与费用">
-        <p className="muted">
-          输入 {task.usage.input_tokens.toLocaleString()} · 输出{" "}
-          {task.usage.output_tokens.toLocaleString()} Token ·{" "}
-          {task.usage.currency} {task.usage.cost.toFixed(5)}（
-          {task.usage.source === "provider" ? "服务商用量" : "估算用量"}）
-        </p>
-        <p className="muted">费用按配置单价估算；单价未配置不表示免费。</p>
+        <dl className="usage-summary">
+          <div><dt>输入 Token</dt><dd>{task.usage.input_tokens.toLocaleString()}</dd></div>
+          <div><dt>输出 Token</dt><dd>{task.usage.output_tokens.toLocaleString()}</dd></div>
+          <div><dt>费用</dt><dd>{task.usage.currency} {task.usage.cost.toFixed(5)}</dd></div>
+        </dl>
+        <p className="muted usage-note">{task.usage.source === "provider" ? "来源：服务商返回用量。" : "来源：本地估算用量。"} 费用按配置单价估算；单价未配置不表示免费。</p>
       </DisclosureCard>
     </div>
   );
