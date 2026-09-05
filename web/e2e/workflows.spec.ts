@@ -66,10 +66,15 @@ test("standard difficulty aliases, filtering, guide and draft persistence", asyn
   ).toHaveText(expected);
   await page.goto("/problems?difficulty=easy");
   await expect(page.getByLabel("难度", { exact: true })).toHaveValue("简单");
-  await expect(page.locator(".problem-row")).toHaveCount(1);
-  await expect(page.locator(".problem-row .difficulty")).toHaveText("简单");
+  await expect.poll(() => page.locator(".problem-row").count()).toBeGreaterThanOrEqual(5);
+  expect(await page.locator(".problem-row .difficulty").allTextContents()).toEqual(
+    Array(await page.locator(".problem-row").count()).fill("简单"),
+  );
   await page.getByLabel("难度", { exact: true }).selectOption("中等");
-  await expect(page.locator(".problem-row .difficulty")).toHaveText("中等");
+  await expect.poll(() => page.locator(".problem-row").count()).toBeGreaterThanOrEqual(5);
+  expect(await page.locator(".problem-row .difficulty").allTextContents()).toEqual(
+    Array(await page.locator(".problem-row").count()).fill("中等"),
+  );
   await page.goBack();
   await expect(page.getByLabel("难度", { exact: true })).toHaveValue("简单");
   await page.locator(".difficulty-guide summary").click();
@@ -85,7 +90,7 @@ test("standard difficulty aliases, filtering, guide and draft persistence", asyn
     });
   }
   await page.setViewportSize({ width: 1440, height: 950 });
-  await page.locator(".problem-row").click();
+  await page.locator(".problem-row").first().click();
   await expect(page.locator(".work-heading .difficulty")).toHaveText("简单");
   await expect(page.getByText("题目操作", { exact: true })).toHaveCount(0);
   await expect(
@@ -174,6 +179,14 @@ test("AI streams, restores after refresh and cancels without resubmission", asyn
   await expect(
     page.getByRole("heading", { name: "输入提示", level: 3 }),
   ).toBeVisible();
+  await page.getByText("用量与费用", { exact: true }).click();
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.locator(".usage-summary")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
+    await page.screenshot({ path: testInfo.outputPath(`usage-${width}.png`), fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.reload();
   await expect(page.getByText("先检查输入：两个整数需要相加。")).toBeVisible();
   await page.getByLabel("你的问题").fill("再给一步提示");
@@ -800,6 +813,8 @@ test("browser-like activity tabs close safely and reopen on navigation", async (
   await page.goto("/problems/brackets");
   await expect(page.locator(".activity-tab > a span")).toHaveCount(2);
   await expect(page.getByLabel("进行中的任务")).toContainText("brackets");
+  await expect(page.locator(".activity-tab.active")).toContainText("brackets");
+  expect(await page.locator(".activity-tab.active").evaluate((node) => getComputedStyle(node).boxShadow)).toContain("inset");
   const before = await page.locator(".activity-tab > a span").allTextContents();
   await page.getByRole("link", { name: /sum_2 ·/ }).click();
   await expect(page).toHaveURL(/\/problems\/sum_2/);
@@ -860,6 +875,7 @@ test("content font and inset spacing remain readable across viewports", async ({
     await page.setViewportSize({ width, height: 950 });
     expect(await page.locator(".statement .markdown p").first().evaluate(node => getComputedStyle(node).fontSize)).toBe("16px");
     expect(await page.getByRole("button", { name: "提交评测", exact: true }).evaluate(node => getComputedStyle(node).fontSize)).toBe("14px");
+    expect(await page.getByRole("button", { name: "提交评测", exact: true }).evaluate(node => getComputedStyle(node).borderTopWidth)).toBe("1px");
     for (const selector of [".editor-toolbar", ".editor-footer"]) {
       const spacing = await page.locator(selector).evaluate(node => ({ padding: parseFloat(getComputedStyle(node).paddingLeft), gap: parseFloat(getComputedStyle(node).gap) }));
       expect(spacing.padding).toBeGreaterThanOrEqual(15);
@@ -965,7 +981,8 @@ test("regular user can view public case logs without private submission data", a
   await page.goto("/resources?tab=公开日志");
   await page.getByLabel("提交编号").fill(String(sid));
   await page.getByRole("button", { name: "查看日志", exact: true }).click();
-  await expect(page.getByText("原始运行日志", { exact: true })).toBeVisible();
+  await expect(page.locator(".case-tile").first()).toBeVisible();
+  await expect(page.getByText("原始运行日志", { exact: true })).toHaveCount(0);
 
   await page.request.post("/api/auth/login", { data: { username: "admin", password: "admintestpassword" } });
   expect((await page.request.put("/api/problems/sum_2/log_visibility", { data: { public_cases: true } })).status()).toBe(200);
@@ -984,11 +1001,12 @@ test("regular user can view public case logs without private submission data", a
   await page.goto("/resources?tab=公开日志");
   await page.getByLabel("提交编号").fill(String(sid));
   await page.getByRole("button", { name: "查看日志", exact: true }).click();
-  await expect(page.getByText("原始运行日志", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: /返回管理/ })).toHaveAttribute(
-    "href",
-    "/admin?tab=提交",
-  );
+  await expect(page.locator(".case-tile").first()).toBeVisible();
+  await expect(page.getByText("原始运行日志", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "返回上一步" })).toBeVisible();
+  await page.goto("/admin?tab=评测日志");
+  await expect(page.getByRole("heading", { name: "评测日志", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "查看日志" }).first()).toBeVisible();
   await page.goto("/admin?tab=访问审计");
   await expect(page.getByText("请至少填写用户 ID 或题号，再查询访问审计。", { exact: true })).toBeVisible();
   await expect(page.getByText("正在读取访问审计…", { exact: true })).toHaveCount(0);

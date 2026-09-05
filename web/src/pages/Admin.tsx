@@ -110,6 +110,7 @@ export function Admin({ user }: { user: User }) {
           "用户",
           "题目",
           "提交",
+          "评测日志",
           "语言",
           "访问审计",
           "角色审计",
@@ -135,6 +136,7 @@ export function Admin({ user }: { user: User }) {
       )}
       {tab === "题目" && <AdminProblems adminView />}
       {tab === "提交" && <Records user={user} adminView />}
+      {tab === "评测日志" && <Records user={user} adminView logView />}
       {tab === "角色审计" && (
         <>
           <h2>角色变更记录</h2>
@@ -348,6 +350,9 @@ export function Admin({ user }: { user: User }) {
       {tab === "语言" && <LanguageSettings />}
       {tab === "访问审计" && (
         <>
+          <p className="permission-note">
+            <Icon name="shield" /> 官方访问审计接口要求至少指定用户 ID 或题号，不提供一级条件全空的全量查询。
+          </p>
           <form
             className="filters filter-panel audit-filter-form"
             onSubmit={(event) => {

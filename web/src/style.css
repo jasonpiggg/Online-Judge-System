@@ -151,7 +151,7 @@
   margin: 24px 0;
   padding: 16px 0;
 }
-.task-status details {
+.task-status > .disclosure-card {
   padding-bottom: 0;
 }
 .generated-preview {
@@ -803,6 +803,7 @@ summary {
   --accent: #2563eb;
   --ink: #1d293d;
   --border: #e3eaf3;
+  --control-border: #b8c5d6;
   --soft: #f5f8fe;
   --editor-height: 520px;
   color: var(--ink);
@@ -2961,7 +2962,7 @@ summary,
 .assistant .muted,
 .assistant .eyebrow,
 .assistant-history,
-.task-status details,
+.task-status > .disclosure-card,
 .task-status > .muted {
   font-size: var(--font-ui);
 }
@@ -3079,12 +3080,12 @@ label,
 .task-status > .muted {
   margin: 7px 0 14px;
 }
-.task-status details {
+.task-status > .disclosure-card {
   padding: 12px 0 0;
   margin-top: 10px;
   border-top: 1px solid #dfe8f5;
 }
-.task-status details p {
+.task-status > .disclosure-card p {
   margin: 8px 0 0;
 }
 .ai-answer-card,
@@ -3591,4 +3592,102 @@ p[role="alert"] {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+}
+.field-error {
+  color: #a12b24;
+  font-size: 13px;
+}
+
+/* Every interactive control keeps a visible edge against white and tinted surfaces. */
+.button,
+.button.ghost,
+.section-nav .button {
+  border: 1px solid var(--control-border);
+}
+.button.primary {
+  border-color: #1d55bd;
+}
+.button.danger {
+  border-color: #e8a3a0;
+}
+.button:hover,
+.button.ghost:hover,
+.section-nav .button:hover {
+  border-color: #7896bd;
+}
+.button:disabled {
+  border-color: #c8d1dc;
+  background-clip: padding-box;
+}
+.password-toggle,
+.search-field button,
+.activity-tab > button,
+.activity-overflow-row button {
+  border: 1px solid var(--control-border);
+}
+.password-toggle:hover,
+.search-field button:hover,
+.activity-tab > button:hover,
+.activity-overflow-row button:hover {
+  border-color: #7896bd;
+}
+
+.activity-tab {
+  position: relative;
+  transition: border-color 180ms ease-out, background 180ms ease-out,
+    box-shadow 180ms ease-out, transform 180ms ease-out;
+}
+.activity-tab.active {
+  background: #f5f9ff;
+  border-color: #91afe0;
+  box-shadow: inset 0 -3px #3975d5, 0 2px 8px #285da014;
+}
+.activity-overflow-row.active {
+  border-radius: 7px;
+  background: #edf5ff;
+  box-shadow: inset 3px 0 #3975d5;
+}
+
+.usage-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.usage-summary > div {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #dce5f1;
+  border-radius: 9px;
+  background: #f8fbff;
+}
+.usage-summary dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.usage-summary dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-weight: 650;
+}
+.task-status > .disclosure-card {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #dce5f1;
+}
+.task-status > .disclosure-card .usage-note {
+  margin: 12px 0 0;
+}
+
+@media (max-width: 520px) {
+  .usage-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-tab {
+    transition: none;
+  }
 }
