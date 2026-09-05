@@ -36,7 +36,7 @@ dev = [
 ]
 report = [
   "pypdf>=5.2,<7",
-  "reportlab>=4.2,<5",
+  "reportlab>=4.2,<6",
 ]
 
 [tool.hatch.build.targets.wheel]
