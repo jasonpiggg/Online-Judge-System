@@ -8,6 +8,41 @@ async function login(page: Page) {
     page.getByRole("heading", { name: "题库", exact: true }),
   ).toBeVisible();
 }
+
+test("login and registration preserve a protected deep link", async ({ page }, testInfo) => {
+  await page.goto("/problems/sum_2");
+  await expect(page.getByRole("tab", { name: "登录", exact: true })).toHaveAttribute("aria-selected", "true");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
+    await page.screenshot({ path: testInfo.outputPath(`login-${width}.png`), fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("tab", { name: "登录", exact: true }).focus();
+  await page.getByRole("tab", { name: "登录", exact: true }).press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "注册", exact: true })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "创建账户" })).toBeVisible();
+  await page.getByLabel("用户名", { exact: true }).fill("login_ux_student");
+  await page.getByLabel("密码", { exact: true }).fill("login-password");
+  await page.getByLabel("确认密码", { exact: true }).fill("different-password");
+  await page.getByRole("button", { name: "注册并登录" }).click();
+  await expect(page.getByRole("alert")).toContainText("密码不一致");
+  await page.getByLabel("确认密码", { exact: true }).fill("login-password");
+  await page.getByRole("button", { name: "显示密码" }).click();
+  await expect(page.getByLabel("密码", { exact: true })).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "注册并登录" }).click();
+  await expect(page).toHaveURL(/\/problems\/sum_2$/);
+  await expect(page.getByRole("heading", { name: "两数之和" })).toBeVisible();
+
+  await page.request.post("/api/auth/logout");
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "登录，继续练习" })).toBeVisible();
+  await page.getByLabel("用户名", { exact: true }).fill("login_ux_student");
+  await page.getByLabel("密码", { exact: true }).fill("login-password");
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(page).toHaveURL(/\/problems\/sum_2$/);
+});
+
 test("standard difficulty aliases, filtering, guide and draft persistence", async ({
   page,
 }, testInfo) => {
@@ -394,7 +429,11 @@ test("review mode produces an applicable patch and returns to its source draft",
   await page.getByRole("button", { name: "编辑题目", exact: true }).click();
   await page.getByRole("radio", { name: /全面审查并修正/ }).click();
   await expect(page.getByRole("button", { name: "开始全面审查" })).toBeEnabled();
-  await page.getByRole("button", { name: "开始全面审查", exact: true }).click();
+  const requirement = page.getByLabel("AI 修改要求");
+  await requirement.fill("重点检查约束表达和已有测试资产");
+  await requirement.press("Enter");
+  await expect(page).toHaveURL(/\/authoring\/drafts\//);
+  await requirement.press("ControlOrMeta+Enter");
   await expect(page.getByText("AI 全面审查", { exact: true })).toBeVisible({
     timeout: 15000,
   });
@@ -829,6 +868,43 @@ test("content font and inset spacing remain readable across viewports", async ({
   }
 });
 
+test("shared disclosures, action buttons and AI requirements keep consistent spacing", async ({ page }, testInfo) => {
+  await login(page);
+  await page.goto("/admin?tab=语言");
+  await page.getByText("注册语言 / 更新配置", { exact: true }).click();
+  const languageCard = page.locator(".disclosure-card").filter({ hasText: "注册语言 / 更新配置" });
+  const summaryBox = (await languageCard.locator(":scope > summary").boundingBox())!;
+  const firstFieldBox = (await languageCard.getByLabel("语言名称").boundingBox())!;
+  const cardBox = (await languageCard.boundingBox())!;
+  const saveBox = (await languageCard.getByRole("button", { name: "保存语言" }).boundingBox())!;
+  expect(firstFieldBox.y - (summaryBox.y + summaryBox.height)).toBeGreaterThanOrEqual(14);
+  expect(cardBox.y + cardBox.height - (saveBox.y + saveBox.height)).toBeGreaterThanOrEqual(14);
+
+  await page.goto("/admin?tab=题目&problem_id=sum_2");
+  const problemDetail = page.getByRole("region", { name: "题目详细信息" });
+  await expect(problemDetail).toBeVisible();
+  const heights = await problemDetail.locator(".action-group .button").evaluateAll((nodes) =>
+    nodes.map((node) => Math.round(node.getBoundingClientRect().height)),
+  );
+  expect(heights.length).toBeGreaterThan(2);
+  expect(new Set(heights).size).toBe(1);
+
+  await page.getByRole("button", { name: "编辑题目", exact: true }).click();
+  const requirement = page.getByLabel("AI 修改要求");
+  await expect(requirement).toHaveJSProperty("tagName", "TEXTAREA");
+  await expect(requirement).toHaveAttribute("rows", "4");
+  const requirementBox = (await requirement.boundingBox())!;
+  const actionBox = (await page.getByRole("button", { name: "生成局部修改" }).boundingBox())!;
+  expect(actionBox.width).toBeLessThan(requirementBox.width);
+  expect(actionBox.y).toBeGreaterThan(requirementBox.y + requirementBox.height);
+
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 950 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
+    await page.screenshot({ path: testInfo.outputPath(`shared-spacing-${width}.png`), fullPage: true });
+  }
+});
+
 test("failed local verification returns to the draft without paid regeneration", async ({ page }) => {
   await login(page);
   const problem = (await (await page.request.get("/api/problems/sum_2")).json()).data;
@@ -873,16 +949,30 @@ test("regular user can view public case logs without private submission data", a
   playwright,
 }) => {
   await login(page);
-  expect((await page.request.put("/api/problems/sum_2/log_visibility", { data: { public_cases: true } })).status()).toBe(200);
+  expect((await page.request.put("/api/problems/sum_2/log_visibility", { data: { public_cases: false } })).status()).toBe(200);
   const author = await playwright.request.newContext({ baseURL: "http://127.0.0.1:8765" });
   await author.post("/api/users/", { data: { username: "public_log_author", password: "public-log-password" } });
   await author.post("/api/auth/login", { data: { username: "public_log_author", password: "public-log-password" } });
   const submitted = await author.post("/api/submissions/", { data: { problem_id: "sum_2", language: "python", code: "a,b=map(int,input().split());print(a+b)" } });
   const sid = (await submitted.json()).data.submission_id;
   await expect.poll(async () => (await (await author.get(`/api/submissions/${sid}`)).json()).data.status).not.toBe("pending");
-  await page.request.post("/api/users/", { data: { username: "public_log_viewer", password: "public-log-password" } });
+  const viewer = await page.request.post("/api/users/", { data: { username: "public_log_viewer", password: "public-log-password" } });
+  const viewerId = (await viewer.json()).data.user_id;
   await page.request.post("/api/auth/login", { data: { username: "public_log_viewer", password: "public-log-password" } });
-  await page.goto(`/logs/submissions/${sid}`);
+  expect((await page.request.get(`/api/submissions/${sid}/log`)).status()).toBe(403);
+
+  await page.request.post("/api/auth/login", { data: { username: "public_log_author", password: "public-log-password" } });
+  await page.goto("/resources?tab=公开日志");
+  await page.getByLabel("提交编号").fill(String(sid));
+  await page.getByRole("button", { name: "查看日志", exact: true }).click();
+  await expect(page.getByText("原始运行日志", { exact: true })).toBeVisible();
+
+  await page.request.post("/api/auth/login", { data: { username: "admin", password: "admintestpassword" } });
+  expect((await page.request.put("/api/problems/sum_2/log_visibility", { data: { public_cases: true } })).status()).toBe(200);
+  await page.request.post("/api/auth/login", { data: { username: "public_log_viewer", password: "public-log-password" } });
+  await page.goto("/resources?tab=公开日志");
+  await page.getByLabel("提交编号").fill(String(sid));
+  await page.getByRole("button", { name: "查看日志", exact: true }).click();
   await expect(page.locator(".case-tile").first()).toBeVisible();
   await expect(page.getByText(/不包含源码、隐藏输入/)).toBeVisible();
   await expect(page.getByText("原始运行日志", { exact: true })).toHaveCount(0);
@@ -891,12 +981,21 @@ test("regular user can view public case logs without private submission data", a
   await page.request.post("/api/auth/login", {
     data: { username: "admin", password: "admintestpassword" },
   });
-  await page.goto(`/logs/submissions/${sid}`);
+  await page.goto("/resources?tab=公开日志");
+  await page.getByLabel("提交编号").fill(String(sid));
+  await page.getByRole("button", { name: "查看日志", exact: true }).click();
   await expect(page.getByText("原始运行日志", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: /返回管理/ })).toHaveAttribute(
     "href",
     "/admin?tab=提交",
   );
+  await page.goto("/admin?tab=访问审计");
+  await page.getByLabel("审计用户 ID").fill(String(viewerId));
+  await page.getByLabel("审计题号").fill("sum_2");
+  await page.getByRole("button", { name: "查询审计", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`user_id=${viewerId}`));
+  await expect(page.locator("tbody")).toContainText("拒绝访问 · 403");
+  await expect(page.locator("tbody")).toContainText("允许访问 · 200");
   await author.dispose();
 });
 
@@ -921,4 +1020,27 @@ test("administrator pagination preserves a deep-linked page while data loads", a
     "page",
   );
   await expect(page).toHaveURL(/(?:\?|&)page=2(?:&|$)/);
+});
+
+test("administrator create-user and reset controls validate before mutation", async ({ page }) => {
+  await login(page);
+  await page.goto("/admin?tab=用户");
+  const createCard = page.locator(".disclosure-card").filter({ hasText: "创建用户" });
+  await createCard.getByText("创建用户", { exact: true }).click();
+  await createCard.getByLabel("用户名", { exact: true }).fill("ui_created_student");
+  await createCard.getByLabel("初始密码").fill("ui-created-password");
+  await createCard.getByRole("combobox", { name: "角色" }).selectOption("user");
+  await createCard.getByRole("button", { name: "创建", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("已保存");
+  await page.getByLabel("搜索用户").fill("ui_created_student");
+  await expect(page.locator("tbody")).toContainText("ui_created_student");
+
+  await page.getByRole("button", { name: "系统设置", exact: true }).click();
+  await page.getByText("恢复初始实验数据", { exact: true }).click();
+  const reset = page.getByRole("button", { name: "重置数据", exact: true });
+  await expect(reset).toBeDisabled();
+  await page.getByLabel("重置确认").fill("WRONG");
+  await expect(reset).toBeDisabled();
+  await page.getByLabel("重置确认").fill("RESET");
+  await expect(reset).toBeEnabled();
 });

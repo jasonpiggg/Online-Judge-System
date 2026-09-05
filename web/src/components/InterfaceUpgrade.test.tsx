@@ -8,7 +8,9 @@ import { ErrorNotice } from "./ErrorNotice";
 import { extractCodeSuggestion, extractCodeSuggestions } from "./AI";
 import { useActionReveal } from "./useActionReveal";
 import { DEFAULT_EDITOR_FONT_SIZE } from "../pages/Workspace";
-import { normalizeManagedPage } from "../pages/Authoring";
+import { authoringTaskOrigin, normalizeManagedPage } from "../pages/Authoring";
+import { DisclosureCard } from "./DisclosureCard";
+import { Button } from "./ui/button";
 
 afterEach(cleanup);
 beforeEach(() => localStorage.clear());
@@ -71,6 +73,21 @@ it("uses polished back navigation and actionable errors", () => {
   render(<MemoryRouter><BackLink to="/problems">返回题库</BackLink><ErrorNotice message="permission denied" /></MemoryRouter>);
   expect(screen.getByRole("link", { name: "返回题库" })).toHaveClass("back-link");
   expect(screen.getByText(/联系管理员/)).toBeInTheDocument();
+});
+
+it("wraps disclosure content and keeps link and native buttons on shared sizes", () => {
+  const { container } = render(
+    <MemoryRouter>
+      <DisclosureCard summary="高级设置" open><p>第一行内容</p></DisclosureCard>
+      <div className="action-group">
+        <Button asChild><a href="/target">链接操作</a></Button>
+        <Button>原生操作</Button>
+      </div>
+    </MemoryRouter>,
+  );
+  expect(container.querySelector(".disclosure-content")?.textContent).toContain("第一行内容");
+  expect(screen.getByRole("link", { name: "链接操作" })).toHaveClass("button");
+  expect(screen.getByRole("button", { name: "原生操作" })).toHaveClass("button");
 });
 
 it("keeps unchanged lines between separate diff changes unhighlighted", () => {
@@ -164,6 +181,26 @@ describe("authoring list compatibility", () => {
       page: 3,
       pageSize: 10,
       legacy: false,
+    });
+  });
+});
+
+describe("AI authoring task origin", () => {
+  it("prefers the immutable source draft and uses the review step when needed", () => {
+    expect(authoringTaskOrigin({ source_draft_id: "draft-1", problem_id: "p1", action: "review" })).toEqual({
+      path: "/authoring/drafts/draft-1?step=检查与发布",
+      label: "返回原草稿",
+      draftId: "draft-1",
+    });
+    expect(authoringTaskOrigin({ source_draft_id: "draft-1", problem_id: "p1", action: "generate" }).path).toBe("/authoring/drafts/draft-1");
+  });
+
+  it("falls back to the problem and then the authoring center", () => {
+    expect(authoringTaskOrigin({ source_draft_id: null, problem_id: "p1", action: "generate" }).path).toBe("/problems/p1");
+    expect(authoringTaskOrigin({ source_draft_id: null, action: "generate" })).toEqual({
+      path: "/authoring",
+      label: "返回命题中心",
+      draftId: undefined,
     });
   });
 });
