@@ -996,6 +996,10 @@ test("private owners see scores and public viewers see case logs", async ({
   expect((await page.request.get(`/api/submissions/${sid}/log`)).status()).toBe(403);
 
   await page.request.post("/api/auth/login", { data: { username: "public_log_author", password: "public-log-password" } });
+  await page.goto(`/submissions/${sid}`);
+  await expect(page.getByText(/未公开测试点明细/)).toBeVisible();
+  await expect(page.locator(".evaluation-numbers")).toContainText(/\d+ \/ \d+得分/);
+  await expect(page.locator(".case-tile")).toHaveCount(0);
   await page.goto("/resources?tab=公开日志");
   await page.getByLabel("提交编号").fill(String(sid));
   await page.getByRole("button", { name: "查看日志", exact: true }).click();

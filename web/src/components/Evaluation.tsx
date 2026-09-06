@@ -247,7 +247,7 @@ export function ResultPanel({
   });
   const log = useQuery({
     queryKey: ["log", id, data?.status],
-    queryFn: () => api<{ details: CaseResult[] }>(`/submissions/${id}/log`),
+    queryFn: () => api<{ details?: CaseResult[] }>(`/submissions/${id}/log`),
     enabled: !!data && data.status !== "pending",
     staleTime: 0,
   });
@@ -270,6 +270,7 @@ export function ResultPanel({
           submission={data}
           cases={log.data?.details}
           caseError={log.error?.message}
+          caseDetailsHidden={!!log.data && !log.data.details}
         />
       ) : (
         <p className="skeleton">读取评测结果…</p>
