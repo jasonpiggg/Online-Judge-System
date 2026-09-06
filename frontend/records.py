@@ -50,8 +50,11 @@ def submission_result(api: ApiClient, submission_id: str) -> None:
             st.error(data["error_info"])
         logs = call(lambda: api.get(f"/api/submissions/{submission_id}/log"))
         if logs:
-            st.dataframe(logs["data"]["details"], width="stretch", hide_index=True)
-            details = logs["data"]["details"]
+            details = logs["data"].get("details")
+            if details is None:
+                st.info("此题未公开测试点明细；提交者只能查看总得分和总分。")
+            else:
+                st.dataframe(details, width="stretch", hide_index=True)
             if details:
                 a, b = st.columns(2)
                 a.metric("最大用时 / 秒", max(x["time"] for x in details))

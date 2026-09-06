@@ -108,6 +108,38 @@ it("paginates real test cases and distinguishes points from case counts", () => 
   expect(screen.getByText("耗时 0.1 秒")).toBeInTheDocument();
   expect(screen.getByText("得分")).toBeInTheDocument();
 });
+it("shows a private-log explanation without exposing case controls", () => {
+  render(
+    <EvaluationView
+      submission={{
+        submission_id: "1",
+        problem_id: "x",
+        language: "python",
+        created_at: "",
+        status: "success",
+        score: 10,
+        counts: 20,
+        evaluation: {
+          status: "success",
+          verdict: "partial",
+          score: 10,
+          max_score: 20,
+          executed_cases: null,
+          total_cases: null,
+          passed_cases: null,
+          all_passed: false,
+          result_counts: {},
+        },
+      }}
+      caseDetailsHidden
+    />,
+  );
+  expect(screen.getByText(/未公开测试点明细/)).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "全部" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText("读取测试点…")).not.toBeInTheDocument();
+});
 it("renders math, preserves streaming fragments and exposes invalid math safely", () => {
   const { container, rerender } = render(
     <RichText

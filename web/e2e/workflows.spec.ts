@@ -978,7 +978,7 @@ test("authoring lists paginate independently, archive, and recover a failed cand
   await expect(page.getByText(/发布前仍须重新通过/)).toHaveCount(0);
 });
 
-test("regular user can view public case logs without private submission data", async ({
+test("private owners see scores and public viewers see case logs", async ({
   page,
   playwright,
 }) => {
@@ -999,7 +999,9 @@ test("regular user can view public case logs without private submission data", a
   await page.goto("/resources?tab=公开日志");
   await page.getByLabel("提交编号").fill(String(sid));
   await page.getByRole("button", { name: "查看日志", exact: true }).click();
-  await expect(page.locator(".case-tile").first()).toBeVisible();
+  await expect(page.getByText(/未公开测试点明细/)).toBeVisible();
+  await expect(page.locator(".evaluation-numbers")).toContainText(/\d+ \/ \d+得分/);
+  await expect(page.locator(".case-tile")).toHaveCount(0);
   await expect(page.getByText("原始运行日志", { exact: true })).toHaveCount(0);
 
   await page.request.post("/api/auth/login", { data: { username: "admin", password: "admintestpassword" } });

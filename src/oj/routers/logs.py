@@ -54,35 +54,31 @@ async def submission_log(
     if submission is None:
         raise APIError(404, "submission not found")
     problem = await request.app.state.problems.get(submission["problem_id"])
-    allowed = bool(
-        user.role == "admin"
-        or submission["user_id"] == user.id
-        or (problem and problem.public_cases)
-    )
+    can_view_details = bool(user.role == "admin" or (problem and problem.public_cases))
+    allowed = bool(can_view_details or submission["user_id"] == user.id)
     await _audit(request, user.id, submission["problem_id"], 200 if allowed else 403)
     if not allowed:
         raise APIError(403, "permission denied")
-    rows = await request.app.state.db.fetchall(
-        """SELECT case_id,result,time,memory FROM submission_cases
-           WHERE submission_id=? ORDER BY case_id""",
-        (submission_id,),
-    )
-    details = [
-        {
-            "id": row["case_id"],
-            "result": row["result"],
-            "time": row["time"],
-            "memory": row["memory"],
-        }
-        for row in rows
-    ]
-    return response(
-        data={
-            "details": details,
-            "score": submission["score"],
-            "counts": submission["counts"],
-        }
-    )
+    data: dict[str, object] = {
+        "score": submission["score"],
+        "counts": submission["counts"],
+    }
+    if can_view_details:
+        rows = await request.app.state.db.fetchall(
+            """SELECT case_id,result,time,memory FROM submission_cases
+               WHERE submission_id=? ORDER BY case_id""",
+            (submission_id,),
+        )
+        data["details"] = [
+            {
+                "id": row["case_id"],
+                "result": row["result"],
+                "time": row["time"],
+                "memory": row["memory"],
+            }
+            for row in rows
+        ]
+    return response(data=data)
 
 
 @router.get("/logs/access/")
