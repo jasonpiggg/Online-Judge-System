@@ -22,7 +22,7 @@
 | 语言查询、登记 | 资源 → 语言 | 查询公开；登记需登录 | `GET/POST /api/languages/` | 200/400/401/409 | `test_judge_languages.py`、普通用户 Playwright |
 | 提交、本人列表和详情 | 做题、我的提交 | 登录用户/本人 | `POST/GET /api/submissions/`、`GET /api/submissions/{id}` | 200/400/401/403/404/429 | `test_submissions.py`、`test_api_edges.py` |
 | 全站提交、重测 | 管理 → 提交 | 管理员 | `GET ...?all_users=true`、`PUT .../rejudge` | 200/401/403/404/409 | `test_admin_ui_support.py`、管理员 Playwright |
-| 本人及公开逐点日志 | 提交详情、资源 → 公开日志 | 本人/管理员/公开题登录用户 | `GET /api/submissions/{id}/log` | 200/400/401/403/404 | `test_logs_reset.py`、公开日志 Playwright |
+| 本人总分及授权逐点日志 | 提交详情、资源 → 公开日志 | 私有题本人仅总分；管理员/公开题登录用户可看逐点 | `GET /api/submissions/{id}/log` | 200/400/401/403/404 | `test_logs_reset.py`、公开日志 Playwright |
 | 用户、角色和禁用 | 账户、管理 → 用户 | 本人/管理员 | `GET /api/users/{id}`、`GET /api/users/`、`PUT .../role` | 200/400/401/403/404 | `test_auth_users.py`、`test_role_audit.py` |
 | 访问及角色审计 | 管理 → 访问审计/角色审计 | 管理员 | `GET /api/logs/access/`、`GET /api/logs/roles/` | 200/400/401/403 | `test_api_edges.py`、`test_role_audit.py` |
 | 系统重置 | 管理 → 系统设置 | 管理员 | `POST /api/reset/` | 200/401/403 | `test_logs_reset.py`、管理员 Playwright |

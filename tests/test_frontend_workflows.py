@@ -54,6 +54,35 @@ auth_screen(ApiClient())
     assert app.error[0].value == "用户名或密码错误"
 
 
+def test_private_submission_log_shows_score_without_case_details(monkeypatch: Any) -> None:
+    def private_log(_self: ApiClient, _method: str, path: str, **_kwargs: Any) -> Any:
+        if path.endswith("/log"):
+            return {"code": 200, "data": {"score": 10, "counts": 20}}
+        return {
+            "code": 200,
+            "data": {
+                "submission_id": "1",
+                "problem_id": "sum_2",
+                "language": "python",
+                "created_at": "",
+                "status": "success",
+                "score": 10,
+                "counts": 20,
+            },
+        }
+
+    monkeypatch.setattr(ApiClient, "request", private_log)
+    app = AppTest.from_string('''
+import streamlit as st
+from frontend.records import submission_result
+from frontend.client import ApiClient
+st.session_state.user = {"user_id": "1", "role": "user"}
+submission_result(ApiClient(), "1")
+''').run()
+    assert not app.exception
+    assert app.info[0].value == "此题未公开测试点明细；提交者只能查看总得分和总分。"
+
+
 async def test_admin_all_records_and_metadata(
     client: AsyncClient, problem_payload: dict[str, Any]
 ) -> None:

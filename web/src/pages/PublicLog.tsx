@@ -9,7 +9,7 @@ import { Icon } from "../components/Icon";
 import { useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
 
 type PublicLogResult = {
-  details: CaseResult[];
+  details?: CaseResult[];
   score: number | null;
   counts: number | null;
 };
@@ -23,22 +23,28 @@ export function PublicLog({ user: _user }: { user: User }) {
   useRecoverUnavailableTask(query.error);
   useRegisterActivity({ id: `submission:${id}`, kind: "submission", title: `日志 #${id}`, path: `/logs/submissions/${id}`, status: query.isPending ? "读取中" : query.error ? "不可查看" : "已加载" });
   const data = query.data;
-  const counts = data?.details.reduce<Record<string, number>>((all, item) => {
+  const counts = data?.details?.reduce<Record<string, number>>((all, item) => {
     all[item.result] = (all[item.result] || 0) + 1;
     return all;
   }, {}) || {};
-  const total = data?.details.length ?? null;
-  const passed = data ? counts.AC || 0 : null;
+  const total = data?.details?.length ?? null;
+  const passed = data?.details ? counts.AC || 0 : null;
   const complete = data?.score != null;
-  const allPassed = complete && !!total && passed === total;
-  const verdict =
-    !complete
-      ? "pending"
-      : allPassed
-          ? "AC"
-          : data
-            ? data.details.find((item) => item.result !== "AC")?.result || "unknown"
-            : "unknown";
+  const allPassed =
+    complete &&
+    data.counts != null &&
+    data.counts > 0 &&
+    data.score === data.counts;
+  let verdict = "pending";
+  if (complete) {
+    verdict = allPassed
+      ? "AC"
+      : data.details
+        ? data.details.find((item) => item.result !== "AC")?.result || "unknown"
+        : data.score && data.score > 0
+          ? "partial"
+          : "failed";
+  }
   const evaluation: Evaluation = {
     status: complete ? "success" : "pending",
     verdict,
@@ -82,7 +88,11 @@ export function PublicLog({ user: _user }: { user: User }) {
         </>
       ) : data ? (
         <>
-          <EvaluationView submission={submission} cases={data.details} />
+          <EvaluationView
+            submission={submission}
+            cases={data.details}
+            caseDetailsHidden={!data.details}
+          />
           <p className="permission-note">
             <Icon name="shield" /> 此日志不包含源码、隐藏输入、标准输出、HTTP 响应、后台代码或原始编译诊断。
           </p>

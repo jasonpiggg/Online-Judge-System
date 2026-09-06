@@ -43,8 +43,8 @@ async def test_private_public_logs_and_audit(
     own_log = await client.get(f"/api/submissions/{submission_id}/log")
     assert own_log.status_code == 200
     own_data = own_log.json()["data"]
-    assert len(own_data["details"]) == 2
-    assert set(own_data) == {"details", "score", "counts"}
+    assert set(own_data) == {"score", "counts"}
+    assert own_data["score"] == own_data["counts"] == 20
 
     client.cookies.clear()
     await client.post(
@@ -54,6 +54,9 @@ async def test_private_public_logs_and_audit(
 
     client.cookies.clear()
     await login_admin(client)
+    private_admin_log = (await client.get(f"/api/submissions/{submission_id}/log")).json()["data"]
+    assert len(private_admin_log["details"]) == 2
+    assert set(private_admin_log) == {"details", "score", "counts"}
     visibility = await client.put(
         "/api/problems/sum_2/log_visibility", json={"public_cases": True}
     )
@@ -71,7 +74,17 @@ async def test_private_public_logs_and_audit(
     public_log = await client.get(f"/api/submissions/{submission_id}/log")
     assert public_log.status_code == 200
     public_data = public_log.json()["data"]
+    assert len(public_data["details"]) == 2
     assert set(public_data) == {"details", "score", "counts"}
+
+    client.cookies.clear()
+    await client.post(
+        "/api/auth/login", json={"username": "alice", "password": "secret1"}
+    )
+    public_owner_data = (
+        await client.get(f"/api/submissions/{submission_id}/log")
+    ).json()["data"]
+    assert len(public_owner_data["details"]) == 2
 
 
 async def test_admin_reset(client: AsyncClient, problem_payload: dict[str, object]) -> None:

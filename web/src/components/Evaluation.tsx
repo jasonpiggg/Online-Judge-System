@@ -61,10 +61,12 @@ export function EvaluationView({
   submission: s,
   cases,
   caseError,
+  caseDetailsHidden = false,
 }: {
   submission: Submission;
   cases?: CaseResult[];
   caseError?: string;
+  caseDetailsHidden?: boolean;
 }) {
   const [onlyFailed, setOnlyFailed] = useState(false);
   const [page, setPage] = useState(1);
@@ -131,28 +133,34 @@ export function EvaluationView({
         <div className="case-section">
           <div className="row">
             <h3>测试点</h3>
-            <div className="segmented">
-              <Button
-                aria-pressed={!onlyFailed}
-                onClick={() => {
-                  setOnlyFailed(false);
-                  setPage(1);
-                }}
-              >
-                全部
-              </Button>
-              <Button
-                aria-pressed={onlyFailed}
-                onClick={() => {
-                  setOnlyFailed(true);
-                  setPage(1);
-                }}
-              >
-                未通过
-              </Button>
-            </div>
+            {!caseDetailsHidden && (
+              <div className="segmented">
+                <Button
+                  aria-pressed={!onlyFailed}
+                  onClick={() => {
+                    setOnlyFailed(false);
+                    setPage(1);
+                  }}
+                >
+                  全部
+                </Button>
+                <Button
+                  aria-pressed={onlyFailed}
+                  onClick={() => {
+                    setOnlyFailed(true);
+                    setPage(1);
+                  }}
+                >
+                  未通过
+                </Button>
+              </div>
+            )}
           </div>
-          {caseError ? (
+          {caseDetailsHidden ? (
+            <p className="permission-note">
+              此题未公开测试点明细；提交者只能查看总得分和总分。
+            </p>
+          ) : caseError ? (
             <p role="alert">测试点详情加载失败：{caseError}</p>
           ) : !cases ? (
             <p className="skeleton">读取测试点…</p>
