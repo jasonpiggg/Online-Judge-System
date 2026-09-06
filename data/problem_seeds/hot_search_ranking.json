@@ -1,0 +1,72 @@
+{
+  "id": "hot_search_ranking",
+  "title": "热搜词排行榜",
+  "description": "小 R 经营着一个论坛，搜索系统需要实时维护一份热搜词排行榜。\n\n初始时排行榜为空。请按顺序处理 $m$ 个事件：\n\n- `post w`：单词 $w$ 的热度加 $1$。若 $w$ 已被封禁，则忽略该事件。\n- `delete w`：永久封禁单词 $w$。若它当前在排行榜中，则立刻移除；之后所有 `post w` 事件均被忽略。\n- `query k`：输出当前排行榜的快照，不改变任何状态。\n\n被搜索过至少一次且未被封禁的单词称为活跃单词。活跃单词按热度降序排列；热度相同时，按字典序升序排列。",
+  "input_description": "第一行包含整数 $m$。接下来 $m$ 行，每行是一个 `post w`、`delete w` 或 `query k` 事件。事件关键字后的单词也可能是 `post`、`delete` 或 `query`。",
+  "output_description": "对于每个 `query k`，输出两行。第一行按排名输出前 $\\min(k,n)$ 个活跃单词，单词间以一个空格分隔；没有活跃单词时输出 `EMPTY`。第二行输出第一行所列单词的热度之和；若第一行为 `EMPTY`，输出 `0`。行末不得有多余空格。",
+  "samples": [
+    {
+      "input": "11\nquery 3\npost apple\npost banana\npost apple\nquery 5\ndelete apple\npost apple\npost banana\npost cherry\nquery 2\ndelete banana\n",
+      "output": "EMPTY\n0\napple banana\n3\nbanana cherry\n3\n"
+    },
+    {
+      "input": "9\npost post\npost query\npost delete\npost post\nquery 10\ndelete query\npost query\nquery 3\ndelete post\n",
+      "output": "post delete query\n4\npost delete\n3\n"
+    }
+  ],
+  "constraints": "$1 \\le m \\le 1000$；$1 \\le k \\le 10^9$；每个单词仅由小写英文字母 `a-z` 组成，长度为 $1$ 到 $20$；至少存在一个 `query` 事件。同一单词可被搜索或删除多次。",
+  "testcases": [
+    {
+      "input": "11\nquery 3\npost apple\npost banana\npost apple\nquery 5\ndelete apple\npost apple\npost banana\npost cherry\nquery 2\ndelete banana\n",
+      "output": "EMPTY\n0\napple banana\n3\nbanana cherry\n3\n"
+    },
+    {
+      "input": "9\npost post\npost query\npost delete\npost post\nquery 10\ndelete query\npost query\nquery 3\ndelete post\n",
+      "output": "post delete query\n4\npost delete\n3\n"
+    },
+    {
+      "input": "8\ndelete alpha\npost alpha\npost beta\ndelete alpha\npost beta\nquery 1\ndelete beta\nquery 100\n",
+      "output": "beta\n2\nEMPTY\n0\n"
+    },
+    {
+      "input": "7\npost zoo\npost apple\npost mango\npost banana\nquery 3\npost zoo\nquery 2\n",
+      "output": "apple banana mango\n3\nzoo apple\n3\n"
+    },
+    {
+      "input": "12\npost a\npost b\npost c\npost c\npost d\npost d\npost d\nquery 2\nquery 4\ndelete d\nquery 3\nquery 1000000000\n",
+      "output": "d c\n5\nd c a b\n7\nc a b\n4\nc a b\n4\n"
+    },
+    {
+      "input": "10\ndelete x\ndelete x\npost x\npost y\ndelete y\ndelete y\npost y\nquery 5\npost z\nquery 5\n",
+      "output": "EMPTY\n0\nz\n1\n"
+    },
+    {
+      "input": "13\npost alpha\npost beta\npost gamma\npost gamma\nquery 3\npost beta\nquery 3\npost alpha\npost alpha\nquery 2\ndelete alpha\nquery 2\nquery 1\n",
+      "output": "gamma alpha beta\n4\nbeta gamma alpha\n5\nalpha beta\n5\nbeta gamma\n4\nbeta\n2\n"
+    },
+    {
+      "input": "6\npost abc\npost abc\npost abc\nquery 1000000000\ndelete abc\nquery 1000000000\n",
+      "output": "abc\n3\nEMPTY\n0\n"
+    },
+    {
+      "input": "4\npost aaaaaaaaaaaaaaaaaaaa\nquery 1\ndelete aaaaaaaaaaaaaaaaaaaa\nquery 1\n",
+      "output": "aaaaaaaaaaaaaaaaaaaa\n1\nEMPTY\n0\n"
+    },
+    {
+      "input": "16\npost kiwi\npost pear\npost plum\npost kiwi\npost pear\npost apple\npost apple\npost apple\npost plum\npost plum\nquery 3\ndelete apple\nquery 3\npost kiwi\nquery 2\nquery 1\n",
+      "output": "apple plum kiwi\n8\nplum kiwi pear\n7\nkiwi plum\n6\nkiwi\n3\n"
+    }
+  ],
+  "hint": "可分别维护单词热度与封禁集合。查询时按 `(-热度, 单词)` 排序；$m \\le 1000$，每次查询直接排序即可。",
+  "source": "课程练习",
+  "tags": [
+    "字典",
+    "排序",
+    "模拟"
+  ],
+  "time_limit": 2.0,
+  "memory_limit": 128,
+  "author": "Atelier OJ",
+  "difficulty": "简单",
+  "public_cases": false
+}

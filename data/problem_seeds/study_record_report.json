@@ -1,0 +1,88 @@
+{
+  "id": "study_record_report",
+  "title": "学习记录统计",
+  "description": "给定一个 JSONL 文件，文件的每一行是一条学习记录，例如：\n\n```json\n{\"student\":\"Alice\",\"start\":\"2026-09-01 09:00\",\"end\":\"2026-09-01 10:30\",\"subject\":\"Python\",\"status\":\"done\"}\n```\n\n字段含义如下：\n\n- `student`：姓名；\n- `start`、`end`：时间，格式为 `YYYY-MM-DD HH:MM`；\n- `subject`：科目；\n- `status`：`done` 或 `cancelled`。\n\n统计开始日期位于查询区间内（含两端）且 `status == \"done\"` 的记录。若 `end < start`，忽略该记录。\n\n对每个学生统计学习次数、总学习分钟数、最长一次学习分钟数和不同科目数，并按以下规则排序：总学习分钟数降序、学习次数降序、姓名字典序升序。\n\n程序必须将完整结果写入当前目录下的 `report.txt`，再读取 `report.txt`，并将文件内容原样输出到标准输出。\n\n### 可用 API\n\n仅给出名称，参数可自行使用 `help()` 查询：\n\n```text\ndatetime.strptime\ndatetime.strftime\ndatetime.date\ntimedelta.total_seconds\njson.loads\nopen\nfile.read\nfile.write\nf-string\n```",
+  "input_description": "共三行：第一行为评测环境中已提供的 JSONL 文件名；第二行为查询开始日期；第三行为查询结束日期。日期格式均为 `YYYY-MM-DD`。",
+  "output_description": "先输出 `Report: YYYY/MM/DD - YYYY/MM/DD`。随后按排序规则每位学生输出一行：`姓名 | sessions=次数 | total=总分钟min | longest=最长分钟min | subjects=科目数`。最后输出 `TOTAL HOURS: 总小时`，总小时为所有入选记录的总分钟数除以 $60$，保留两位小数。没有符合条件的记录时只输出标题行和 `TOTAL HOURS: 0.00`。",
+  "samples": [
+    {
+      "input": "study.jsonl\n2026-09-01\n2026-09-03\n",
+      "output": "Report: 2026/09/01 - 2026/09/03\nAlice | sessions=3 | total=210min | longest=90min | subjects=2\nBob | sessions=2 | total=160min | longest=100min | subjects=2\nCarol | sessions=1 | total=90min | longest=90min | subjects=1\nTOTAL HOURS: 7.67\n",
+      "files": {
+        "study.jsonl": "{\"student\":\"Alice\",\"start\":\"2026-09-01 09:00\",\"end\":\"2026-09-01 10:30\",\"subject\":\"Python\",\"status\":\"done\"}\n{\"student\":\"Bob\",\"start\":\"2026-09-01 13:00\",\"end\":\"2026-09-01 14:00\",\"subject\":\"Math\",\"status\":\"done\"}\n{\"student\":\"Alice\",\"start\":\"2026-09-02 20:00\",\"end\":\"2026-09-02 21:20\",\"subject\":\"Math\",\"status\":\"done\"}\n{\"student\":\"Carol\",\"start\":\"2026-09-02 23:30\",\"end\":\"2026-09-03 01:00\",\"subject\":\"Python\",\"status\":\"done\"}\n{\"student\":\"Bob\",\"start\":\"2026-09-03 10:00\",\"end\":\"2026-09-03 11:30\",\"subject\":\"Physics\",\"status\":\"cancelled\"}\n{\"student\":\"Alice\",\"start\":\"2026-09-03 14:00\",\"end\":\"2026-09-03 14:40\",\"subject\":\"Python\",\"status\":\"done\"}\n{\"student\":\"Bob\",\"start\":\"2026-09-03 16:00\",\"end\":\"2026-09-03 17:40\",\"subject\":\"Python\",\"status\":\"done\"}\n"
+      }
+    }
+  ],
+  "constraints": "JSONL 文件使用 UTF-8 编码且至多包含 $1000$ 行；每行均为符合题述字段格式的合法 JSON 对象；查询开始日期不晚于查询结束日期；姓名与科目均为非空字符串；所有时间精确到分钟。",
+  "testcases": [
+    {
+      "input": "study.jsonl\n2026-09-01\n2026-09-03\n",
+      "output": "Report: 2026/09/01 - 2026/09/03\nAlice | sessions=3 | total=210min | longest=90min | subjects=2\nBob | sessions=2 | total=160min | longest=100min | subjects=2\nCarol | sessions=1 | total=90min | longest=90min | subjects=1\nTOTAL HOURS: 7.67\n",
+      "files": {
+        "study.jsonl": "{\"student\":\"Alice\",\"start\":\"2026-09-01 09:00\",\"end\":\"2026-09-01 10:30\",\"subject\":\"Python\",\"status\":\"done\"}\n{\"student\":\"Bob\",\"start\":\"2026-09-01 13:00\",\"end\":\"2026-09-01 14:00\",\"subject\":\"Math\",\"status\":\"done\"}\n{\"student\":\"Alice\",\"start\":\"2026-09-02 20:00\",\"end\":\"2026-09-02 21:20\",\"subject\":\"Math\",\"status\":\"done\"}\n{\"student\":\"Carol\",\"start\":\"2026-09-02 23:30\",\"end\":\"2026-09-03 01:00\",\"subject\":\"Python\",\"status\":\"done\"}\n{\"student\":\"Bob\",\"start\":\"2026-09-03 10:00\",\"end\":\"2026-09-03 11:30\",\"subject\":\"Physics\",\"status\":\"cancelled\"}\n{\"student\":\"Alice\",\"start\":\"2026-09-03 14:00\",\"end\":\"2026-09-03 14:40\",\"subject\":\"Python\",\"status\":\"done\"}\n{\"student\":\"Bob\",\"start\":\"2026-09-03 16:00\",\"end\":\"2026-09-03 17:40\",\"subject\":\"Python\",\"status\":\"done\"}\n"
+      }
+    },
+    {
+      "input": "study.jsonl\n2026-09-01\n2026-09-03\n",
+      "output": "Report: 2026/09/01 - 2026/09/03\nTOTAL HOURS: 0.00\n",
+      "files": {
+        "study.jsonl": "{\"student\":\"Ann\",\"start\":\"2026-08-31 23:00\",\"end\":\"2026-09-01 01:00\",\"subject\":\"Math\",\"status\":\"done\"}\n{\"student\":\"Bob\",\"start\":\"2026-09-02 09:00\",\"end\":\"2026-09-02 10:00\",\"subject\":\"Python\",\"status\":\"cancelled\"}\n{\"student\":\"Cara\",\"start\":\"2026-09-03 12:00\",\"end\":\"2026-09-03 11:59\",\"subject\":\"Physics\",\"status\":\"done\"}\n"
+      }
+    },
+    {
+      "input": "ties.jsonl\n2026-01-01\n2026-01-31\n",
+      "output": "Report: 2026/01/01 - 2026/01/31\nAmy | sessions=2 | total=60min | longest=40min | subjects=2\nBob | sessions=2 | total=60min | longest=30min | subjects=1\nCara | sessions=1 | total=60min | longest=60min | subjects=1\nTOTAL HOURS: 3.00\n",
+      "files": {
+        "ties.jsonl": "{\"student\":\"Bob\",\"start\":\"2026-01-02 09:00\",\"end\":\"2026-01-02 09:30\",\"subject\":\"Math\",\"status\":\"done\"}\n{\"student\":\"Amy\",\"start\":\"2026-01-03 09:00\",\"end\":\"2026-01-03 09:20\",\"subject\":\"Python\",\"status\":\"done\"}\n{\"student\":\"Cara\",\"start\":\"2026-01-04 09:00\",\"end\":\"2026-01-04 10:00\",\"subject\":\"Math\",\"status\":\"done\"}\n{\"student\":\"Amy\",\"start\":\"2026-01-05 09:00\",\"end\":\"2026-01-05 09:40\",\"subject\":\"Math\",\"status\":\"done\"}\n{\"student\":\"Bob\",\"start\":\"2026-01-06 09:00\",\"end\":\"2026-01-06 09:30\",\"subject\":\"Math\",\"status\":\"done\"}\n"
+      }
+    },
+    {
+      "input": "cross_day.jsonl\n2026-06-10\n2026-06-10\n",
+      "output": "Report: 2026/06/10 - 2026/06/10\nNightOwl | sessions=2 | total=180min | longest=120min | subjects=2\nTOTAL HOURS: 3.00\n",
+      "files": {
+        "cross_day.jsonl": "{\"student\":\"NightOwl\",\"start\":\"2026-06-10 23:00\",\"end\":\"2026-06-11 01:00\",\"subject\":\"Python\",\"status\":\"done\"}\n{\"student\":\"NightOwl\",\"start\":\"2026-06-10 00:00\",\"end\":\"2026-06-10 01:00\",\"subject\":\"Math\",\"status\":\"done\"}\n{\"student\":\"Early\",\"start\":\"2026-06-09 23:59\",\"end\":\"2026-06-10 02:00\",\"subject\":\"Physics\",\"status\":\"done\"}\n"
+      }
+    },
+    {
+      "input": "minutes.jsonl\n2026-02-01\n2026-02-28\n",
+      "output": "Report: 2026/02/01 - 2026/02/28\nLong | sessions=1 | total=124min | longest=124min | subjects=1\nShort | sessions=1 | total=1min | longest=1min | subjects=1\nTOTAL HOURS: 2.08\n",
+      "files": {
+        "minutes.jsonl": "{\"student\":\"Short\",\"start\":\"2026-02-01 10:00\",\"end\":\"2026-02-01 10:01\",\"subject\":\"A\",\"status\":\"done\"}\n{\"student\":\"Long\",\"start\":\"2026-02-02 08:00\",\"end\":\"2026-02-02 10:04\",\"subject\":\"B\",\"status\":\"done\"}\n"
+      }
+    },
+    {
+      "input": "records-01.jsonl\n2026-12-31\n2026-12-31\n",
+      "output": "Report: 2026/12/31 - 2026/12/31\nZed | sessions=2 | total=90min | longest=60min | subjects=1\nTOTAL HOURS: 1.50\n",
+      "files": {
+        "records-01.jsonl": "{\"student\":\"Zed\",\"start\":\"2026-12-31 08:00\",\"end\":\"2026-12-31 09:00\",\"subject\":\"Python\",\"status\":\"done\"}\n{\"student\":\"Zed\",\"start\":\"2026-12-31 23:30\",\"end\":\"2027-01-01 00:00\",\"subject\":\"Python\",\"status\":\"done\"}\n"
+      }
+    },
+    {
+      "input": "status.jsonl\n2026-03-01\n2026-03-31\n",
+      "output": "Report: 2026/03/01 - 2026/03/31\nDone | sessions=1 | total=45min | longest=45min | subjects=1\nTOTAL HOURS: 0.75\n",
+      "files": {
+        "status.jsonl": "{\"student\":\"Done\",\"start\":\"2026-03-01 09:00\",\"end\":\"2026-03-01 09:45\",\"subject\":\"Math\",\"status\":\"done\"}\n{\"student\":\"Cancel\",\"start\":\"2026-03-01 09:00\",\"end\":\"2026-03-01 12:00\",\"subject\":\"Math\",\"status\":\"cancelled\"}\n"
+      }
+    },
+    {
+      "input": "subjects.jsonl\n2026-04-15\n2026-04-15\n",
+      "output": "Report: 2026/04/15 - 2026/04/15\nAlex | sessions=4 | total=120min | longest=30min | subjects=3\nTOTAL HOURS: 2.00\n",
+      "files": {
+        "subjects.jsonl": "{\"student\":\"Alex\",\"start\":\"2026-04-15 08:00\",\"end\":\"2026-04-15 08:30\",\"subject\":\"Math\",\"status\":\"done\"}\n{\"student\":\"Alex\",\"start\":\"2026-04-15 09:00\",\"end\":\"2026-04-15 09:30\",\"subject\":\"Math\",\"status\":\"done\"}\n{\"student\":\"Alex\",\"start\":\"2026-04-15 10:00\",\"end\":\"2026-04-15 10:30\",\"subject\":\"Python\",\"status\":\"done\"}\n{\"student\":\"Alex\",\"start\":\"2026-04-15 11:00\",\"end\":\"2026-04-15 11:30\",\"subject\":\"Physics\",\"status\":\"done\"}\n"
+      }
+    }
+  ],
+  "hint": "先逐行使用 `json.loads` 解析记录；可用集合统计不同科目。完整报告应先拼接成字符串并写入 `report.txt`，随后重新打开文件读取并输出。",
+  "source": "课程练习",
+  "tags": [
+    "JSON",
+    "文件",
+    "datetime",
+    "排序"
+  ],
+  "time_limit": 3.0,
+  "memory_limit": 128,
+  "author": "Atelier OJ",
+  "difficulty": "中等",
+  "public_cases": false
+}

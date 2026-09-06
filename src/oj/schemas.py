@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -36,6 +36,13 @@ class RoleUpdate(StrictModel):
 class TestCase(StrictModel):
     input: str = Field(max_length=1_000_000)
     output: str = Field(max_length=1_000_000)
+    files: dict[
+        Annotated[
+            str,
+            Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"),
+        ],
+        Annotated[str, Field(max_length=1_000_000)],
+    ] = Field(default_factory=dict, max_length=10, exclude_if=lambda value: not value)
 
 
 class Problem(StrictModel):
