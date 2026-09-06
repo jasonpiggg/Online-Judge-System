@@ -6,7 +6,11 @@ export type User = {
   resolve_count: number;
   join_time: string;
 };
-export type Sample = { input: string; output: string };
+export type Sample = {
+  input: string;
+  output: string;
+  files?: Record<string, string>;
+};
 export type Problem = {
   id: string;
   title: string;

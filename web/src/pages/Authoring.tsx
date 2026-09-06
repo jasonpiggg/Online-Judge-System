@@ -69,7 +69,12 @@ export function normalizeManagedPage<T>(
     legacy: false,
   };
 }
-const sample = z.object({ input: z.string(), output: z.string() });
+const sample = z.object({
+  input: z.string(),
+  output: z.string(),
+  // Auxiliary files are preserved when an existing file-backed problem is edited.
+  files: z.record(z.string(), z.string()).optional(),
+});
 const problemSchema = z.object({
   id: z
     .string()

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from oj.judge import judge_code
 from oj.problem_store import ProblemStore
@@ -55,3 +56,45 @@ async def test_cancel_running_judge(problem_payload: dict[str, Any]) -> None:
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await asyncio.wait_for(task, 3)
+
+
+async def test_testcase_files_are_materialized_and_isolated(
+    problem_payload: dict[str, Any],
+) -> None:
+    problem = Problem.model_validate(
+        {
+            **problem_payload,
+            "testcases": [
+                {
+                    "input": "study.jsonl\n",
+                    "output": "first\n",
+                    "files": {"study.jsonl": "first\n"},
+                },
+                {"input": "study.jsonl\n", "output": "MISSING\n"},
+            ],
+        }
+    )
+    language = Language(name="py", file_ext=".py", run_cmd="python {src}")
+    code = """\
+from pathlib import Path
+path = Path(input())
+print(path.read_text().strip() if path.exists() else "MISSING")
+"""
+    result = await judge_code(problem, language, code)
+    assert result.score == result.counts == 20
+
+
+def test_testcase_file_names_reject_paths(problem_payload: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        Problem.model_validate(
+            {
+                **problem_payload,
+                "testcases": [
+                    {
+                        "input": "x\n",
+                        "output": "x\n",
+                        "files": {"../main.py": "print('injected')\n"},
+                    }
+                ],
+            }
+        )

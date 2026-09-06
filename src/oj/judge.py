@@ -186,6 +186,14 @@ async def _run_case(
     case_id: int,
     directory: Path | None = None,
 ) -> CaseResult:
+    if directory:
+        await asyncio.to_thread(directory.mkdir, parents=True, exist_ok=True)
+        for filename, content in testcase.files.items():
+            await asyncio.to_thread(
+                (directory / filename).write_text,
+                content,
+                encoding="utf-8",
+            )
     started = time.perf_counter()
     proc = await asyncio.create_subprocess_exec(
         *argv,
@@ -292,7 +300,14 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
         time_limit = problem.time_limit or language.time_limit or 3.0
         memory_limit = problem.memory_limit or language.memory_limit or 128
         cases = [
-            await _run_case(argv, testcase, time_limit, memory_limit, index, directory)
+            await _run_case(
+                argv,
+                testcase,
+                time_limit,
+                memory_limit,
+                index,
+                directory / f"case-{index}",
+            )
             for index, testcase in enumerate(problem.testcases, start=1)
         ]
         score = sum(POINTS_PER_CASE for case in cases if case.result == "AC")
