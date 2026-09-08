@@ -64,22 +64,25 @@ export function logText(value: unknown): string {
 export function Copy({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
+  if (!text.trim()) return null;
   return (
-    <button
-      className="copy"
-      type="button"
-      onClick={() =>
-        void navigator.clipboard
-          .writeText(text)
-          .then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          })
-          .catch(() => setFailed(true))
-      }
-    >
-      {copied ? "已复制" : failed ? "请手动选择复制" : "复制"}
-    </button>
+    <div className="code-toolbar">
+      <button
+        className="copy"
+        type="button"
+        onClick={() =>
+          void navigator.clipboard
+            .writeText(text)
+            .then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            })
+            .catch(() => setFailed(true))
+        }
+      >
+        {copied ? "已复制" : failed ? "请手动选择复制" : "复制"}
+      </button>
+    </div>
   );
 }
 export function Code({ text: raw }: { text: unknown }) {

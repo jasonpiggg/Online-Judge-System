@@ -29,11 +29,13 @@ const labels: Record<string, string> = {
 };
 const tone = (v: string) => (Object.hasOwn(labels, v) ? v : "unknown");
 const icon = (v: string) =>
-  v === "private" ? "shield" : v === "AC"
-    ? "check"
-    : ["pending", "TLE", "MLE"].includes(v)
-      ? "clock"
-      : "cross";
+  v === "private"
+    ? "shield"
+    : v === "AC"
+      ? "check"
+      : ["pending", "TLE", "MLE"].includes(v)
+        ? "clock"
+        : "cross";
 const advice: Record<string, string> = {
   WA: "程序正常运行，但输出与标准答案不同。优先检查边界条件、输入解析和输出格式。",
   TLE: "程序超过时间限制。检查循环终止条件，并考虑降低算法时间复杂度。",
@@ -44,8 +46,60 @@ const advice: Record<string, string> = {
   error:
     "评测服务没有完成本次任务。代码已保留，可以稍后重新提交或请管理员重新评测。",
 };
+// Score labels use only authorized totals, never infer a hidden judge verdict.
+export function ScoreBadge({
+  score,
+  maxScore,
+}: {
+  score: number | null | undefined;
+  maxScore: number | null | undefined;
+}) {
+  const valid =
+    typeof score === "number" &&
+    Number.isFinite(score) &&
+    typeof maxScore === "number" &&
+    Number.isFinite(maxScore) &&
+    maxScore > 0 &&
+    score >= 0 &&
+    score <= maxScore;
+  const state = !valid
+    ? "unknown"
+    : score === maxScore
+      ? "AC"
+      : score === 0
+        ? "failed"
+        : "partial";
+  const label = !valid
+    ? "仅显示得分"
+    : score === maxScore
+      ? "满分"
+      : score === 0
+        ? "零分"
+        : "部分得分";
+  return (
+    <span
+      className={`badge tone-${state}`}
+      title="仅根据得分显示；测试点明细未公开"
+    >
+      <Icon name={state === "AC" ? "check" : "shield"} />
+      <span>{label}</span>
+    </span>
+  );
+}
 export function VerdictBadge({ submission: s }: { submission: Submission }) {
-  const v = s.status === "pending" ? "pending" : s.status === "error" ? "error" : s.evaluation?.verdict || "unknown";
+  const v =
+    s.status === "pending"
+      ? "pending"
+      : s.status === "error"
+        ? "error"
+        : s.evaluation?.verdict || "unknown";
+  if (v === "private")
+    return (
+      <ScoreBadge
+        score={s.evaluation?.score}
+        maxScore={s.evaluation?.max_score}
+      />
+    );
   return (
     <span className={`badge tone-${tone(v)}`}>
       <Icon name={icon(v)} />
@@ -92,10 +146,10 @@ export function EvaluationView({
       ? Math.min(100, (100 * e.passed_cases) / e.total_cases)
       : null;
   return (
-    <>
+    <div className="evaluation-content">
       <div className="evaluation-summary" aria-live="polite">
         {hidden && s.status === "success" ? (
-          <span className="badge">仅显示得分</span>
+          <ScoreBadge score={e?.score} maxScore={e?.max_score} />
         ) : (
           <VerdictBadge submission={s} />
         )}
@@ -129,7 +183,7 @@ export function EvaluationView({
           )
         )}
       </div>
-      {advice[e?.verdict || s.status] && (
+      {!hidden && advice[e?.verdict || s.status] && (
         <p className="outcome-advice">{advice[e?.verdict || s.status]}</p>
       )}
       {compiled && (
@@ -244,7 +298,7 @@ export function EvaluationView({
           ))}
         </DisclosureCard>
       )}
-    </>
+    </div>
   );
 }
 export function ResultPanel({

@@ -81,8 +81,12 @@ select:focus {
 .resize:focus {
   background: #eef4ff;
 }
-.code-block:hover .copy {
-  opacity: 1;
+.code-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-1) var(--space-2);
+  background: var(--code-toolbar);
+  border-bottom: 1px solid var(--code-border);
 }
 .markdown {
   overflow-wrap: anywhere;
@@ -189,14 +193,15 @@ select:focus {
   border: 1px solid var(--border);
   overflow: hidden;
   margin: 12px 0;
-  background: #f7f9fc;
-  border-color: var(--border);
+  background: var(--code-surface);
+  color: var(--ink);
+  border-color: var(--code-border);
   border-radius: 8px;
 }
 .copy {
   position: relative;
   display: block;
-  margin: 6px 6px 0 auto;
+  margin: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   font-size: 14px;
@@ -250,7 +255,7 @@ progress::-moz-progress-bar {
 }
 .case-section,
 .compile-diagnostic {
-  padding: 20px 24px;
+  padding: var(--space-4) 0;
 }
 .case-section h3 {
   margin: 0;
@@ -381,8 +386,6 @@ progress::-moz-progress-bar {
     font-size: 14px;
     padding: 4px 5px;
   }
-  .case-section,
-  .raw-logs,
   .assistant-panel > summary {
     padding: 16px;
   }
@@ -1687,4 +1690,15 @@ input[hidden] {
   .import-dialog {
     padding: 16px;
   }
+}
+
+/* The result container owns horizontal spacing across all evaluation views. */
+.result > .evaluation-content {
+  padding: 0 var(--space-4) var(--space-4);
+}
+.evaluation-content {
+  min-width: 0;
+}
+.evaluation-content > .raw-logs {
+  margin: var(--space-3) 0 0;
 }
