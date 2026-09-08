@@ -128,7 +128,7 @@ test("filter, navigate, edit, refresh, submit and inspect result", async ({
   await page.reload();
   await expect(page.locator(".view-lines")).toContainText("print");
   await page.getByRole("button", { name: "提交评测", exact: true }).click();
-  await expect(page.getByText("全部通过", { exact: true })).toBeVisible();
+  await expect(page.locator(".result .evaluation-summary").getByText("全部通过", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "本题提交记录" })).toBeVisible();
   await expect(page.locator(".submission-history-row.selected")).toContainText("全部通过");
   await page.getByRole("link", { name: "查看提交详情", exact: true }).click();
@@ -138,7 +138,8 @@ test("filter, navigate, edit, refresh, submit and inspect result", async ({
   await expect(page.locator(".view-lines")).toContainText("print");
   await expect(page.locator(".submission-history-row.selected")).toBeVisible();
   await page.getByRole("link", { name: "查看提交详情", exact: true }).click();
-  await page.getByRole("button", { name: "在新任务标签打开题目" }).click();
+  await page.getByLabel("继续修改题目的打开方式").click();
+  await page.getByRole("button", { name: "在新标签页打开", exact: true }).click();
   await expect(page).toHaveURL(/\/problems\/sum_2\?submission=\d+&tab=/);
   await expect(page.locator(".back-link")).toHaveCount(0);
 });

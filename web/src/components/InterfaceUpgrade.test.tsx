@@ -66,7 +66,7 @@ describe("activity task tabs", () => {
 
   it("requires confirmation only when backup is unsafe", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-    render(<MemoryRouter><ActivityProvider userId="7"><RegisteredTask unsafe /></ActivityProvider></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/problems/p1"]}><ActivityProvider userId="7"><RegisteredTask unsafe /></ActivityProvider></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "关闭 P1 · 测试题" }));
     expect(confirm).toHaveBeenCalledOnce();
     expect(screen.getByText("P1 · 测试题")).toBeInTheDocument();

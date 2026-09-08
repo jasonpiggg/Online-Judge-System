@@ -13,16 +13,16 @@ import { DifficultyBadge } from "../components/Difficulty";
 import { Pagination } from "../components/Pagination";
 import { Statement } from "../components/Statement";
 import { Code } from "../components/Markdown";
-import { createEditingDraft } from "../problem-actions";
+import { editingDraftPath } from "../problem-actions";
 import { useActionReveal } from "../components/useActionReveal";
 import { DisclosureCard } from "../components/DisclosureCard";
 import { Switch } from "../components/Switch";
-import { TaskLink, useActivity } from "../components/Activity";
+import { TaskAction, TaskLink, useActivity } from "../components/Activity";
 
 export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
   const [params, setParams] = useSearchParams();
   const location = useLocation();
-  const { openRoot } = useActivity();
+  const { findEditingDraft, remove: removeActivity } = useActivity();
   const id = params.get("problem_id"),
     q = params.get("q") || "";
   const page = Math.max(1, Number(params.get("page")) || 1);
@@ -195,17 +195,7 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
             <Button asChild>
               <TaskLink to={`/problems/${p.id}`}>打开做题页</TaskLink>
             </Button>
-            <Button
-              disabled={busy}
-              onClick={() =>
-                void action(async () => {
-                  const draft = await createEditingDraft(p);
-                  openRoot(`/authoring/drafts/${draft.id}`);
-                })
-              }
-            >
-              编辑题目
-            </Button>
+            <TaskAction label="编辑题目" disabled={busy} onError={e => void action(async () => { throw e; })} resolve={() => editingDraftPath(p, findEditingDraft(p.id))} />
             <Button asChild>
               <Link
                 to={
@@ -228,6 +218,7 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
                   )
                     void action(async () => {
                       await api(`/problems/${p.id}`, json("DELETE"));
+                      removeActivity(`problem:${p.id}`);
                       setParams({ tab: "题目" });
                     });
                 }}

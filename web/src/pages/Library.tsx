@@ -1,7 +1,7 @@
+import { TaskLink } from "../components/Activity";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import {
-  Link,
   useSearchParams,
   useNavigationType,
   useLocation,
@@ -120,8 +120,9 @@ export function Library() {
               <span>状态</span>
             </div>
             {filtered?.slice((page - 1) * 20, page * 20).map((p) => (
-              <Link
+              <TaskLink
                 className="problem-row"
+                menuLabel={p.title}
                 key={p.id}
                 to={`/problems/${p.id}`}
                 onClick={() =>
@@ -152,7 +153,7 @@ export function Library() {
                 >
                   {label(p)}
                 </span>
-              </Link>
+              </TaskLink>
             ))}
           </div>
           {!filtered?.length && (

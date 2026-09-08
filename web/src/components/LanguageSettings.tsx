@@ -1,20 +1,14 @@
 import { useState } from "react";
 import { api, errorText, json, queryClient } from "../api";
 import { Button } from "./ui/button";
-import { useQuery } from "@tanstack/react-query";
+import { useLanguages } from "../languages";
 import { DisclosureCard } from "./DisclosureCard";
 
 export function LanguageSettings({ heading = true }: { heading?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const languages = useQuery({
-    queryKey: ["language-details"],
-    queryFn: () =>
-      api<{ languages: Record<string, any>[] }>(
-        "/languages/?include_metadata=true",
-      ),
-  });
+  const languages = useLanguages();
   return (
     <section className="language-settings">
       {heading && <h2>评测语言</h2>}

@@ -4,12 +4,12 @@ import { LanguageSettings } from "../components/LanguageSettings";
 import { Button } from "../components/ui/button";
 import { Icon } from "../components/Icon";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useActivity } from "../components/Activity";
 import { useActionReveal } from "../components/useActionReveal";
 
 export function Resources() {
   const [params, setParams] = useSearchParams();
-  const navigate = useNavigate();
+  const { openRoot: navigate } = useActivity();
   const location = useLocation();
   const [submissionId, setSubmissionId] = useState("");
   const panelReveal = useActionReveal<HTMLDivElement>();
