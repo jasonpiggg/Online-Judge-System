@@ -1,3 +1,4 @@
+import { ProblemImport } from "../components/ProblemImport";
 import { Icon } from "../components/Icon";
 import { difficulties, difficultyLevel } from "../difficulty";
 import { DifficultyGuide } from "../components/Difficulty";
@@ -19,7 +20,7 @@ import { TaskProgress, terminal, useTask, type Task } from "../components/AI";
 import { BackLink } from "../components/BackLink";
 import { DiffView } from "../components/DiffView";
 import { ErrorNotice } from "../components/ErrorNotice";
-import { NewTaskButton, TaskLink, useActivity, useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
+import { TaskAction, TaskLink, useActivity, useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
 import { Pagination } from "../components/Pagination";
 import { useActionReveal } from "../components/useActionReveal";
 import { DisclosureCard } from "../components/DisclosureCard";
@@ -233,6 +234,7 @@ export function Authoring() {
           <Icon name="spark" />
           命题中心
         </h1>
+        <ProblemImport />
         <Button onClick={() => void create()} disabled={busy}>
           手动创建题目
         </Button>
@@ -284,7 +286,7 @@ export function Authoring() {
       <div className="draft-list">
         {drafts.data?.items.map((d) => (
             <div className="draft-row managed-row" key={d.id}>
-              <TaskLink to={"/authoring/drafts/" + d.id}>
+              <TaskLink menuLabel={d.problem?.title || "草稿"} to={"/authoring/drafts/" + d.id}>
                 <strong>{d.problem?.title || "未命名题目"}</strong>
                 <span className="muted">
                 {
@@ -311,7 +313,7 @@ export function Authoring() {
       <h2>AI 任务</h2>
       {tasks.data?.items.map((t) => (
         <div className="draft-row managed-row" key={t.id}>
-          <TaskLink to={"/authoring/tasks/" + t.id}>
+          <TaskLink menuLabel="AI 任务" to={"/authoring/tasks/" + t.id}>
             <span>{t.progress}</span>
             <span className="muted">{new Date(t.created_at).toLocaleString()}</span>
           </TaskLink>
@@ -451,6 +453,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
   }, [content, backup, dirty, backupConflict]);
   useRegisterActivity({
     id: `draft:${draft.id}`,
+    baseProblemId: draft.base_problem_id,
     kind: "draft",
     title: values.title || "未命名草稿",
     path: `/authoring/drafts/${draft.id}?step=${encodeURIComponent(step)}`,
@@ -1382,8 +1385,7 @@ export function AuthoringTask() {
           ) : (
           <div className="action-group">
             {taskOrigin.path !== "/authoring" && <>
-              <Button asChild><TaskLink to={taskOrigin.path}>打开来源页面</TaskLink></Button>
-              <NewTaskButton to={taskOrigin.path} label="在新任务标签打开来源页面" />
+              <TaskAction to={taskOrigin.path} label="打开来源页面" />
             </>}
             {t.recovery_draft_id ? (
               <Button variant="default" asChild><TaskLink to={`/authoring/drafts/${t.recovery_draft_id}`}>打开恢复草稿</TaskLink></Button>

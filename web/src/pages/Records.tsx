@@ -17,7 +17,7 @@ import { Pagination } from "../components/Pagination";
 import { BackLink } from "../components/BackLink";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { DisclosureCard } from "../components/DisclosureCard";
-import { NewTaskButton, TaskLink, useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
+import { TaskAction, TaskLink, useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
 
 export function Records({
   user,
@@ -146,7 +146,7 @@ export function Records({
                   {data.submissions.map((s) => (
                     <tr key={s.submission_id}>
                       <td>
-                        <TaskLink
+                        <TaskLink menuLabel={`提交 #${s.submission_id}`}
                           to={`/submissions/${s.submission_id}?${new URLSearchParams({ from: returnTo })}`}
                         >
                           #{s.submission_id}
@@ -251,17 +251,7 @@ export function SubmissionPage({ user }: { user: User }) {
               <Icon name="chart" /> 提交详情
             </span>
             {!s.problem_deleted && (
-              <>
-                <Button asChild>
-                  <TaskLink to={`/problems/${s.problem_id}?submission=${id}&tab=代码`}>
-                    继续修改题目
-                  </TaskLink>
-                </Button>
-                <NewTaskButton
-                  to={`/problems/${s.problem_id}?submission=${id}&tab=代码`}
-                  label="在新任务标签打开题目"
-                />
-              </>
+              <TaskAction to={`/problems/${s.problem_id}?submission=${id}&tab=代码`} label="继续修改题目" />
             )}
           </div>
           <p className="muted">

@@ -1,4 +1,6 @@
-import { createEditingDraft } from "../problem-actions";
+import { useLanguages } from "../languages";
+import { CodeImport } from "../components/CodeImport";
+import { editingDraftPath } from "../problem-actions";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -18,7 +20,7 @@ import { ResultPanel, VerdictBadge } from "../components/Evaluation";
 import { Icon } from "../components/Icon";
 import { readBackup, writeBackup, clearBackup } from "../draft-backup";
 import { BackLink } from "../components/BackLink";
-import { TaskLink, useActivity, useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
+import { TaskAction, TaskLink, useActivity, useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { Pagination } from "../components/Pagination";
 export const DEFAULT_EDITOR_FONT_SIZE = 14;
@@ -39,7 +41,7 @@ export function Workspace({ user }: { user: User }) {
 }
 function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const navigate = useNavigate();
-  const { activeSlot, navigateInSlot, openInNewSlot, replaceCurrent } = useActivity();
+  const { activeSlot, replaceCurrent, findEditingDraft, remove: removeActivity } = useActivity();
   const location = useLocation();
   const [params] = useSearchParams();
   const state = location.state as {
@@ -75,16 +77,14 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const sections = ["题目", "代码", "结果", "AI"] as const;
   type Section = (typeof sections)[number];
   const scrollTarget = useRef<Section | null>(null);
-  const userScrolling = useRef(false);
-  const scrollIntentTimer = useRef<number | null>(null);
+  const passiveNavigation = useRef("");
+  const manualScroll = useRef(false);
+  const restoredSlot = useRef<string | undefined>(undefined);
   const requestedTab = params.get("tab");
   const tab: Section = sections.includes(requestedTab as Section) ? requestedTab as Section : "题目";
   const submission = params.get("submission");
   const index = state?.ids?.indexOf(p.id) ?? -1;
-  const languages = useQuery({
-    queryKey: ["languages"],
-    queryFn: () => api<{ name: string[] }>("/languages/"),
-  });
+  const languages = useLanguages();
   const history = useQuery({
     queryKey: ["problem-submissions", p.id, user.user_id, historyPage],
     queryFn: () =>
@@ -125,7 +125,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
         loadedBackup.current = backup;
         setReady(true);
       })
-      .catch((e) => setError(errorText(e)));
+      .catch((e) => { if (!cancelled) setError(errorText(e)); });
     return () => {
       cancelled = true;
       generation.current += 1;
@@ -210,6 +210,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
       const next = new URLSearchParams(params);
       next.set("submission", d.submission_id);
       next.set("tab", "结果");
+      scrollTarget.current = "结果";
       replaceCurrent(`${location.pathname}?${next}`, location.state as object);
     } catch (e) {
       setError(errorText(e));
@@ -225,9 +226,13 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
     if (historyPage > pages) setHistoryPage(pages);
   }, [history.data?.total, historyPage]);
   const jump = useCallback((target: Section, smooth = false) => {
+    manualScroll.current = false;
     scrollTarget.current = target;
     if (target === "AI" && assistantPanel.current)
       assistantPanel.current.open = true;
+    const nav = document.querySelector(".section-nav")?.getBoundingClientRect();
+    const node = document.getElementById(`section-${target}`);
+    if (node) node.style.scrollMarginTop = `${Math.max(0, nav?.bottom || 0) + 16}px`;
     document
       .getElementById(`section-${target}`)
       ?.scrollIntoView({
@@ -237,101 +242,90 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
   }, []);
   useLayoutEffect(() => {
     if (!activeSlot) return;
-    if (!requestedTab || requestedTab === tab) jump(tab);
-    else {
-      const next = new URLSearchParams(params);
-      next.set("tab", "题目");
-      replaceCurrent(`${location.pathname}?${next}`, location.state as object);
+    const path = location.pathname + location.search;
+    if (passiveNavigation.current === path) { passiveNavigation.current = ""; return; }
+    if (restoredSlot.current !== activeSlot.id) {
+      restoredSlot.current = activeSlot.id;
+      if (tab === "AI" && assistantPanel.current) assistantPanel.current.open = true;
+      const saved = activeSlot.current.scrollY;
+      if (typeof saved === "number" && Number.isFinite(saved)) {
+        window.scrollTo({ top: saved, behavior: "instant" }); return;
+      }
     }
+    jump(tab);
   }, [activeSlot?.id, location.key, p.id]);
   useEffect(() => {
     if (!activeSlot) return;
     let frame = 0;
-    userScrolling.current = false;
-    const markUserScroll = () => {
-      userScrolling.current = true;
+    const cancelJump = () => {
+      manualScroll.current = true;
+      if (scrollTarget.current) window.scrollTo({ top: window.scrollY, behavior: "instant" });
       scrollTarget.current = null;
-      if (scrollIntentTimer.current !== null)
-        window.clearTimeout(scrollIntentTimer.current);
-      scrollIntentTimer.current = window.setTimeout(() => {
-        userScrolling.current = false;
-        scrollIntentTimer.current = null;
-      }, 240);
     };
-    const markKeyboardScroll = (event: KeyboardEvent) => {
-      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key))
-        markUserScroll();
+    const keyboard = (event: KeyboardEvent) => {
+      if ((event.target as HTMLElement)?.closest("input,textarea,select,[contenteditable=true],.monaco-editor")) return;
+      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) cancelJump();
     };
     const sync = () => {
       frame = 0;
-      if (!userScrolling.current) return;
-      const threshold = Math.min(180, window.innerHeight * 0.25);
+      if (scrollTarget.current || submitting.current || !manualScroll.current) return;
+      const nav = document.querySelector(".section-nav")?.getBoundingClientRect();
+      const threshold = Math.max(0, nav?.bottom || 0) + 24;
       let current: Section = "题目";
-      const intended = scrollTarget.current;
-      if (intended) {
-        const rect = document.getElementById(`section-${intended}`)?.getBoundingClientRect();
-        const atDocumentEnd = window.innerHeight + window.scrollY >=
-          document.documentElement.scrollHeight - 4;
-        // Keep an explicit/deep-linked target while it is aligned with the sticky
-        // header. At the document end, short sections may only align near the
-        // viewport bottom, which is still a valid target position.
-        const stillAtTarget = rect && rect.bottom > 0 && (
-          rect.top <= threshold + 16 || (atDocumentEnd && rect.top < window.innerHeight)
-        );
-        if (stillAtTarget) return;
-        scrollTarget.current = null;
-      }
       for (const section of sections) {
         const node = document.getElementById(`section-${section}`);
         if (node && node.getBoundingClientRect().top <= threshold) current = section;
       }
-      const urlTab = new URLSearchParams(location.search).get("tab") || "题目";
-      if (current !== urlTab) {
-        if (current === "AI" && assistantPanel.current) assistantPanel.current.open = true;
-        const next = new URLSearchParams(location.search);
+      // Read the committed browser URL so a delayed scroll frame cannot erase
+      // a submission/section navigation that happened after this effect rendered.
+      const next = new URLSearchParams(window.location.search);
+      if (window.location.pathname !== location.pathname) return;
+      if (current !== (next.get("tab") || "题目")) {
         next.set("tab", current);
-        replaceCurrent(`${location.pathname}?${next}`, location.state as object);
+        const path = `${location.pathname}?${next}`;
+        // Updating the address while scrolling must never reposition the viewport.
+        passiveNavigation.current = path;
+        replaceCurrent(path, location.state as object);
       }
     };
-    const onScroll = () => {
-      if (!frame) frame = requestAnimationFrame(sync);
-    };
-    window.addEventListener("wheel", markUserScroll, { passive: true });
-    window.addEventListener("touchmove", markUserScroll, { passive: true });
-    window.addEventListener("keydown", markKeyboardScroll);
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(sync); };
+    const scrollEnd = () => { scrollTarget.current = null; };
+    window.addEventListener("wheel", cancelJump, { passive: true });
+    window.addEventListener("touchstart", cancelJump, { passive: true });
+    window.addEventListener("pointerdown", cancelJump, { passive: true });
+    window.addEventListener("keydown", keyboard);
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scrollend", scrollEnd);
     return () => {
-      window.removeEventListener("wheel", markUserScroll);
-      window.removeEventListener("touchmove", markUserScroll);
-      window.removeEventListener("keydown", markKeyboardScroll);
+      window.removeEventListener("wheel", cancelJump);
+      window.removeEventListener("touchstart", cancelJump);
+      window.removeEventListener("pointerdown", cancelJump);
+      window.removeEventListener("keydown", keyboard);
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scrollend", scrollEnd);
       if (frame) cancelAnimationFrame(frame);
-      if (scrollIntentTimer.current !== null) {
-        window.clearTimeout(scrollIntentTimer.current);
-        scrollIntentTimer.current = null;
-      }
     };
   }, [activeSlot?.id, location.pathname, location.search, location.state, replaceCurrent]);
   return (
     <div className="workpage">
       <div className="work-nav">
-        <BackLink />
-        <div className="problem-switcher" aria-label="相邻题目">
-          {index > 0 && (
+        <div className="work-back"><BackLink /></div>
+        {index >= 0 && <div className="problem-switcher" aria-label="相邻题目">
+          {index > 0 ? (
             <Button asChild size="compact">
               <TaskLink to={`/problems/${state!.ids![index - 1]}`} state={state}>
                 <Icon name="chevronLeft" /> 上一题
               </TaskLink>
             </Button>
-          )}
-          {index >= 0 && index < (state?.ids?.length || 0) - 1 && (
+          ) : <Button size="compact" disabled><Icon name="chevronLeft" /> 上一题</Button>}
+          {index >= 0 && index < (state?.ids?.length || 0) - 1 ? (
             <Button asChild size="compact">
               <TaskLink to={`/problems/${state!.ids![index + 1]}`} state={state}>
                 下一题 <Icon name="chevronRight" />
               </TaskLink>
             </Button>
-          )}
-        </div>
+          ) : <Button size="compact" disabled>下一题 <Icon name="chevronRight" /></Button>}
+        </div>}
       </div>
       <div className="work-heading-row">
         <div className="work-heading">
@@ -345,33 +339,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
           </p>
         </div>
         <div className="problem-actions" aria-label="题目操作">
-          <Button
-            onClick={async () => {
-              try {
-                const draft = await createEditingDraft(p);
-                navigateInSlot("/authoring/drafts/" + draft.id);
-              } catch (e) {
-                setError(errorText(e));
-              }
-            }}
-          >
-            编辑题目
-          </Button>
-          <Button
-            variant="outline"
-            title="在新任务标签打开编辑页"
-            aria-label="在新任务标签打开编辑页"
-            onClick={async () => {
-              try {
-                const draft = await createEditingDraft(p);
-                openInNewSlot("/authoring/drafts/" + draft.id);
-              } catch (e) {
-                setError(errorText(e));
-              }
-            }}
-          >
-            <Icon name="newTab" /> 新任务标签
-          </Button>
+          <TaskAction label="编辑题目" onError={e => setError(errorText(e))} resolve={() => editingDraftPath(p, findEditingDraft(p.id))} />
           {user.role === "admin" && (
             <Button
               variant="destructive"
@@ -383,6 +351,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
                   return;
                 try {
                   await api(`/problems/${p.id}`, json("DELETE"));
+                  removeActivity(`problem:${p.id}`);
                   navigate("/problems");
                 } catch (e) {
                   setError(errorText(e));
@@ -402,7 +371,8 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
             onClick={() => {
               const next = new URLSearchParams(params);
               next.set("tab", t);
-              replaceCurrent(`${location.pathname}?${next}`, location.state as object);
+              passiveNavigation.current = `${location.pathname}?${next}`;
+              replaceCurrent(passiveNavigation.current, location.state as object);
               jump(t, true);
             }}
           >
@@ -441,10 +411,32 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
                   setLanguage(e.target.value);
                 }}
               >
-                {(languages.data?.name || ["python"]).map((v) => (
+                {(languages.data?.name || []).map((v) => (
                   <option key={v}>{v}</option>
                 ))}
               </select>
+              <CodeImport language={language} disabled={!ready || backupFailed || !!conflict || inFlight.current} onApply={async (target, imported) => {
+                // Persist both source and target backups before changing editor language.
+                // Target loading then reads this backup after establishing its server revision.
+                const epoch = generation.current;
+                const destination = `oj-draft-${user.user_id}-${p.id}-${target}`;
+                const remote = await api<{ code: string; revision: number } | null>(`/workspace-drafts/${p.id}/${target}`);
+                if (generation.current !== epoch) throw new Error("页面或语言已变化，请重新导入。");
+                const existing = readBackup(destination);
+                if (existing && existing.code !== (remote?.code || "") && existing.revision !== (remote?.revision || 0))
+                  throw new Error("目标语言草稿存在版本冲突，请切换到该语言处理后再导入。");
+                writeBackup(backup, latest.current, revision.current);
+                writeBackup(destination, imported, remote?.revision || 0);
+                if (target === language) {
+                  revision.current = remote?.revision || 0;
+                  synced.current = remote?.code || "";
+                  setCode(imported);
+                } else {
+                  setReady(false);
+                  localStorage.setItem("oj-language", target);
+                  setLanguage(target);
+                }
+              }} />
               <label className="font-control">
                 字号{" "}
                 <select

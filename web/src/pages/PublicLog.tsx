@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { CaseResult, Evaluation, Submission, User } from "../types";
 import { BackLink } from "../components/BackLink";
@@ -16,12 +16,13 @@ type PublicLogResult = {
 
 export function PublicLog({ user: _user }: { user: User }) {
   const { id = "" } = useParams();
+  const location = useLocation();
   const query = useQuery({
     queryKey: ["public-log", id],
     queryFn: () => api<PublicLogResult>(`/submissions/${id}/log`),
   });
   useRecoverUnavailableTask(query.error);
-  useRegisterActivity({ id: `submission:${id}`, kind: "submission", title: `日志 #${id}`, path: `/logs/submissions/${id}`, status: query.isPending ? "读取中" : query.error ? "不可查看" : "已加载" });
+  useRegisterActivity({ id: `log:${id}`, kind: "submission", title: `日志 #${id}`, path: `/logs/submissions/${id}${location.search}`, status: query.isPending ? "读取中" : query.error ? "不可查看" : "已加载" });
   const data = query.data;
   const counts = data?.details?.reduce<Record<string, number>>((all, item) => {
     all[item.result] = (all[item.result] || 0) + 1;

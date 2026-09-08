@@ -1,0 +1,14 @@
+{
+  "id": "imported_sum",
+  "title": "两数之和",
+  "description": "输入两个整数，输出它们的和。",
+  "input_description": "一行两个整数 a 和 b。",
+  "output_description": "输出 a+b。",
+  "samples": [{"input": "1 2\n", "output": "3\n"}],
+  "constraints": "|a|, |b| <= 1000000000",
+  "testcases": [{"input": "1 2\n", "output": "3\n"}, {"input": "-5 8\n", "output": "3\n"}],
+  "difficulty": "简单",
+  "tags": ["基础"],
+  "time_limit": null,
+  "memory_limit": null
+}

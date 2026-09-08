@@ -1,5 +1,5 @@
 :root {
-  font-family: Inter, "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  font-family: var(--font-sans);
   color: #202630;
   background: #fff;
   font-size: 16px;
@@ -125,8 +125,7 @@
 }
 .source-input {
   font:
-    16px/1.6 Consolas,
-    monospace;
+    14px/1.65 var(--font-mono);
 }
 .sticky-actions {
   position: sticky;
@@ -243,7 +242,7 @@
 }
 body {
   margin: 0;
-  font-family: Inter, "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  font-family: var(--font-sans);
 }
 button,
 input,
@@ -291,9 +290,7 @@ h4 {
 p {
   margin-bottom: 16px;
 }
-input:not([type="checkbox"]):not([type="radio"]),
-select,
-textarea {
+:where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
   border: 1px solid #dfe3e8;
   border-radius: 7px;
   background: #fff;
@@ -593,9 +590,7 @@ button:disabled {
   padding: 18px 16px;
   overflow: auto;
   font:
-    16px/1.65 Consolas,
-    "Cascadia Code",
-    monospace;
+    14px/1.65 var(--font-mono);
   white-space: pre;
 }
 .copy {
@@ -1751,7 +1746,7 @@ progress::-moz-progress-bar {
   display: block;
   min-width: 0;
   padding: 0;
-  font-family: Consolas, monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: #687b98;
   overflow-wrap: anywhere;
@@ -2154,9 +2149,7 @@ p {
 .row {
   gap: 10px;
 }
-input:not([type="checkbox"]):not([type="radio"]),
-select,
-textarea {
+:where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
   min-height: 36px;
   padding: 6px 9px;
   border-radius: 6px;
@@ -2895,7 +2888,7 @@ summary,
 .diff-side > strong { display: block; padding: 6px 10px; font-size: 13px; }
 .diff-side.tone-remove > strong { color: #963b47; background: #fff1f2; }
 .diff-side.tone-add > strong { color: #256a42; background: #edfbf2; }
-.diff-text { margin: 0; padding: 10px 12px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 14px/1.62 Consolas, monospace; }
+.diff-text { margin: 0; padding: 10px 12px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 14px/1.65 var(--font-mono); }
 .diff-remove { background: #ffd9dd; color: #742a33; text-decoration: line-through; }
 .diff-add { background: #cdefd9; color: #195d36; }
 .diff-unified .diff-side + .diff-side { border-top: 1px solid #e2e8f0; }
@@ -3701,19 +3694,6 @@ input[type="radio"] {
 .switch-control input:disabled ~ .switch-label { opacity: 0.55; cursor: not-allowed; }
 .switch-label { min-width: 3em; color: var(--muted); font-size: 13px; }
 
-.new-task-button {
-  display: inline-grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  color: #426188;
-  background: #fff;
-  border: 1px solid var(--control-border);
-  border-radius: 8px;
-}
-.new-task-button:hover { border-color: #7896bd; background: #f1f6ff; }
-.new-task-button .icon { width: 17px; height: 17px; }
 
 .assistant-history {
   margin-top: 20px;
@@ -3826,4 +3806,85 @@ input[type="radio"] {
   .activity-tab {
     transition: none;
   }
+}
+
+/* Shared controls and typography: component rules own their spacing. */
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+:root {
+  --font-sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Microsoft YaHei", monospace;
+  --control-height: 40px;
+}
+input, select, textarea, button { font-family: inherit; }
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select) {
+  min-height: var(--control-height);
+  font-size: 14px;
+}
+.button.button { min-height: var(--control-height); font-size: 14px; padding: 7px 12px; gap: 6px; }
+.button.button.compact { min-height: 32px; font-size: 13px; padding: 4px 10px; }
+.button > .icon { width: 16px; height: 16px; flex-shrink: 0; }
+.search-field input { padding-inline: 44px; }
+.search-field button { min-height: 40px; height: 100%; padding: 0; }
+.work-nav { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.work-nav .work-back { min-width: 0; }
+.work-nav .problem-switcher { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; justify-self: end; }
+.problem-switcher .button { white-space: nowrap; }
+code, pre, .diff-text { font-family: var(--font-mono); font-variant-ligatures: none; }
+.code-block pre, .diff-text { font-size: 14px; line-height: 1.65; }
+.code-block pre code { font: inherit; }
+.task-action { display: inline-flex; position: relative; align-items: stretch; vertical-align: middle; flex-shrink: 0; }
+.task-action > .button { border-radius: 8px 0 0 8px; }
+.task-action-menu { position: relative; }
+.task-action-menu > summary {
+  display: grid; place-items: center; width: 32px; height: 100%; min-height: var(--control-height);
+  list-style: none; cursor: pointer; border: 1px solid #dce5ef; border-left: 0;
+  border-radius: 0 8px 8px 0; background: white;
+}
+.task-action-menu > summary::-webkit-details-marker { display: none; }
+.task-action-options {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 60;
+  padding: 5px; background: white; border: 1px solid #dce5ef; border-radius: 8px; box-shadow: 0 8px 24px #18304b22;
+}
+.task-action-options button { display: flex; align-items: center; gap: 8px; white-space: nowrap; border: 0; background: white; min-height: 40px; padding: 8px 12px; }
+.task-action-options button:hover { background: #edf4ff; }
+.import-dialog { width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; border: 1px solid #dce5ef; border-radius: 14px; padding: 24px; color: inherit; }
+.import-dialog::backdrop { background: #14253b66; }
+.import-dialog .code-block { max-height: 45vh; overflow: auto; }
+.import-dialog label { display: flex; align-items: center; gap: 12px; }
+.import-dialog .action-group { justify-content: flex-end; }
+.editor-toolbar { flex-wrap: wrap; }
+.problem-import { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.problem-import .field-error { flex-basis: 100%; }
+input[hidden] { display: none; }
+@media (max-width: 700px) {
+  :root { --control-height: 44px; }
+  .button.button.compact, .activity-tab-target, .activity-tab > button:last-child { min-height: 44px; }
+  .task-action-menu > summary { width: 44px; }
+  .work-nav { grid-template-columns: minmax(0, 1fr) auto; }
+  .import-dialog { padding: 16px; }
+}
+
+.task-link-with-menu { display: block; position: relative; min-width: 0; flex: 1; }
+.task-link-with-menu > .task-action-menu { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); }
+.task-link-with-menu > .task-action-menu > summary { border: 0; background: transparent; border-radius: 6px; }
+.task-link-with-menu > a { padding-right: 52px; }
+.problem-list .list-head { padding-right: 52px; }
+.managed-row .task-link-with-menu > a { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+details.task-action-menu { margin: 0; padding: 0; border: 0; }
+.task-action-menu > summary { margin: 0; padding: 0; }
+
+.task-action-menu > summary:focus-visible, .task-action-options button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.task-link-with-menu:has(> .task-action-menu[open]) { z-index: 65; }
+.problem-list:has(.task-action-menu[open]), .table-scroll:has(.task-action-menu[open]) { overflow: visible; }
+@media (max-width: 700px) {
+  .activity-tab > button:last-child, .activity-overflow-row > button:last-child { min-width: 44px; min-height: 44px; }
 }

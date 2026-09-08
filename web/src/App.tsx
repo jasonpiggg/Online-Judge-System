@@ -296,7 +296,7 @@ export default function App() {
   const user = me.data;
   setApiUser(String(user.user_id));
   return (
-    <ActivityProvider userId={String(user.user_id)}>
+    <ActivityProvider key={user.user_id} userId={String(user.user_id)}>
       <header className="topbar">
         <div className="topbar-inner">
           <Link className="brand" to="/problems">

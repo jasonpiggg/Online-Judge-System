@@ -4,6 +4,7 @@ import json
 import secrets
 from typing import Any
 
+import aiosqlite
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
@@ -118,6 +119,16 @@ async def create_problem_draft(
 ) -> JSONResponse:
     if body.base_problem_id and await request.app.state.problems.get(body.base_problem_id) is None:
         raise APIError(404, "base problem not found")
+    async with request.app.state.db.connect() as db:
+        data = await insert_problem_draft(db, body, user.id)
+        await db.commit()
+    return response(200, "problem draft created", data)
+
+
+async def insert_problem_draft(
+    db: aiosqlite.Connection, body: ProblemDraftCreate, owner_id: int
+) -> dict[str, Any]:
+    """Insert a draft and its initial revision within the caller's transaction."""
     draft_id = "draft-" + secrets.token_urlsafe(12)
     now = now_iso()
     problem = body.problem.model_dump() if body.problem else {}
@@ -139,36 +150,34 @@ async def create_problem_draft(
         "created_at": now,
         "updated_at": now,
     }
-    async with request.app.state.db.connect() as db:
-        await db.execute(
-            """INSERT INTO problem_drafts
+    await db.execute(
+        """INSERT INTO problem_drafts
                (id,owner_id,base_problem_id,status,requirement,problem_json,
                 reference_solution,brute_solution,generator_code,review_json,
                 revision,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (
-                draft_id,
-                user.id,
-                body.base_problem_id,
-                "draft",
-                body.requirement,
-                _snapshot(problem),
-                body.reference_solution,
-                body.brute_solution,
-                body.generator_code,
-                _snapshot(review),
-                1,
-                now,
-                now,
-            ),
-        )
-        await db.execute(
-            """INSERT INTO problem_draft_revisions
+        (
+            draft_id,
+            owner_id,
+            body.base_problem_id,
+            "draft",
+            body.requirement,
+            _snapshot(problem),
+            body.reference_solution,
+            body.brute_solution,
+            body.generator_code,
+            _snapshot(review),
+            1,
+            now,
+            now,
+        ),
+    )
+    await db.execute(
+        """INSERT INTO problem_draft_revisions
                (draft_id,revision,source,snapshot_json,change_summary,created_at)
                VALUES(?,?,?,?,?,?)""",
-            (draft_id, 1, "user", _snapshot(data), "创建草稿", now),
-        )
-        await db.commit()
-    return response(200, "problem draft created", data)
+        (draft_id, 1, "user", _snapshot(data), "创建草稿", now),
+    )
+    return data
 
 
 @router.get("/{draft_id}")

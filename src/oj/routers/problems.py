@@ -5,9 +5,45 @@ from fastapi.responses import JSONResponse
 
 from oj.auth import CurrentUser, get_current_user, require_admin
 from oj.errors import APIError, response
-from oj.schemas import LogVisibility, Problem
+from oj.routers.authoring import _decode, insert_problem_draft
+from oj.schemas import DraftProblem, LogVisibility, Problem, ProblemDraftCreate
 
 router = APIRouter(prefix="/api/problems")
+
+
+@router.post("/{problem_id}/editing-draft")
+async def editing_draft(
+    request: Request,
+    problem_id: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> JSONResponse:
+    problem = await request.app.state.problems.get(problem_id)
+    if problem is None:
+        raise APIError(404, "problem not found")
+    async with request.app.state.db.connect() as db:
+        # Serialize lookup + insertion across connections, including concurrent clicks.
+        await db.execute("BEGIN IMMEDIATE")
+        cursor = await db.execute(
+            "SELECT * FROM problem_drafts WHERE owner_id=? AND base_problem_id=? "
+            "AND status IN ('draft','ready') ORDER BY updated_at DESC,id DESC LIMIT 1",
+            (user.id, problem_id),
+        )
+        row = await cursor.fetchone()
+        await cursor.close()
+        data = (
+            _decode(row)
+            if row
+            else await insert_problem_draft(
+                db,
+                ProblemDraftCreate(
+                    base_problem_id=problem_id,
+                    problem=DraftProblem.model_validate(problem.model_dump()),
+                ),
+                user.id,
+            )
+        )
+        await db.commit()
+    return response(data=data)
 
 
 @router.get("/")
