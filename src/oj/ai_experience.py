@@ -38,6 +38,7 @@ from oj.ai_sections import (
     merge_section,
     section_prompt,
 )
+from oj.difficulty import comparable_problem
 from oj.errors import APIError
 from oj.evaluation import evaluation_summary, private_evaluation
 from oj.judge import judge_code
@@ -260,7 +261,8 @@ class AIExperience(AIAuthoringManager):
                 }
                 payload["assets"].update(json.loads(draft["review_json"]))
             if payload.get("resume_task_id") and (
-                previous.get("base_problem") != payload.get("base_problem")
+                comparable_problem(previous.get("base_problem"))
+                != comparable_problem(payload.get("base_problem"))
                 or previous.get("source_revision") != payload.get("source_revision")
             ):
                 raise APIError(409, "原题或草稿版本已变化，请合并后创建新任务")

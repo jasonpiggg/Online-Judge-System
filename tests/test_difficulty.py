@@ -93,3 +93,13 @@ async def test_api_writes_and_drafts_use_canonical_levels(
     )
     revisions = (await client.get(f"/api/problem-drafts/{draft['id']}/revisions")).json()["data"]
     assert revisions[0]["snapshot"]["problem"]["difficulty"] == "easy"
+
+
+def test_resume_comparison_preserves_custom_values() -> None:
+    from oj.difficulty import comparable_problem
+
+    raw = {"difficulty": "easy", "title": "original"}
+    assert comparable_problem(raw) == {"difficulty": "简单", "title": "original"}
+    assert raw["difficulty"] == "easy"
+    assert comparable_problem({"difficulty": "custom"}) != comparable_problem({"difficulty": ""})
+    assert comparable_problem(None) is None
