@@ -260,3 +260,51 @@ async def test_legacy_verification_request_keeps_full_mode(
     assert task["status"] == "failed"
     assert "完整验证资料不完整" in task["error"]
     assert task["progress"] == "本地验证未通过"
+
+
+async def test_editing_draft_reuses_atomically_and_isolates_owners(
+    client: AsyncClient, app: FastAPI, problem_payload: dict[str, Any]
+) -> None:
+    await _login(client, "editing_alice")
+    assert (await client.post("/api/problems/", json=problem_payload)).status_code == 200
+    responses = await asyncio.gather(*[
+        client.post("/api/problems/sum_2/editing-draft") for _ in range(4)
+    ])
+    assert all(result.status_code == 200 for result in responses)
+    ids = {result.json()["data"]["id"] for result in responses}
+    assert len(ids) == 1
+    draft_id = ids.pop()
+    draft = responses[0].json()["data"]
+    assert draft["problem"]["time_limit"] is None
+    assert draft["problem"]["memory_limit"] is None
+    saved = await client.put(f"/api/problem-drafts/{draft_id}", json={
+        "revision": 1, "base_problem_id": "sum_2",
+        "problem": {**problem_payload, "title": "Preserve my edits"},
+    })
+    assert saved.status_code == 200
+    await app.state.db.execute("UPDATE problem_drafts SET status='ready' WHERE id=?", (draft_id,))
+    reused = (await client.post("/api/problems/sum_2/editing-draft")).json()["data"]
+    assert reused["id"] == draft_id
+    assert reused["revision"] == 2
+    assert reused["problem"]["title"] == "Preserve my edits"
+    revisions = (await client.get(f"/api/problem-drafts/{draft_id}/revisions")).json()["data"]
+    assert len(revisions) == 2
+    client.cookies.clear()
+    await _login(client, "editing_bob")
+    other = (await client.post("/api/problems/sum_2/editing-draft")).json()["data"]
+    assert other["id"] != draft_id
+    assert (await client.post("/api/problems/missing/editing-draft")).status_code == 404
+    client.cookies.clear()
+    assert (await client.post("/api/problems/sum_2/editing-draft")).status_code == 401
+
+
+@pytest.mark.parametrize("status", ["archived", "published"])
+async def test_editing_draft_skips_finished_drafts(
+    client: AsyncClient, app: FastAPI, problem_payload: dict[str, Any], status: str
+) -> None:
+    await _login(client, "finished_editor")
+    await client.post("/api/problems/", json=problem_payload)
+    first = (await client.post("/api/problems/sum_2/editing-draft")).json()["data"]["id"]
+    await app.state.db.execute("UPDATE problem_drafts SET status=? WHERE id=?", (status, first))
+    second = (await client.post("/api/problems/sum_2/editing-draft")).json()["data"]["id"]
+    assert first != second
