@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -185,6 +186,7 @@ async def _run_case(
     memory_limit: int,
     case_id: int,
     directory: Path | None = None,
+    env: dict[str, str] | None = None,
 ) -> CaseResult:
     if directory:
         await asyncio.to_thread(directory.mkdir, parents=True, exist_ok=True)
@@ -200,7 +202,7 @@ async def _run_case(
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env=JUDGE_ENV,
+        env=env if env is not None else JUDGE_ENV,
         cwd=directory,
         **_process_options(memory_limit),
     )
@@ -256,20 +258,32 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
         executable = directory / ("program.exe" if os.name == "nt" else "program")
         await asyncio.to_thread(source.write_text, code, encoding="utf-8")
         compile_info: dict[str, str] | None = None
+        job_env = {**JUDGE_ENV, "TMPDIR": temp, "TMP": temp, "TEMP": temp}
         if language.compile_cmd:
             argv = command_argv(language.compile_cmd, src=str(source), exe=str(executable))
+            compiler = shutil.which(argv[0], path=job_env["PATH"])
+            if compiler:
+                argv[0] = compiler
+            if os.name == "nt" and compiler:
+                # Match MinGW runtime DLLs to the compiler, before unrelated Python/Conda DLLs.
+                job_env["PATH"] = str(Path(compiler).parent) + os.pathsep + job_env["PATH"]
+            process = await asyncio.create_subprocess_exec(
+                *argv,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                # MinGW otherwise falls back to the unwritable Windows directory.
+                # Keep compiler scratch files isolated and remove them with this job.
+                env=job_env,
+                cwd=directory,
+                **_process_options(512),
+            )
             try:
-                process = await asyncio.create_subprocess_exec(
-                    *argv,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    env=JUDGE_ENV,
-                    cwd=directory,
-                    **_process_options(512),
-                )
                 stdout, stderr, output_exceeded = await asyncio.wait_for(
                     _communicate_bounded(process), timeout=COMPILE_TIMEOUT_SECONDS
                 )
+            except asyncio.CancelledError:
+                await _kill_process(process)
+                raise
             except TimeoutError:
                 await _kill_process(process)
                 message = f"compilation timed out after {COMPILE_TIMEOUT_SECONDS} seconds"
@@ -307,6 +321,7 @@ async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOu
                 memory_limit,
                 index,
                 directory / f"case-{index}",
+                env=job_env,
             )
             for index, testcase in enumerate(problem.testcases, start=1)
         ]
