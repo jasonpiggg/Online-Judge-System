@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SearchInput } from "./SearchInput";
-import { EvaluationView } from "./Evaluation";
+import { EvaluationView, ScoreBadge } from "./Evaluation";
 import { RichText } from "./Markdown";
 afterEach(() => {
   cleanup();
@@ -157,4 +157,21 @@ it("renders math, preserves streaming fragments and exposes invalid math safely"
   expect(container).toHaveTextContent("公式格式需检查");
   rerender(<RichText text={"$$a+b=c$$"} />);
   expect(container.querySelector(".katex")).not.toBeNull();
+});
+
+it.each([
+  [100, 100, "满分", "AC"],
+  [40, 100, "部分得分", "partial"],
+  [0, 100, "零分", "failed"],
+  [0, 0, "仅显示得分", "unknown"],
+  [null, 100, "仅显示得分", "unknown"],
+  [110, 100, "仅显示得分", "unknown"],
+  [-1, 100, "仅显示得分", "unknown"],
+  [NaN, 100, "仅显示得分", "unknown"],
+])("uses only valid disclosed scores %s/%s", (score, maxScore, label, tone) => {
+  const { container } = render(
+    <ScoreBadge score={score as number | null} maxScore={maxScore as number} />,
+  );
+  expect(screen.getByText(label as string)).toBeInTheDocument();
+  expect(container.querySelector(`.tone-${tone} .icon`)).not.toBeNull();
 });

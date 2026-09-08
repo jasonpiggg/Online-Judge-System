@@ -194,3 +194,50 @@ test("draft AI shortcut preserves unsaved metadata without starting a model task
   await expect(title).toHaveValue("未保存的标题 — 跳转验收");
   expect(calls).toBe(0);
 });
+
+test("evaluation gutters and code toolbars stay aligned across viewports", async ({ page }, info) => {
+  await login(page);
+  let hidden = false;
+  await page.route("**/api/submissions/99001?*", (route) => route.fulfill({ json: { data: {
+    submission_id: "99001", problem_id: "sum_2", language: "python", created_at: "2026-09-08T00:00:00Z",
+    status: "success", score: 50, counts: 100,
+    evaluation: { verdict: hidden ? "private" : "WA", score: 50, max_score: 100, passed_cases: hidden ? null : 1, total_cases: hidden ? null : 2 },
+    run_info: hidden ? null : "answer differs\nexpected a different value",
+    code: "print(1)",
+  } } }));
+  await page.route("**/api/submissions/99001/log", (route) => route.fulfill({ json: { data: {
+    score: 50, counts: 100,
+    ...(hidden ? {} : { details: [{ id: 1, result: "AC", time: 0.1, memory: 1 }, { id: 2, result: "WA", time: 0.1, memory: 1 }] }),
+  } } }));
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 950 });
+    await page.goto("/submissions/99001");
+    const summary = page.locator(".evaluation-summary");
+    const cases = page.locator(".case-section");
+    const logs = page.locator(".raw-logs");
+    await expect(logs).toBeVisible();
+    const boxes = await Promise.all([summary, cases, logs, page.locator(".result")].map((el) => el.boundingBox()));
+    expect(Math.abs(boxes[0]!.x - boxes[1]!.x)).toBeLessThan(1);
+    expect(Math.abs(boxes[0]!.x - boxes[2]!.x)).toBeLessThan(1);
+    expect(boxes[2]!.x - boxes[3]!.x).toBeGreaterThanOrEqual(16);
+    expect(boxes[3]!.x + boxes[3]!.width - boxes[2]!.x - boxes[2]!.width).toBeGreaterThanOrEqual(16);
+    await logs.locator("summary").click();
+    const styles = await logs.locator(".code-block").evaluate((el) => ({
+      body: getComputedStyle(el).backgroundColor,
+      toolbar: getComputedStyle(el.querySelector(".code-toolbar")!).backgroundColor,
+      border: getComputedStyle(el.querySelector(".code-toolbar")!).borderBottomWidth,
+    }));
+    expect(styles.body).not.toBe(styles.toolbar);
+    expect(styles.border).toBe("1px");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
+    await page.screenshot({ path: info.outputPath(`evaluation-${width}.png`), fullPage: true });
+  }
+  hidden = true;
+  await page.goto("/logs/submissions/99001");
+  await expect(page.getByText("部分得分", { exact: true })).toBeVisible();
+  await expect(page.locator(".case-tile, .raw-logs")).toHaveCount(0);
+  const summary = await page.locator(".evaluation-summary").boundingBox();
+  const cases = await page.locator(".case-section").boundingBox();
+  expect(Math.abs(summary!.x - cases!.x)).toBeLessThan(1);
+  await page.screenshot({ path: info.outputPath("private-score.png"), fullPage: true });
+});

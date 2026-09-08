@@ -12,10 +12,15 @@ import {
   ActivityProvider,
   TaskAction,
   TaskLink,
+  findTask,
+  type TaskSlot,
   useRegisterActivity,
 } from "./Activity";
 import { BackLink } from "./BackLink";
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 beforeEach(() => {
   vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   localStorage.clear();
@@ -55,7 +60,7 @@ function App() {
     </MemoryRouter>
   );
 }
-it("clears active state at hubs and reuses a task through its history", async () => {
+it("keeps an editor open when reopening its historical problem and reuses the editor", async () => {
   render(<App />);
   fireEvent.click(screen.getByText("Open problem"));
   fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
@@ -68,11 +73,23 @@ it("clears active state at hubs and reuses a task through its history", async ()
   expect(await screen.findByLabelText("path")).toHaveTextContent(
     "/problems/p1",
   );
+  expect(document.querySelectorAll(".activity-tab")).toHaveLength(2);
+  expect(
+    screen.getByRole("button", { name: "关闭 Draft" }),
+  ).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Edit" }));
   expect(await screen.findByLabelText("path")).toHaveTextContent(
     "/authoring/drafts/d1",
   );
-  expect(document.querySelectorAll(".activity-tab")).toHaveLength(1);
+  expect(document.querySelectorAll(".activity-tab")).toHaveLength(2);
+  fireEvent.click(screen.getByRole("button", { name: "返回 Problem" }));
+  expect(await screen.findByLabelText("path")).toHaveTextContent(
+    "/problems/p1",
+  );
+  expect(document.querySelectorAll(".activity-tab")).toHaveLength(2);
+  expect(
+    screen.getByRole("button", { name: "关闭 Draft" }),
+  ).toBeInTheDocument();
 });
 it("closing a background tab leaves the hub visible", async () => {
   render(<App />);
@@ -84,19 +101,57 @@ it("closing a background tab leaves the hub visible", async () => {
   expect(document.querySelectorAll(".activity-tab")).toHaveLength(0);
 });
 it("rejects persisted external routes", () => {
-  localStorage.setItem("oj-activities-7", JSON.stringify({ version: 2, slots: [{
-    id: "external", current: { id: "problem:p1", kind: "problem", title: "External", path: "//evil.example/problems/p1" }, backStack: [], touchedAt: 1,
-  }] }));
+  localStorage.setItem(
+    "oj-activities-7",
+    JSON.stringify({
+      version: 2,
+      slots: [
+        {
+          id: "external",
+          current: {
+            id: "problem:p1",
+            kind: "problem",
+            title: "External",
+            path: "//evil.example/problems/p1",
+          },
+          backStack: [],
+          touchedAt: 1,
+        },
+      ],
+    }),
+  );
   render(<App />);
   expect(screen.queryByText("External")).not.toBeInTheDocument();
 });
-
 
 it("uses current-page navigation without alternative opening controls", async () => {
   render(<App />);
   fireEvent.click(screen.getByText("Open problem"));
   expect(document.querySelector(".task-action-menu")).toBeNull();
   fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
-  expect(await screen.findByLabelText("path")).toHaveTextContent("/authoring/drafts/d1");
+  expect(await screen.findByLabelText("path")).toHaveTextContent(
+    "/authoring/drafts/d1",
+  );
   expect(document.querySelectorAll(".activity-tab")).toHaveLength(1);
+});
+
+it.each([
+  "/problems/p1",
+  "/authoring/drafts/d1",
+  "/authoring/tasks/t1",
+  "/submissions/1",
+  "/logs/submissions/1",
+])("deduplicates only the current page for %s", (path) => {
+  const entry = { id: path, kind: "problem" as const, title: path, path };
+  const slots: TaskSlot[] = [
+    {
+      id: "one",
+      current: { ...entry, path: "/problems/other" },
+      backStack: [entry],
+      touchedAt: 1,
+    },
+  ];
+  expect(findTask(slots, path)).toBeUndefined();
+  slots.push({ id: "two", current: entry, backStack: [], touchedAt: 2 });
+  expect(findTask(slots, `${path}?tab=code`)?.slot.id).toBe("two");
 });

@@ -49,3 +49,18 @@ describe("shared Markdown", () => {
     expect(container).toHaveTextContent("model structure");
   });
 });
+
+it.each(["", " \n\t", null])(
+  "hides the copy toolbar for empty code %j",
+  (text) => {
+    const { container } = render(<Code text={text} />);
+    expect(
+      screen.queryByRole("button", { name: "复制" }),
+    ).not.toBeInTheDocument();
+    expect(container.querySelector(".code-toolbar")).toBeNull();
+  },
+);
+it("omits the toolbar for an empty Markdown fence", () => {
+  const { container } = render(<RichText text={"```python\n```"} />);
+  expect(container.querySelector(".code-toolbar")).toBeNull();
+});
