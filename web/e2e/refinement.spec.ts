@@ -340,7 +340,7 @@ test("draft JSON downloads unsaved fields and loads local files without saving",
 test("statement uses available width and assistant groups answers at desktop and mobile sizes", async ({ page }, info) => {
   await login(page);
   await page.goto("/problems/sum_2?tab=AI");
-  await page.getByLabel("你的问题").fill("给我提示");
+  await page.getByLabel("你的问题").fill("布局验收：解释输入格式");
   await page.getByLabel("你的问题").press("Enter");
   await expect(page.getByText("回答已完成", { exact: true })).toBeVisible();
   for (const width of [1440, 390, 320]) {
