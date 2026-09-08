@@ -1,3 +1,4 @@
+import { ProblemJson } from "../components/ProblemJson";
 import { ProblemImport } from "../components/ProblemImport";
 import { Icon } from "../components/Icon";
 import { difficulties, difficultyLevel } from "../difficulty";
@@ -107,6 +108,17 @@ const problemSchema = z.object({
   public_cases: z.boolean(),
 });
 type FormProblem = z.infer<typeof problemSchema>;
+// Draft exports may be incomplete; validate types without requiring publish-ready fields.
+const importedProblemSchema = problemSchema.extend({
+  id: problemSchema.shape.id.or(z.literal("")),
+  title: z.string(),
+  description: z.string(),
+  input_description: z.string(),
+  output_description: z.string(),
+  constraints: z.string(),
+  samples: z.array(sample),
+  testcases: z.array(sample),
+});
 type AIMode = "local" | "review" | "complete";
 const empty: FormProblem = {
   id: "",
@@ -484,7 +496,6 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
     [reference, setReference] = useState(draft.reference_solution),
     [brute, setBrute] = useState(draft.brute_solution),
     [generator, setGenerator] = useState(draft.generator_code),
-    [raw, setRaw] = useState(""),
     [preview, setPreview] = useState(false);
   const [backupFailed, setBackupFailed] = useState(false);
   const version = useRef(draft.revision);
@@ -1186,28 +1197,14 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                 </Button>
               </div>
               <DisclosureCard summary="高级：JSON 导入与导出">
-                <Code text={JSON.stringify(values, null, 2)} />
-                <label>
-                  导入题目 JSON
-                  <textarea
-                    value={raw}
-                    onChange={(e) => setRaw(e.target.value)}
-                  />
-                </label>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    try {
-                      const p = problemSchema.parse(clean(JSON.parse(raw)));
-                      form.reset(p, { keepDefaultValues: true });
-                      setMessage("已载入，保存后生效");
-                    } catch (e) {
-                      setError(errorText(e));
-                    }
-                  }}
-                >
-                  载入 JSON
-                </Button>
+                <ProblemJson value={values} onLoad={(value) => {
+                  if (!value || typeof value !== "object" || Array.isArray(value))
+                    throw new Error("请输入单道题目的 JSON 对象。");
+                  const p = importedProblemSchema.parse(clean(value as Problem));
+                  form.reset(p, { keepDefaultValues: true });
+                  setError("");
+                  setMessage("已载入，保存后生效");
+                }} />
               </DisclosureCard>
             </>
           )}

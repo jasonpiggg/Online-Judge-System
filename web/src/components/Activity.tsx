@@ -797,12 +797,12 @@ export function useRecoverUnavailableTask(error: unknown) {
 }
 export function TaskLink({
   newSlot = false,
-  menuLabel,
+  menuLabel = "此页面",
   state,
   onClick,
   ...props
 }: LinkProps & { newSlot?: boolean; menuLabel?: string }) {
-  const { navigateInSlot, openInNewSlot } = useActivity();
+  const { navigateInSlot, openInNewSlot, activeSlot } = useActivity();
   const link = (
     <Link
       {...props}
@@ -811,6 +811,7 @@ export function TaskLink({
         onClick?.(event);
         if (
           event.defaultPrevented ||
+          props.target === "_blank" ||
           event.button !== 0 ||
           event.metaKey ||
           event.ctrlKey ||
@@ -828,7 +829,15 @@ export function TaskLink({
       }}
     />
   );
-  if (!menuLabel || typeof props.to !== "string") return link;
+  if (
+    !menuLabel ||
+    typeof props.to !== "string" ||
+    newSlot ||
+    !activeSlot ||
+    !isTaskPath(props.to) ||
+    props.target === "_blank"
+  )
+    return link;
   return (
     <span className="task-link-with-menu">
       {link}
@@ -875,7 +884,8 @@ export function TaskAction({
   onError?: (error: unknown) => void;
   disabled?: boolean;
 }) {
-  const { navigateInSlot, openInNewSlot, confirmLeave } = useActivity();
+  const { navigateInSlot, openInNewSlot, confirmLeave, activeSlot } =
+    useActivity();
   const [busy, setBusy] = useState(false);
   const menu = useRef<HTMLDetailsElement>(null);
   const pending = useRef(false);
@@ -905,7 +915,9 @@ export function TaskAction({
     }
   };
   return (
-    <span className="task-action">
+    <span
+      className={`task-action${activeSlot && (!to || isTaskPath(to)) ? " has-menu" : ""}`}
+    >
       <button
         className="button outline"
         type="button"
@@ -914,29 +926,31 @@ export function TaskAction({
       >
         {label}
       </button>
-      <details
-        ref={menu}
-        className="task-action-menu"
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && menu.current) {
-            menu.current.open = false;
-            menu.current.querySelector("summary")?.focus();
-          }
-        }}
-      >
-        <summary aria-label={`${label}的打开方式`}>
-          <Icon name="chevronDown" />
-        </summary>
-        <span className="task-action-options">
-          <button
-            type="button"
-            disabled={disabled || busy}
-            onClick={() => void run(true)}
-          >
-            <Icon name="newTab" /> 在新标签页打开
-          </button>
-        </span>
-      </details>
+      {activeSlot && (!to || isTaskPath(to)) && (
+        <details
+          ref={menu}
+          className="task-action-menu"
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && menu.current) {
+              menu.current.open = false;
+              menu.current.querySelector("summary")?.focus();
+            }
+          }}
+        >
+          <summary aria-label={`${label}的打开方式`}>
+            <Icon name="chevronDown" />
+          </summary>
+          <span className="task-action-options">
+            <button
+              type="button"
+              disabled={disabled || busy}
+              onClick={() => void run(true)}
+            >
+              <Icon name="newTab" /> 在新标签页打开
+            </button>
+          </span>
+        </details>
+      )}
     </span>
   );
 }

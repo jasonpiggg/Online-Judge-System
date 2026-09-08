@@ -142,23 +142,29 @@
 .problem-row > .badge {
   justify-self: start;
 }
+.problem-list .task-link-with-menu {
+  display: block;
+}
 .problem-list .task-link-with-menu > .task-action-menu {
+  position: absolute;
+  right: 4px;
   top: 20px;
   transform: none;
 }
 .task-link-with-menu {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
   position: relative;
   min-width: 0;
 }
 .task-link-with-menu > .task-action-menu {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: relative;
+  flex-shrink: 0;
 }
 .task-link-with-menu > a {
-  padding-right: 44px;
+  min-width: 0;
 }
 .task-link-with-menu > .problem-row {
   padding-right: 52px;
@@ -177,7 +183,7 @@
   flex-shrink: 0;
   vertical-align: middle;
 }
-.task-action > .button {
+.task-action.has-menu > .button {
   border-radius: 8px 0 0 8px;
 }
 .task-action-menu {
@@ -343,8 +349,8 @@
   padding: 24px;
 }
 .statement {
-  max-width: 72ch;
-  margin-inline: auto;
+  max-width: none;
+  margin-inline: 0;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -524,7 +530,7 @@
   background: white;
 }
 .draft-row .task-link-with-menu {
-  flex: 1;
+  flex: 0 1 auto;
 }
 .managed-row .task-link-with-menu > a {
   display: flex;
@@ -609,10 +615,16 @@
   line-height: 1.7;
 }
 .assistant-intro {
-  gap: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+  gap: var(--space-3);
 }
 .assistant-intro p {
-  max-width: 72ch;
+  flex: 1 1 320px;
+  margin: 0;
 }
 .assistant-composer {
   padding: 16px 0 0;
@@ -629,22 +641,57 @@
   margin-top: 12px;
 }
 .assistant .ai-answer-card {
-  padding: 0;
-  margin: 16px 0;
-  border: 0;
-  background: transparent;
+  padding: var(--space-4) var(--space-5);
+  margin: var(--space-4) 0;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-panel);
+  background: var(--soft);
 }
 .assistant .current-answer,
 .assistant .ai-answer-card .markdown {
-  max-width: 72ch;
+  max-width: none;
 }
 .assistant .task-status {
-  padding: 12px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0;
+  padding: var(--space-2) 0;
+
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--border);
   border-radius: 0;
 }
+.assistant .task-status > .muted {
+  margin: 0;
+}
+.assistant .task-status strong {
+  font-size: var(--font-ui);
+}
+.assistant .task-status > .disclosure-card {
+  padding: 0;
+  margin: 0 0 0 auto;
+  border: 0;
+  background: transparent;
+}
+.assistant .task-status > .disclosure-card[open],
+.assistant .task-status > .error-notice {
+  flex-basis: 100%;
+}
+.assistant .task-status > .disclosure-card > summary {
+  padding: var(--space-1) var(--space-2);
+}
+.problem-json {
+  display: grid;
+  gap: var(--space-3);
+}
+.problem-json > .button {
+  justify-self: start;
+}
+
 .assistant .context-summary {
   padding: 8px 0;
   background: transparent;

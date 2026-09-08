@@ -300,7 +300,63 @@ test("explicit new tab keeps its source, restores scroll and remains usable at 2
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
   await page.getByLabel("搜索题目").fill("sum_2");
   await page.locator(".problem-row").filter({ hasText: "sum_2" }).waitFor();
-  await page.getByLabel("两数之和的打开方式").click();
-  await expect(page.getByRole("button", { name: "在新标签页打开", exact: true })).toBeVisible();
+  await expect(page.getByLabel("两数之和的打开方式")).toHaveCount(0);
+  await page.locator(".problem-row").filter({ hasText: "sum_2" }).click();
+  await expect(page.locator(".activity-tab.active")).toHaveCount(1);
   await page.screenshot({ path: info.outputPath("tabs-zoom-200.png"), fullPage: true });
+});
+
+
+test("draft JSON downloads unsaved fields and loads local files without saving", async ({ page }) => {
+  await login(page);
+  await page.goto("/authoring");
+  await page.getByRole("button", { name: "手动创建题目" }).click();
+  await page.getByLabel("题号", { exact: true }).fill("json_roundtrip");
+  await page.getByLabel("标题", { exact: true }).fill("未保存的导出标题");
+  await page.getByRole("button", { name: "检查与发布", exact: true }).click();
+  await page.getByText("高级：JSON 导入与导出", { exact: true }).click();
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "下载 JSON", exact: true }).click();
+  const download = await downloaded;
+  expect(download.suggestedFilename()).toBe("json_roundtrip.json");
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
+  const data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  expect(data.title).toBe("未保存的导出标题");
+  const draftUrl = page.url();
+  const input = page.getByLabel("导入当前草稿 JSON");
+  await input.setInputFiles({name: "bad.json", mimeType: "application/json", buffer: Buffer.from("[]")});
+  await expect(page.locator(".problem-json [role=alert]")).toContainText("单道题目");
+  await input.setInputFiles({name: "roundtrip.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({...data, title: "本地导入标题"}))});
+  await expect(page.getByText("已载入，保存后生效", { exact: true })).toBeVisible();
+  expect(page.url()).toBe(draftUrl);
+  await page.getByRole("button", { name: "题面与样例", exact: true }).click();
+  await expect(page.getByLabel("标题", { exact: true })).toHaveValue("本地导入标题");
+  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+  await expect(page.locator(".sticky-actions")).toContainText("已同步");
+});
+
+test("statement uses available width and assistant groups answers at desktop and mobile sizes", async ({ page }, info) => {
+  await login(page);
+  await page.goto("/problems/sum_2?tab=AI");
+  await page.getByLabel("你的问题").fill("给我提示");
+  await page.getByLabel("你的问题").press("Enter");
+  await expect(page.getByText("回答已完成", { exact: true })).toBeVisible();
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({width, height: 1000});
+    const pane = await page.locator(".statement-pane").boundingBox();
+    const statement = await page.locator(".statement-pane .statement").boundingBox();
+    expect(statement!.width / pane!.width).toBeGreaterThan(0.8);
+    const intro = await page.locator(".assistant-intro").boundingBox();
+    const quick = await page.locator(".assistant .quick-actions").boundingBox();
+    expect(quick!.y - intro!.y - intro!.height).toBeGreaterThanOrEqual(12);
+    expect(await page.locator(".current-answer .ai-answer-card").evaluate(node => getComputedStyle(node).borderLeftWidth)).toBe("3px");
+    const status = await page.locator(".assistant .task-status").boundingBox();
+    expect(status!.height).toBeLessThan(130);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
+    await page.locator(".assistant-intro").scrollIntoViewIfNeeded();
+    await page.locator(".assistant").screenshot({path: info.outputPath(`assistant-${width}.png`)});
+    await page.locator(".statement-pane").screenshot({path: info.outputPath(`statement-${width}.png`)});
+  }
 });
