@@ -275,37 +275,16 @@ test("import cancellation, ambiguous extensions and changed configuration preser
   await expect(page.locator(".view-lines")).toContainText("original backup");
 });
 
-test("explicit new tab keeps its source, restores scroll and remains usable at 200 percent zoom", async ({ page }, info) => {
+test("current-page navigation has no opening menus and survives zoom", async ({page}) => {
   await login(page); await openProblem(page);
-  await page.getByRole("button", { name: "代码", exact: true }).click();
-  await page.waitForTimeout(400);
-  const scroll = await page.evaluate(() => scrollY);
   await showProblemActions(page);
-  await page.getByLabel("编辑题目的打开方式").click();
-  const positionBeforeLeaving = await page.evaluate(() => scrollY);
-  await page.getByRole("button", { name: "在新标签页打开", exact: true }).click();
+  await expect(page.locator(".task-action-menu")).toHaveCount(0);
+  await page.getByRole("button", {name: "编辑题目", exact: true}).click();
   await expect(page).toHaveURL(/authoring\/drafts/);
-  await expect(page.locator(".activity-tab")).toHaveCount(2);
-  await page.locator(".activity-tab-target").filter({ hasText: "sum_2 · 两数之和" }).click();
-  await expect(page.locator(".work-heading")).toContainText("两数之和");
-  // Clicking a heading action scrolls the page there; restore that latest position.
-  await expect.poll(async () => Math.abs(await page.evaluate(() => scrollY) - positionBeforeLeaving)).toBeLessThan(4);
-  expect(scroll).toBeGreaterThan(0);
-  await showProblemActions(page);
-  await page.getByRole("button", { name: "编辑题目", exact: true }).click();
-  await expect(page.locator(".activity-tab")).toHaveCount(2);
-  await page.getByRole("navigation", { name: "主导航" }).getByRole("link", { name: "题库", exact: true }).click();
-  await expect(page.locator(".activity-tab.active")).toHaveCount(0);
+  await expect(page.locator(".activity-tab")).toHaveCount(1);
   await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
-  await page.getByLabel("搜索题目").fill("sum_2");
-  await page.locator(".problem-row").filter({ hasText: "sum_2" }).waitFor();
-  await expect(page.getByLabel("两数之和的打开方式")).toHaveCount(0);
-  await page.locator(".problem-row").filter({ hasText: "sum_2" }).click();
-  await expect(page.locator(".activity-tab.active")).toHaveCount(1);
-  await page.screenshot({ path: info.outputPath("tabs-zoom-200.png"), fullPage: true });
 });
-
 
 test("draft JSON downloads unsaved fields and loads local files without saving", async ({ page }) => {
   await login(page);

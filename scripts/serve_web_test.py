@@ -45,6 +45,8 @@ async def completion(config: Any, prompt: str, usage: Any = None) -> tuple[str, 
                 "完整替换代码：\n```python\nimport sys\n"
                 "a, b = map(int, sys.stdin.readline().split())\nprint(a + b)\n```"
             )
+        elif data.get("message") == "长行差异验收":
+            text = "```python\n# " + "long_comment " * 35 + "END\nprint(1)\n```"
         elif data.get("message") == "分析本次评测的单行建议":
             text = "这只是解释用的片段：\n```python\nprint(a + b)\n```"
     elif "Stage 1:" in config["system_prompt"]:

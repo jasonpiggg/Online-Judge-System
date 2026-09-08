@@ -52,7 +52,6 @@ type ActivityContextValue = {
     options?: { replace?: boolean; state?: object },
   ) => void;
   openRoot: (to: string, state?: object) => void;
-  openInNewSlot: (to: string, state?: object) => void;
   replaceCurrent: (to: string, state?: object) => void;
   back: () => void;
   confirmLeave: () => boolean;
@@ -468,21 +467,21 @@ export function ActivityProvider({
     [closedIds, commit, location.key, navigate, restore, visit],
   );
   const open = useCallback(
-    (to: string, newSlot: boolean, extra?: object) => {
+    (to: string, extra?: object) => {
       if (!confirmLeave()) return;
       capture();
-      const found = findTask(slotsRef.current, to, !newSlot);
+      const found = findTask(slotsRef.current, to, true);
       if (found) {
         // A plain resource link restores the existing section; explicit query targets win.
         restore(found, to.includes("?") ? to : found.entry.path, extra);
         return;
       }
       navigate(to, {
-        replace: !newSlot && !!activeSlot,
+        replace: !!activeSlot,
         state: {
           ...extra,
-          taskSlotId: !newSlot ? activeSlot?.id : undefined,
-          taskAction: newSlot || !activeSlot ? "new" : "push",
+          taskSlotId: activeSlot?.id,
+          taskAction: !activeSlot ? "new" : "push",
         },
       });
     },
@@ -506,16 +505,12 @@ export function ActivityProvider({
     (to: string, options?: { replace?: boolean; state?: object }) => {
       if (options?.replace) {
         if (confirmLeave()) replaceCurrent(to, options.state);
-      } else open(to, false, options?.state);
+      } else open(to, options?.state);
     },
     [confirmLeave, open, replaceCurrent],
   );
   const openRoot = useCallback(
-    (to: string, extra?: object) => open(to, false, extra),
-    [open],
-  );
-  const openInNewSlot = useCallback(
-    (to: string, extra?: object) => open(to, true, extra),
+    (to: string, extra?: object) => open(to, extra),
     [open],
   );
   const activate = useCallback(
@@ -736,7 +731,6 @@ export function ActivityProvider({
       activate,
       navigateInSlot,
       openRoot,
-      openInNewSlot,
       replaceCurrent,
       back,
       confirmLeave,
@@ -750,7 +744,6 @@ export function ActivityProvider({
       activate,
       navigateInSlot,
       openRoot,
-      openInNewSlot,
       replaceCurrent,
       back,
       confirmLeave,
@@ -795,15 +788,9 @@ export function useRecoverUnavailableTask(error: unknown) {
     else remove(activeSlot.id);
   }, [activeSlot, back, location.key, remove, status]);
 }
-export function TaskLink({
-  newSlot = false,
-  menuLabel = "此页面",
-  state,
-  onClick,
-  ...props
-}: LinkProps & { newSlot?: boolean; menuLabel?: string }) {
-  const { navigateInSlot, openInNewSlot, activeSlot } = useActivity();
-  const link = (
+export function TaskLink({ state, onClick, ...props }: LinkProps) {
+  const { navigateInSlot } = useActivity();
+  return (
     <Link
       {...props}
       state={state}
@@ -824,51 +811,11 @@ export function TaskLink({
           typeof props.to === "string"
             ? props.to
             : `${props.to.pathname || ""}${props.to.search || ""}${props.to.hash || ""}`;
-        if (newSlot) openInNewSlot(to, state);
-        else navigateInSlot(to, { state });
+        navigateInSlot(to, { state });
       }}
     />
   );
-  if (
-    !menuLabel ||
-    typeof props.to !== "string" ||
-    newSlot ||
-    !activeSlot ||
-    !isTaskPath(props.to) ||
-    props.target === "_blank"
-  )
-    return link;
-  return (
-    <span className="task-link-with-menu">
-      {link}
-      <details
-        className="task-action-menu"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.currentTarget.open = false;
-            event.currentTarget.querySelector("summary")?.focus();
-          }
-        }}
-      >
-        <summary aria-label={`${menuLabel}的打开方式`}>
-          <Icon name="chevronDown" />
-        </summary>
-        <span className="task-action-options">
-          <button
-            type="button"
-            onClick={(event) => {
-              event.currentTarget.closest("details")!.open = false;
-              openInNewSlot(props.to as string, state);
-            }}
-          >
-            <Icon name="newTab" /> 在新标签页打开
-          </button>
-        </span>
-      </details>
-    </span>
-  );
 }
-/** A single navigation control owns both default and explicit new-tab actions. */
 export function TaskAction({
   label,
   to,
@@ -884,10 +831,8 @@ export function TaskAction({
   onError?: (error: unknown) => void;
   disabled?: boolean;
 }) {
-  const { navigateInSlot, openInNewSlot, confirmLeave, activeSlot } =
-    useActivity();
+  const { navigateInSlot, confirmLeave } = useActivity();
   const [busy, setBusy] = useState(false);
-  const menu = useRef<HTMLDetailsElement>(null);
   const pending = useRef(false);
   const mounted = useRef(true);
   useEffect(() => {
@@ -896,17 +841,13 @@ export function TaskAction({
       mounted.current = false;
     };
   }, []);
-  const run = async (newSlot: boolean) => {
+  const run = async () => {
     if (pending.current || !confirmLeave()) return;
     pending.current = true;
     setBusy(true);
-    if (menu.current) menu.current.open = false;
     try {
       const path = resolve ? await resolve() : to!;
-      if (mounted.current) {
-        if (newSlot) openInNewSlot(path, state);
-        else navigateInSlot(path, { state });
-      }
+      if (mounted.current) navigateInSlot(path, { state });
     } catch (error) {
       onError?.(error);
     } finally {
@@ -915,43 +856,14 @@ export function TaskAction({
     }
   };
   return (
-    <span
-      className={`task-action${activeSlot && (!to || isTaskPath(to)) ? " has-menu" : ""}`}
+    <button
+      className="button outline"
+      type="button"
+      disabled={disabled || busy}
+      onClick={() => void run()}
     >
-      <button
-        className="button outline"
-        type="button"
-        disabled={disabled || busy}
-        onClick={() => void run(false)}
-      >
-        {label}
-      </button>
-      {activeSlot && (!to || isTaskPath(to)) && (
-        <details
-          ref={menu}
-          className="task-action-menu"
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && menu.current) {
-              menu.current.open = false;
-              menu.current.querySelector("summary")?.focus();
-            }
-          }}
-        >
-          <summary aria-label={`${label}的打开方式`}>
-            <Icon name="chevronDown" />
-          </summary>
-          <span className="task-action-options">
-            <button
-              type="button"
-              disabled={disabled || busy}
-              onClick={() => void run(true)}
-            >
-              <Icon name="newTab" /> 在新标签页打开
-            </button>
-          </span>
-        </details>
-      )}
-    </span>
+      {label}
+    </button>
   );
 }
 export function ActivityBar() {

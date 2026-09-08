@@ -55,9 +55,10 @@ function unfinishedMath() {
   };
 }
 export function logText(value: unknown): string {
+  if (value == null) return "";
   if (typeof value === "string") return value;
   if (value && typeof value === "object" && "message" in value)
-    return String(value.message);
+    return value.message == null ? "" : String(value.message);
   return JSON.stringify(value, null, 2) || "";
 }
 export function Copy({ text }: { text: string }) {

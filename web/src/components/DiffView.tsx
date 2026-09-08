@@ -64,7 +64,7 @@ function changedParts(before: string, after: string, words: boolean): [Segment[]
 }
 
 function Parts({ values }: { values: Segment[] }) {
-  return <pre className="diff-text">{values.map((part, index) => <span className={part.tone ? `diff-${part.tone}` : ""} key={index}>{part.value}</span>)}</pre>;
+  return <pre className="diff-text" tabIndex={0} aria-label="差异内容，可横向滚动">{values.map((part, index) => <span className={part.tone ? `diff-${part.tone}` : ""} key={index}>{part.value}</span>)}</pre>;
 }
 
 export function DiffView({ before, after }: { before: Record<string, unknown>; after: Record<string, unknown> }) {

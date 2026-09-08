@@ -1,18 +1,40 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from oj.auth import CurrentUser, get_current_user, require_admin
 from oj.errors import APIError, response
-from oj.evaluation import evaluation_batch
+from oj.evaluation import evaluation_batch, private_evaluation
 from oj.languages import get_language
 from oj.schemas import SubmissionCreate
 from oj.submissions import detail_from_row, now_iso, summary_from_row
 
 router = APIRouter(prefix="/api/submissions")
+
+
+async def visible_evaluations(
+    request: Request, user: CurrentUser, rows: list[Any]
+) -> dict[int, dict[str, Any]]:
+    if user.role == "admin":
+        return await evaluation_batch(request.app.state.db, rows)
+    visibility = {}
+    for problem_id in {row["problem_id"] for row in rows}:
+        problem = await request.app.state.problems.get(problem_id)
+        visibility[problem_id] = bool(problem and problem.public_cases)
+    public = [row for row in rows if visibility[row["problem_id"]]]
+    result = await evaluation_batch(request.app.state.db, public)
+    result.update(
+        {
+            row["id"]: private_evaluation(dict(row))
+            for row in rows
+            if not visibility[row["problem_id"]]
+        }
+    )
+    return result
 
 
 @router.post("/")
@@ -30,8 +52,7 @@ async def _submit_locked(
 ) -> JSONResponse:
     one_minute_ago = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
     recent = await request.app.state.db.fetchone(
-        "SELECT COUNT(*) AS n FROM submissions "
-        "WHERE user_id=? AND problem_id=? AND created_at>=?",
+        "SELECT COUNT(*) AS n FROM submissions WHERE user_id=? AND problem_id=? AND created_at>=?",
         (user.id, body.problem_id, one_minute_ago),
     )
     if recent["n"] >= 3:
@@ -121,7 +142,7 @@ async def list_submissions(
         sql += " LIMIT ? OFFSET ?"
         params.extend((page_size, (page - 1) * page_size))
     rows = await request.app.state.db.fetchall(sql, params)
-    evaluations = await evaluation_batch(request.app.state.db, rows) if include_metadata else {}
+    evaluations = await visible_evaluations(request, user, rows) if include_metadata else {}
     items = []
     for row in rows:
         item = summary_from_row(row, include_metadata)
@@ -149,7 +170,7 @@ async def get_submission(
         raise APIError(403, "permission denied")
     data = detail_from_row(row, include_metadata)
     if include_metadata:
-        data["evaluation"] = (await evaluation_batch(request.app.state.db, [row]))[submission_id]
+        data["evaluation"] = (await visible_evaluations(request, user, [row]))[submission_id]
         data["username"] = row["username"]
     return response(data=data)
 

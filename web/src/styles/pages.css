@@ -91,7 +91,7 @@
   grid-template-columns: minmax(140px, 0.7fr) minmax(0, 3fr) 88px 88px;
   gap: 16px;
   align-items: center;
-  padding: 12px 52px 12px 16px;
+  padding: 12px 16px;
 }
 .list-head {
   color: var(--muted);
@@ -142,99 +142,7 @@
 .problem-row > .badge {
   justify-self: start;
 }
-.problem-list .task-link-with-menu {
-  display: block;
-}
-.problem-list .task-link-with-menu > .task-action-menu {
-  position: absolute;
-  right: 4px;
-  top: 20px;
-  transform: none;
-}
-.task-link-with-menu {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  max-width: 100%;
-  position: relative;
-  min-width: 0;
-}
-.task-link-with-menu > .task-action-menu {
-  position: relative;
-  flex-shrink: 0;
-}
-.task-link-with-menu > a {
-  min-width: 0;
-}
-.task-link-with-menu > .problem-row {
-  padding-right: 52px;
-}
-.task-link-with-menu > .task-action-menu > summary {
-  background: transparent;
-  border: 0;
-  border-radius: 8px;
-}
-.task-link-with-menu:has(> .task-action-menu[open]) {
-  z-index: 30;
-}
-.task-action {
-  display: inline-flex;
-  position: relative;
-  flex-shrink: 0;
-  vertical-align: middle;
-}
-.task-action.has-menu > .button {
-  border-radius: 8px 0 0 8px;
-}
-.task-action-menu {
-  position: relative;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.task-action-menu > summary {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  min-height: var(--control-height);
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  background: white;
-  border: 1px solid var(--control-border);
-  border-left: 0;
-  border-radius: 0 8px 8px 0;
-}
-.task-action-menu > summary::-webkit-details-marker {
-  display: none;
-}
-.task-action-options {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 60;
-  padding: 4px;
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px #18304b22;
-}
-.task-action-options button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-  background: white;
-  border: 0;
-  min-height: var(--control-height);
-  padding: 8px 12px;
-  color: var(--ink);
-  font-size: 14px;
-}
-.task-action-options button:hover {
-  background: var(--soft);
-}
+
 /* Vertical workspace: one section navigation and one editor action footer. */
 .workpage {
   padding-top: 8px;
@@ -254,7 +162,8 @@
 }
 .work-nav .problem-switcher {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, max-content);
+  align-items: center;
   justify-self: end;
   gap: 8px;
 }
@@ -486,19 +395,7 @@
 .record-actions {
   white-space: nowrap;
 }
-.records-table .task-link-with-menu > .task-action-menu {
-  right: 0;
-}
-.records-table .task-link-with-menu {
-  width: fit-content;
-}
-.records-table .task-action-options {
-  left: 0;
-  right: auto;
-}
-.records-table:has(.task-action-menu[open]) {
-  overflow: visible;
-}
+
 /* Authoring and settings share compact, task-focused sections. */
 .authoring-heading .action-group {
   justify-content: flex-end;
@@ -529,16 +426,7 @@
   border-radius: 0;
   background: white;
 }
-.draft-row .task-link-with-menu {
-  flex: 0 1 auto;
-}
-.managed-row .task-link-with-menu > a {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--ink);
-}
+
 .draft-state {
   white-space: normal;
 }
@@ -789,16 +677,10 @@
     padding: 3px 8px;
     line-height: 1.4;
   }
-  .problem-list .task-link-with-menu > .problem-row {
-    padding-right: 16px;
-  }
-  .problem-list .task-link-with-menu:first-child .problem-row {
-    border-top: 0;
-  }
+
   .problem-title {
     grid-row: 1;
     grid-column: 1 / -1;
-    padding-right: 40px;
   }
   .problem-row > .library-id {
     grid-row: 2;
@@ -813,16 +695,7 @@
     grid-row: 3;
     grid-column: 2;
   }
-  .problem-list .task-link-with-menu > .task-action-menu {
-    top: 8px;
-    right: 8px;
-  }
-  .task-action-menu > summary {
-    width: 44px;
-  }
-  .problem-list .task-action-options {
-    max-width: calc(100vw - 48px);
-  }
+
   .work-heading-row {
     flex-wrap: wrap;
     gap: 8px;
@@ -943,23 +816,13 @@
   .mobile-record-detail {
     display: inline-flex;
   }
-  .records-table .task-action-options {
-    max-width: calc(100vw - 40px);
-  }
   .authoring-heading .action-group {
     justify-content: flex-start;
   }
   .author-compose {
     padding: 16px;
   }
-  .managed-row .task-link-with-menu > a {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .draft-row .task-link-with-menu {
-    width: 100%;
-  }
+
   .verification-actions {
     gap: 8px;
   }
