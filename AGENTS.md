@@ -7,6 +7,14 @@
 - 读取日志、JSON 或搜索结果时先过滤、聚合并限制输出。
 - 保留与当前任务无关的用户改动；不使用破坏性的 Git 重置或强制推送。
 
+## 前端设计与网页改动
+
+- 本项目凡涉及前端设计或网页相关代码改动，必须同时使用 `frontend-design` 和
+  `frontend-design-review` 两个 skill，无需用户每次单独指定。
+- 开始相关任务时读取两个 skill 的 `SKILL.md`，使用 `frontend-design` 指导设计与实现，
+  使用 `frontend-design-review` 复核界面质量、响应式布局、可访问性及交互一致性。
+- 遵循用户已确认的设计方向和任务范围；使用 skill 不代表自动扩大改版范围。
+
 ## GitHub 同步流程
 
 - GitHub 协作内容统一使用英文，包括分支名称、commit message、PR 标题与描述、review comment、
