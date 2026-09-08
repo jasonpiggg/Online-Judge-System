@@ -202,6 +202,8 @@ test("AI streams, restores after refresh and cancels without resubmission", asyn
   await page.goto("/problems/sum_2?tab=AI");
   await page.getByLabel("你的问题").fill("给我提示");
   await page.getByLabel("你的问题").press("Enter");
+  // Wait for this request, not a restored answer from an earlier conversation turn.
+  await expect(page.locator(".current-answer .user-message")).toHaveText("给我提示");
   await expect(page.getByText("回答已完成", { exact: true })).toBeVisible();
   await expect(page.getByText("先检查输入：两个整数需要相加。")).toBeVisible();
   await expect(
@@ -212,7 +214,7 @@ test("AI streams, restores after refresh and cancels without resubmission", asyn
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(page.locator(".usage-summary")).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
     await page.screenshot({ path: testInfo.outputPath(`usage-${width}.png`), fullPage: true });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
