@@ -83,3 +83,18 @@ async def evaluation_batch(db: Database, rows: Sequence[Any]) -> dict[int, dict[
         for case in cases:
             grouped[case["submission_id"]].append(dict(case))
     return {row["id"]: evaluation_summary(dict(row), grouped[row["id"]]) for row in rows}
+
+
+def private_evaluation(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Score-only metadata must not reconstruct hidden case results for owners."""
+    return {
+        "status": row["status"],
+        "verdict": "private",
+        "score": row["score"],
+        "max_score": row["counts"],
+        "executed_cases": None,
+        "passed_cases": None,
+        "total_cases": None,
+        "all_passed": False,
+        "result_counts": {},
+    }

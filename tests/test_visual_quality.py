@@ -9,6 +9,7 @@ from httpx import AsyncClient
 
 from oj.ai_presentation import check_presentation, presentation_issues
 from oj.evaluation import evaluation_batch, evaluation_summary
+from oj.schemas import AIModelConfig
 from tests.test_ai_http import finish
 from tests.test_ai_http import generated as generated  # noqa: F401
 from tests.test_web_experience import configured, fake_phases
@@ -188,3 +189,57 @@ async def test_misnested_reference_is_recovered_before_review(
     assert task["status"] == "completed", task.get("error")
     assert len(calls) == 3
     assert "reference_solution" not in task["result"]["problem"]
+
+
+async def test_private_assistant_cannot_bypass_case_visibility(
+    client: AsyncClient,
+    app: FastAPI,
+    problem_payload: dict[str, Any],
+) -> None:
+    manager = await configured(client, app, problem_payload)
+    created = await client.post(
+        "/api/users/", json={"username": "private_tutor", "password": "test-password"}
+    )
+    uid = int(created.json()["data"]["user_id"])
+    await manager.save_config(
+        uid,
+        AIModelConfig(provider_url="http://127.0.0.1:9999/v1", model="mock", api_key="test-key"),
+    )
+    await client.post(
+        "/api/auth/login", json={"username": "private_tutor", "password": "test-password"}
+    )
+    sid = await app.state.db.execute(
+        "INSERT INTO submissions(user_id,problem_id,language,code,status,score,counts,"
+        "created_at,updated_at) "
+        "VALUES(?,'sum_2','python','print(0)','success',0,10,'2026-09-08','2026-09-08')",
+        (uid,),
+    )
+    await app.state.db.execute(
+        "INSERT INTO submission_cases VALUES(?,1,'WA',0.01,1,'hidden')", (sid,)
+    )
+    seen = []
+
+    async def complete(config: Any, prompt: str, usage: Any = None) -> Any:
+        evidence = json.loads(prompt)["submission"]
+        seen.append(evidence)
+        assert evidence["cases"] == []
+        assert evidence["evaluation"]["verdict"] == "private"
+        assert evidence["evaluation"]["result_counts"] == {}
+        return "只能依据得分分析代码。", 10, 20, "provider"
+
+    manager._stream_completion = complete
+    chat = (await client.post("/api/ai/conversations/", json={"problem_id": "sum_2"})).json()[
+        "data"
+    ]["id"]
+    reply = await client.post(
+        f"/api/ai/conversations/{chat}/messages",
+        json={
+            "message": "分析评测",
+            "code": "print(0)",
+            "language": "python",
+            "submission_id": sid,
+        },
+    )
+    assert reply.status_code == 200, reply.text
+    await finish(manager, reply.json()["data"]["task_id"])
+    assert len(seen) == 1

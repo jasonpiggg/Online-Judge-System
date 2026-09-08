@@ -40,7 +40,7 @@ from oj.ai_sections import (
 )
 from oj.difficulty import normalize_difficulty
 from oj.errors import APIError
-from oj.evaluation import evaluation_summary
+from oj.evaluation import evaluation_summary, private_evaluation
 from oj.judge import judge_code
 from oj.languages import get_language
 from oj.schemas import GeneratedProblem, Problem
@@ -302,10 +302,18 @@ class AIExperience(AIAuthoringManager):
                         raise APIError(404, "submission not found")
                     if submission["problem_id"] != problem_id:
                         raise APIError(400, "提交与当前题目不匹配")
-                    cases = await self.db.fetchall(
-                        "SELECT case_id AS id,result,time,memory FROM submission_cases "
-                        "WHERE submission_id=? ORDER BY case_id",
-                        (payload["submission_id"],),
+                    actor = await self.db.fetchone("SELECT role FROM users WHERE id=?", (user_id,))
+                    can_view_cases = bool(
+                        base.get("public_cases") or (actor and actor["role"] == "admin")
+                    )
+                    cases = (
+                        await self.db.fetchall(
+                            "SELECT case_id AS id,result,time,memory FROM submission_cases "
+                            "WHERE submission_id=? ORDER BY case_id",
+                            (payload["submission_id"],),
+                        )
+                        if can_view_cases
+                        else []
                     )
                     payload["submission"] = {
                         "id": payload["submission_id"],
@@ -313,9 +321,9 @@ class AIExperience(AIAuthoringManager):
                         "code": submission["code"],
                         "code_matches_current": submission["code"] == payload.get("code")
                         and submission["language"] == payload.get("language"),
-                        "evaluation": evaluation_summary(
-                            dict(submission), [dict(c) for c in cases]
-                        ),
+                        "evaluation": evaluation_summary(dict(submission), [dict(c) for c in cases])
+                        if can_view_cases
+                        else private_evaluation(dict(submission)),
                         "cases": [dict(c) for c in cases],
                         "compile_info": submission["compile_info"],
                         "run_info": submission["run_info"],
@@ -821,6 +829,7 @@ class AIExperience(AIAuthoringManager):
                     "draft_candidate_schema": DraftReviewCandidate.model_json_schema(),
                 },
             )
+
             def parse_review(value: str) -> tuple[DraftReviewCandidate, str]:
                 parsed = _extract_json(value)
                 if set(parsed) != {"patch", "review"}:
@@ -1097,9 +1106,7 @@ class AIExperience(AIAuthoringManager):
                     "定向修复试图修改无关字段：" + "、".join(sorted(extra_top))
                 ) from exc
             nested_allowed = {
-                name.split(".", 1)[1]
-                for name in allowed
-                if name.startswith("problem.")
+                name.split(".", 1)[1] for name in allowed if name.startswith("problem.")
             }
             if "problem" in patch and nested_allowed:
                 if not isinstance(patch["problem"], dict):
@@ -1107,8 +1114,7 @@ class AIExperience(AIAuthoringManager):
                 extra_problem = set(patch["problem"]) - nested_allowed
                 if extra_problem:
                     raise AuthoringError(
-                        "定向修复试图修改无关题目字段："
-                        + "、".join(sorted(extra_problem))
+                        "定向修复试图修改无关题目字段：" + "、".join(sorted(extra_problem))
                     ) from exc
             candidate = merge_patch(candidate, patch)
             candidate["review"] = repair["review"]
