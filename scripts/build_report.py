@@ -30,7 +30,7 @@ SOURCE = ROOT / "docs/experiment-report.md"
 OUTPUT = ROOT / "output/pdf/atelier-oj-experiment-report.pdf"
 WIDTH = 174 * mm
 INK = colors.HexColor("#292C28")
-BLUE = colors.HexColor("#B95E43")
+BLUE = colors.HexColor("#2563EB")
 MUTED = colors.HexColor("#6F716A")
 FONT = next(
     (
@@ -132,7 +132,7 @@ def page(canvas, doc):
     canvas.resetTransforms()
     canvas.setFillColor(INK)
     canvas.setFont("Helvetica-Bold", 8)
-    canvas.drawString(18 * mm, 286 * mm, "ATELIER OJ / v1.2.0")
+    canvas.drawString(18 * mm, 286 * mm, "ATELIER OJ / v2.0.0")
     canvas.setFont("OJ", 8)
     canvas.drawRightString(192 * mm, 286 * mm, "实验二：在线评测系统")
     canvas.setStrokeColor(colors.HexColor("#E2E8F2"))
@@ -207,7 +207,7 @@ def build() -> None:
         rightMargin=18 * mm,
         topMargin=28 * mm,
         bottomMargin=20 * mm,
-        title="Atelier OJ 实验二报告 v1.2.0",
+        title="Atelier OJ 实验二报告 v2.0.0",
         author="jasonpiggg",
     )
     frame = Frame(

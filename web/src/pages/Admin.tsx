@@ -361,6 +361,10 @@ export function Admin({ user }: { user: User }) {
                     type="password"
                     name="password"
                     minLength={6}
+                    onInput={(event) => event.currentTarget.setCustomValidity(
+                      new TextEncoder().encode(event.currentTarget.value).length > 72
+                        ? '密码最多 72 个 UTF-8 字节' : '',
+                    )}
                     required
                     autoComplete="new-password"
                   />

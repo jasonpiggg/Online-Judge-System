@@ -1,6 +1,6 @@
 # 在线评测系统实验报告
 
-Atelier OJ · 实验二 · v1.2.0 修复候选版
+Atelier OJ · 实验二 · v2.0.0 Streamlit 默认入口迁移版
 
 | 项目         | 内容                                           |
 | ------------ | ---------------------------------------------- |
@@ -9,7 +9,7 @@ Atelier OJ · 实验二 · v1.2.0 修复候选版
 | 班级         | ____________________                           |
 | GitHub       | jasonpiggg/Online-Judge-System                 |
 | 完整评测环境 | Ubuntu / WSL2，Python 3.12.3，系统 g++，C++14  |
-| 界面开发环境 | Windows，React 19、TypeScript、Vite 8、FastAPI |
+| 界面开发环境 | Windows，Streamlit 1.63、Python REST 客户端、React 19/Vite 8（可选入口）、FastAPI |
 | 报告日期     | 2026-09-05                                     |
 
 本报告描述实际代码和已执行的测试，不代表助教最终评分。课程说明以 [2026-python 分支](https://github.com/dbg-course/python-docs/tree/2026-python/docs/oj) 为准。最终提交仍需遵守课程指定仓库、网络学堂和线下验收要求。
@@ -18,7 +18,7 @@ Atelier OJ · 实验二 · v1.2.0 修复候选版
 
 ## 1. 目标、架构与评分点
 
-系统保留课程要求的 Python 后端。默认网页由 FastAPI 同源提供 React 构建产物，通过 HttpOnly Session Cookie 调用 REST API；FastAPI 使用 async def 路由，依赖注入完成鉴权，后台 asyncio Task 负责评测和命题。Streamlit 保留为兼容入口。阻塞文件操作、密码哈希、DNS 查询使用线程卸载，SQLite 通过 aiosqlite 访问。
+系统保留课程要求的 Python 后端。默认网页由 Streamlit 在 8501 组织页面，通过本地认证组件设置 HttpOnly Session Cookie，再由 Python REST 客户端调用业务 API；React 构建产物保留在 web/ 作为可选入口。FastAPI 使用 async def 路由，依赖注入完成鉴权，后台 asyncio Task 负责评测和命题。阻塞文件操作、密码哈希、DNS 查询使用线程卸载，SQLite 通过 aiosqlite 访问。
 
 | 模块            | 分值 | 实现及证据                                                                                       |
 | --------------- | ---- | ------------------------------------------------------------------------------------------------ |
@@ -118,9 +118,11 @@ stdout/stderr 各并发分块读取，分别最多保留 1 MB；超限立即终�
 
 ## 6. 界面成果
 
-默认 React 网页采用紧凑浅色工具风，正文基准 16px，导航、按钮、表格和辅助信息独立保持 14px，使用浅蓝点缀、细边框和低强度阴影。题库直接显示题号、难度与学习状态；工作区按题面、代码、结果和 AI 纵向排列；记录页提供组合筛选和统一分页。主导航下方保留可关闭的进行中题目、草稿、提交与 AI 任务入口。所有用户可从“资源”导航集中查看、创建和编辑题目、配置评测语言并查询公开日志，管理员管理中心只承载删题、全站提交、用户角色、日志公开、审计和重置等特权操作。做题助手固定显示输入区与最新回答，旧轮次折叠分页，并支持开启不继承旧上下文的新对话。命题中心支持未完成草稿、AI 补全、Code Review 差异及基础/完整两档验证，所有课程得分点的网页入口见 [实验功能与 React 网页覆盖核对](web-scoring-coverage.md)。
+默认 Streamlit 页面沿用 React 的浅色工具风，正文基准 16px，导航、按钮、表格和辅助信息保持 14px，使用浅蓝点缀、细边框和低强度阴影；React 仍可用 `--react` 显式启动。题库直接显示题号、难度与学习状态；工作区按题面、代码、结果和 AI 纵向排列；记录页提供组合筛选和统一分页。主导航下方保留可关闭的进行中题目、草稿、提交与 AI 任务入口。所有用户可从“资源”导航集中查看、创建和编辑题目、配置评测语言并查询公开日志，管理员管理中心只承载删题、全站提交、用户角色、日志公开、审计和重置等特权操作。做题助手固定显示输入区与最新回答，旧轮次折叠分页，并支持开启不继承旧上下文的新对话。命题中心支持未完成草稿、AI 补全、Code Review 差异及基础/完整两档验证，全部入口见 [Streamlit 迁移核对表](streamlit-migration-ledger.md)。
 
 ![1440×900：桌面工作区，C++14 实际提交 #4 全部通过；截图位于工作区中段](screenshots/desktop-workspace.png)
+
+![Streamlit 默认入口 1440px：本地 Monaco 工作区与纵向题面布局](screenshots/streamlit-workspace-1440.png)
 
 ![390×844：手机题库，筛选折叠且页面无横向溢出](screenshots/mobile-result.png)
 
