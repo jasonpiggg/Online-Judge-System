@@ -4,11 +4,7 @@ import { difficulties, difficultyLevel } from "../difficulty";
 import { DifficultyGuide } from "../components/Difficulty";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Link,
-  useParams,
-  useSearchParams,
-} from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { api, json, errorText, queryClient } from "../api";
@@ -20,7 +16,13 @@ import { TaskProgress, terminal, useTask, type Task } from "../components/AI";
 import { BackLink } from "../components/BackLink";
 import { DiffView } from "../components/DiffView";
 import { ErrorNotice } from "../components/ErrorNotice";
-import { TaskAction, TaskLink, useActivity, useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
+import {
+  TaskAction,
+  TaskLink,
+  useActivity,
+  useRecoverUnavailableTask,
+  useRegisterActivity,
+} from "../components/Activity";
 import { Pagination } from "../components/Pagination";
 import { useActionReveal } from "../components/useActionReveal";
 import { DisclosureCard } from "../components/DisclosureCard";
@@ -47,7 +49,15 @@ type ManagedPage<T> = {
 };
 
 export function normalizeManagedPage<T>(
-  value: T[] | { drafts?: T[]; tasks?: T[]; total: number; page: number; page_size: number },
+  value:
+    | T[]
+    | {
+        drafts?: T[];
+        tasks?: T[];
+        total: number;
+        page: number;
+        page_size: number;
+      },
   page: number,
   pageSize = 10,
 ): ManagedPage<T> {
@@ -121,10 +131,35 @@ function VerificationReport({ report }: { report: Record<string, any> }) {
     <section className={`verification-report level-${report.level || "full"}`}>
       <div className="row">
         <h3>{report.level === "basic" ? "基础检查报告" : "完整验证报告"}</h3>
-        <span className="badge tone-AC"><Icon name="check" />已通过</span>
+        <span className="badge tone-AC">
+          <Icon name="check" />
+          已通过
+        </span>
       </div>
-      {Array.isArray(report.checks) && <ul className="check-list">{report.checks.map((item: any) => <li className={item.status === "passed" ? "passed" : item.status === "skipped" ? "skipped" : "blocked"} key={item.id}><strong>{item.label}</strong>{item.detail && <span>{item.detail}</span>}</li>)}</ul>}
-      {report.warnings?.map((warning: string) => <p className="notice-inline" key={warning}>{warning}</p>)}
+      {Array.isArray(report.checks) && (
+        <ul className="check-list">
+          {report.checks.map((item: any) => (
+            <li
+              className={
+                item.status === "passed"
+                  ? "passed"
+                  : item.status === "skipped"
+                    ? "skipped"
+                    : "blocked"
+              }
+              key={item.id}
+            >
+              <strong>{item.label}</strong>
+              {item.detail && <span>{item.detail}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {report.warnings?.map((warning: string) => (
+        <p className="notice-inline" key={warning}>
+          {warning}
+        </p>
+      ))}
       {report.note && <p className="muted">{report.note}</p>}
     </section>
   );
@@ -151,21 +186,34 @@ export function Authoring() {
   const pending = useRef<{ text: string; key: string } | undefined>(undefined);
   const drafts = useQuery({
     queryKey: ["drafts", draftPage],
-    queryFn: async () => normalizeManagedPage(
-      await api<Draft[] | { drafts: Draft[]; total: number; page: number; page_size: number }>(
-        `/problem-drafts/?page=${draftPage}&page_size=10&include_metadata=true&include_archived=false`,
+    queryFn: async () =>
+      normalizeManagedPage(
+        await api<
+          | Draft[]
+          | { drafts: Draft[]; total: number; page: number; page_size: number }
+        >(
+          `/problem-drafts/?page=${draftPage}&page_size=10&include_metadata=true&include_archived=false`,
+        ),
+        draftPage,
       ),
-      draftPage,
-    ),
   });
   const tasks = useQuery({
     queryKey: ["tasks", taskPage],
-    queryFn: async () => normalizeManagedPage(
-      await api<Record<string, any>[] | { tasks: Record<string, any>[]; total: number; page: number; page_size: number }>(
-        `/ai/problem-tasks/?page=${taskPage}&page_size=10&include_metadata=true&include_archived=false`,
+    queryFn: async () =>
+      normalizeManagedPage(
+        await api<
+          | Record<string, any>[]
+          | {
+              tasks: Record<string, any>[];
+              total: number;
+              page: number;
+              page_size: number;
+            }
+        >(
+          `/ai/problem-tasks/?page=${taskPage}&page_size=10&include_metadata=true&include_archived=false`,
+        ),
+        taskPage,
       ),
-      taskPage,
-    ),
     refetchInterval: (q) =>
       q.state.data?.items.some((t) => !terminal(t.status)) ? 5000 : false,
   });
@@ -175,7 +223,10 @@ export function Authoring() {
     setSearchParams(next);
   };
   useEffect(() => {
-    if (drafts.data && draftPage > Math.max(1, Math.ceil(drafts.data.total / 10)))
+    if (
+      drafts.data &&
+      draftPage > Math.max(1, Math.ceil(drafts.data.total / 10))
+    )
       changePage("draft_page", Math.max(1, Math.ceil(drafts.data.total / 10)));
   }, [drafts.data?.total, draftPage]);
   useEffect(() => {
@@ -183,13 +234,23 @@ export function Authoring() {
       changePage("task_page", Math.max(1, Math.ceil(tasks.data.total / 10)));
   }, [tasks.data?.total, taskPage]);
   const archive = async (kind: "draft" | "task", id: string) => {
-    if (!window.confirm(`确认归档这项${kind === "draft" ? "草稿" : "AI 任务"}？内容和费用记录会保留。`)) return;
+    if (
+      !window.confirm(
+        `确认归档这项${kind === "draft" ? "草稿" : "AI 任务"}？内容和费用记录会保留。`,
+      )
+    )
+      return;
     setBusy(true);
     setError("");
     try {
-      await api(kind === "draft" ? `/problem-drafts/${id}` : `/ai/problem-tasks/${id}`, json("DELETE"));
+      await api(
+        kind === "draft" ? `/problem-drafts/${id}` : `/ai/problem-tasks/${id}`,
+        json("DELETE"),
+      );
       removeActivity(`${kind === "draft" ? "draft" : "ai"}:${id}`);
-      await queryClient.invalidateQueries({ queryKey: [kind === "draft" ? "drafts" : "tasks"] });
+      await queryClient.invalidateQueries({
+        queryKey: [kind === "draft" ? "drafts" : "tasks"],
+      });
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -229,15 +290,17 @@ export function Authoring() {
   };
   return (
     <div className="page">
-      <div className="row">
+      <div className="page-heading authoring-heading">
         <h1>
           <Icon name="spark" />
           命题中心
         </h1>
-        <ProblemImport />
-        <Button onClick={() => void create()} disabled={busy}>
-          手动创建题目
-        </Button>
+        <div className="action-group">
+          <ProblemImport />
+          <Button onClick={() => void create()} disabled={busy}>
+            手动创建题目
+          </Button>
+        </div>
       </div>
       <section className="author-compose">
         <h2>描述你想出的题目</h2>
@@ -255,7 +318,11 @@ export function Authoring() {
             minLength={10}
             required
             onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.nativeEvent.isComposing) {
+              if (
+                (event.ctrlKey || event.metaKey) &&
+                event.key === "Enter" &&
+                !event.nativeEvent.isComposing
+              ) {
                 event.preventDefault();
                 void generate();
               }
@@ -279,16 +346,22 @@ export function Authoring() {
       {(drafts.data?.legacy || tasks.data?.legacy) && (
         <div className="notice" role="status">
           <strong>命题中心已使用兼容模式打开</strong>
-          <p>当前后端进程仍是旧版本。请重启 OJ 服务，以启用服务端分页、任务归档和失败成果恢复。</p>
+          <p>
+            当前后端进程仍是旧版本。请重启 OJ
+            服务，以启用服务端分页、任务归档和失败成果恢复。
+          </p>
         </div>
       )}
       <h2>我的草稿</h2>
       <div className="draft-list">
         {drafts.data?.items.map((d) => (
-            <div className="draft-row managed-row" key={d.id}>
-              <TaskLink menuLabel={d.problem?.title || "草稿"} to={"/authoring/drafts/" + d.id}>
-                <strong>{d.problem?.title || "未命名题目"}</strong>
-                <span className="muted">
+          <div className="draft-row managed-row" key={d.id}>
+            <TaskLink
+              menuLabel={d.problem?.title || "草稿"}
+              to={"/authoring/drafts/" + d.id}
+            >
+              <strong>{d.problem?.title || "未命名题目"}</strong>
+              <span className={`badge draft-state draft-state-${d.status}`}>
                 {
                   (
                     {
@@ -299,29 +372,78 @@ export function Authoring() {
                     } as Record<string, string>
                   )[d.status]
                 }{" "}
-                · {d.status === "ready" ? (d.verification_level === "full" ? "完整验证" : "基础检查") + " · " : ""}版本 {d.revision}
-                </span>
-              </TaskLink>
-              <Button variant="ghost" disabled={busy} onClick={() => void archive("draft", d.id)}>归档</Button>
-            </div>
-          ))}
+                ·{" "}
+                {d.status === "ready"
+                  ? (d.verification_level === "full"
+                      ? "完整验证"
+                      : "基础检查") + " · "
+                  : ""}
+                版本 {d.revision}
+              </span>
+            </TaskLink>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => void archive("draft", d.id)}
+            >
+              归档
+            </Button>
+          </div>
+        ))}
         {drafts.data?.total === 0 && (
           <p className="muted">生成或创建一道题，草稿会保存在这里。</p>
         )}
       </div>
-      {drafts.data && drafts.data.total > 10 && <Pagination page={draftPage} totalPages={Math.ceil(drafts.data.total / 10)} label="草稿分页" onChange={(page) => changePage("draft_page", page)} />}
+      {drafts.data && drafts.data.total > 10 && (
+        <Pagination
+          page={draftPage}
+          totalPages={Math.ceil(drafts.data.total / 10)}
+          label="草稿分页"
+          onChange={(page) => changePage("draft_page", page)}
+        />
+      )}
       <h2>AI 任务</h2>
       {tasks.data?.items.map((t) => (
         <div className="draft-row managed-row" key={t.id}>
           <TaskLink menuLabel="AI 任务" to={"/authoring/tasks/" + t.id}>
-            <span>{t.progress}</span>
-            <span className="muted">{new Date(t.created_at).toLocaleString()}</span>
+            <span>
+              <span className={`badge task-state tone-${t.status}`}>
+                {(
+                  {
+                    completed: "已完成",
+                    failed: "失败",
+                    cancelled: "已停止",
+                    pending: "等待中",
+                    running: "进行中",
+                  } as Record<string, string>
+                )[t.status] || "进行中"}
+              </span>{" "}
+              {t.progress}
+            </span>
+            <span className="muted">
+              {new Date(t.created_at).toLocaleString()}
+            </span>
           </TaskLink>
-          <Button variant="ghost" disabled={busy} onClick={() => void archive("task", t.id)}>归档</Button>
+          <Button
+            variant="ghost"
+            disabled={busy}
+            onClick={() => void archive("task", t.id)}
+          >
+            归档
+          </Button>
         </div>
       ))}
-      {tasks.data?.total === 0 && <p className="muted">还没有 AI 命题或验证任务。</p>}
-      {tasks.data && tasks.data.total > 10 && <Pagination page={taskPage} totalPages={Math.ceil(tasks.data.total / 10)} label="AI 任务分页" onChange={(page) => changePage("task_page", page)} />}
+      {tasks.data?.total === 0 && (
+        <p className="muted">还没有 AI 命题或验证任务。</p>
+      )}
+      {tasks.data && tasks.data.total > 10 && (
+        <Pagination
+          page={taskPage}
+          totalPages={Math.ceil(tasks.data.total / 10)}
+          label="AI 任务分页"
+          onChange={(page) => changePage("task_page", page)}
+        />
+      )}
     </div>
   );
 }
@@ -351,6 +473,8 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
     replaceCurrent(`/authoring/drafts/${draft.id}?${next}`);
   };
   const stepReveal = useActionReveal<HTMLFormElement>();
+  const aiReveal = useActionReveal<HTMLDivElement>();
+  const aiPanel = useRef<HTMLDetailsElement>(null);
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
@@ -503,12 +627,18 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
       const p = form.getValues();
       const complete = problemSchema.safeParse(p).success;
       if (!complete && aiMode !== "complete") {
-        setError("当前题面尚未完整。请先补全必填字段，或明确选择“补全整题并验证”。");
+        setError(
+          "当前题面尚未完整。请先补全必填字段，或明确选择“补全整题并验证”。",
+        );
         return;
       }
       const saved = await save(p);
       const effectiveTarget =
-        aiMode === "review" ? "review" : aiMode === "complete" ? "all" : localTarget;
+        aiMode === "review"
+          ? "review"
+          : aiMode === "complete"
+            ? "all"
+            : localTarget;
       const requestText = requirement.trim()
         ? `用户补充要求：${requirement.trim()}\n${
             aiMode === "review"
@@ -579,7 +709,9 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
   const schemaValid = problemSchema.safeParse(values).success;
   const uniqueTests = new Set(values.testcases.map((item) => item.input)).size;
   const wrongSolutions = Array.isArray(reviewAssets.wrong_solutions)
-    ? reviewAssets.wrong_solutions.filter((item: any) => item?.code?.trim() && item?.reason?.trim())
+    ? reviewAssets.wrong_solutions.filter(
+        (item: any) => item?.code?.trim() && item?.reason?.trim(),
+      )
     : [];
   const fullIssues = [
     !reference.trim() && "参考解",
@@ -635,9 +767,20 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
       <BackLink />
       <div className="row">
         <h1>{values.title || "创建题目"}</h1>
-        <Button onClick={() => setPreview(!preview)}>
-          {preview ? "继续编辑" : "预览题面"}
-        </Button>
+        <div className="action-group">
+          <Button
+            onClick={() => {
+              if (aiPanel.current) aiPanel.current.open = true;
+              aiReveal.reveal();
+            }}
+          >
+            <Icon name="spark" />
+            AI 辅助
+          </Button>
+          <Button onClick={() => setPreview(!preview)}>
+            {preview ? "继续编辑" : "预览题面"}
+          </Button>
+        </div>
       </div>
       <div className="step-tabs">
         {["题面与样例", "测试与解法", "检查与发布"].map((t, index) => (
@@ -693,7 +836,9 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
       {preview ? (
         <Statement problem={values as Problem} />
       ) : (
-        <form ref={stepReveal.ref} className="form-grid reveal-target"
+        <form
+          ref={stepReveal.ref}
+          className="form-grid reveal-target"
           onSubmit={async (event) => {
             event.preventDefault();
             setBusy(true);
@@ -747,17 +892,19 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                   />
                 </label>
               </div>
-              <div className="samples">
-                <label>
-                  来源
-                  <input {...form.register("source")} />
-                </label>
-                <label>
-                  作者
-                  <input {...form.register("author")} />
-                </label>
-              </div>
-              <DifficultyGuide />
+              <DisclosureCard summary="来源与作者（可选）">
+                <div className="samples">
+                  <label>
+                    来源
+                    <input {...form.register("source")} />
+                  </label>
+                  <label>
+                    作者
+                    <input {...form.register("author")} />
+                  </label>
+                </div>
+              </DisclosureCard>
+              <DifficultyGuide compact />
               {(
                 [
                   ["description", "题目描述"],
@@ -773,7 +920,11 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                     {...form.register(key)}
                     rows={key === "description" ? 8 : 3}
                   />
-                  <span className="muted">支持 Markdown 和数学公式</span>
+                  {key === "description" && (
+                    <span className="muted">
+                      题面各字段均支持 Markdown 和数学公式。
+                    </span>
+                  )}
                 </label>
               ))}
               {array("samples")}
@@ -919,63 +1070,121 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                     : "基础检查已通过，可以发布"
                   : "草稿尚未通过基础检查"}
               </h2>
-              <p>基础检查通过即可发布手工题；完整验证会继续执行错误解检测与独立随机对拍。</p>
+              <p>
+                基础检查通过即可发布手工题；完整验证会继续执行错误解检测与独立随机对拍。
+              </p>
               <div className="verification-levels">
                 <section>
-                  <span className="eyebrow"><Icon name="check" /> 基础检查</span>
+                  <span className="eyebrow">
+                    <Icon name="check" /> 基础检查
+                  </span>
                   <h3>字段、排版与可运行性</h3>
                   <ul className="check-list">
-                    <li className={schemaValid ? "passed" : "blocked"}>题目字段、样例与测试格式</li>
-                    <li className="skipped">Markdown 与数学公式语法：运行后确认</li>
-                    <li className="skipped">{reference.trim() ? "待运行参考解的全部样例和测试" : "未提供参考解，将跳过自动输出核对"}</li>
+                    <li className={schemaValid ? "passed" : "blocked"}>
+                      题目字段、样例与测试格式
+                    </li>
+                    <li className="skipped">
+                      Markdown 与数学公式语法：运行后确认
+                    </li>
+                    <li className="skipped">
+                      {reference.trim()
+                        ? "待运行参考解的全部样例和测试"
+                        : "未提供参考解，将跳过自动输出核对"}
+                    </li>
                   </ul>
-                  {!schemaValid && <Button type="button" onClick={() => { changeStep("题面与样例"); stepReveal.reveal(); }}>补全题目字段</Button>}
+                  {!schemaValid && (
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        changeStep("题面与样例");
+                        stepReveal.reveal();
+                      }}
+                    >
+                      补全题目字段
+                    </Button>
+                  )}
                 </section>
                 <section>
-                  <span className="eyebrow"><Icon name="shield" /> 完整验证</span>
+                  <span className="eyebrow">
+                    <Icon name="shield" /> 完整验证
+                  </span>
                   <h3>AI 命题质量资产</h3>
-                  {fullIssues.length ? <><p className="muted">还缺少：{fullIssues.join("、")}</p><Button type="button" onClick={() => { changeStep("测试与解法"); stepReveal.reveal(); }}>前往补充验证资产</Button></> : <p className="status-good">完整验证所需内容已填写。</p>}
+                  {fullIssues.length ? (
+                    <>
+                      <p className="muted">还缺少：{fullIssues.join("、")}</p>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          changeStep("测试与解法");
+                          stepReveal.reveal();
+                        }}
+                      >
+                        前往补充验证资产
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="status-good">完整验证所需内容已填写。</p>
+                  )}
                 </section>
               </div>
-              {draft.verification_summary && <VerificationReport report={draft.verification_summary} />}
-              {draft.review?.review && <div className="ai-review-card"><span className="eyebrow">审查意见</span><RichText text={draft.review.review} /></div>}
-              <Button
-                type="button"
-                variant="default"
-                disabled={
-                  busy || draft.status !== "ready" || dirty || backupConflict
-                }
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    const result = await api<{ id: string }>(
-                      `/problem-drafts/${draft.id}/publish`,
-                      json("POST"),
-                    );
-                    navigateInSlot("/problems/" + result.id);
-                  } catch (e) {
-                    setError(errorText(e));
-                  } finally {
-                    setBusy(false);
+              {draft.verification_summary && (
+                <VerificationReport report={draft.verification_summary} />
+              )}
+              {draft.review?.review && (
+                <div className="ai-review-card">
+                  <span className="eyebrow">审查意见</span>
+                  <RichText text={draft.review.review} />
+                </div>
+              )}
+              <div className="verification-actions">
+                <Button
+                  type="button"
+                  variant={
+                    draft.status === "ready" && !dirty ? "default" : "outline"
                   }
-                }}
-              >
-                发布题目
-              </Button>
-              <Button
-                type="button"
-                disabled={busy || backupConflict || !schemaValid}
-                onClick={() => void runVerification("basic")}
-              >
-                运行基础检查
-              </Button>
-              <Button
-                type="button"
-                disabled={busy || backupConflict || !schemaValid || fullIssues.length > 0}
-                onClick={() => void runVerification("full")}
-              >
-                运行完整验证
-              </Button>
+                  disabled={
+                    busy || draft.status !== "ready" || dirty || backupConflict
+                  }
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      const result = await api<{ id: string }>(
+                        `/problem-drafts/${draft.id}/publish`,
+                        json("POST"),
+                      );
+                      navigateInSlot("/problems/" + result.id);
+                    } catch (e) {
+                      setError(errorText(e));
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  发布题目
+                </Button>
+                <Button
+                  type="button"
+                  disabled={busy || backupConflict || !schemaValid}
+                  variant={
+                    draft.status !== "ready" && !dirty ? "default" : "outline"
+                  }
+                  onClick={() => void runVerification("basic")}
+                >
+                  运行基础检查
+                </Button>
+                <Button
+                  type="button"
+                  disabled={
+                    busy ||
+                    backupConflict ||
+                    !schemaValid ||
+                    fullIssues.length > 0
+                  }
+                  onClick={() => void runVerification("full")}
+                >
+                  运行完整验证
+                </Button>
+              </div>
               <DisclosureCard summary="高级：JSON 导入与导出">
                 <Code text={JSON.stringify(values, null, 2)} />
                 <label>
@@ -1006,147 +1215,163 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
             <span className="muted">
               版本 {version.current} · {dirty ? "修改已保留在本机" : "已同步"}
             </span>
-            <Button variant="default" disabled={busy} type="submit">
+            <Button
+              variant={dirty || step !== "检查与发布" ? "default" : "outline"}
+              disabled={busy}
+              type="submit"
+            >
               保存草稿
             </Button>
           </div>
         </form>
       )}
-      <DisclosureCard className="ai-inline" summary="AI 辅助当前草稿" open>
-        <div className="ai-mode-grid" role="radiogroup" aria-label="AI 辅助模式">
-          {(
-            [
-              {
-                id: "local",
-                title: "局部修改",
-                scope: "一个选定区域",
-                result: "差异建议，人工采纳",
-                verification: "不执行整题验证",
-                cost: "较低",
-              },
-              {
-                id: "review",
-                title: "全面审查并修正",
-                scope: "完整题面与已有资产",
-                result: "最小修正 Patch",
-                verification: "采纳后仍需验证",
-                cost: "中等",
-              },
-              {
-                id: "complete",
-                title: "补全整题并验证",
-                scope: "题面、解法与全部验证资产",
-                result: "通过门禁的完整草稿",
-                verification: "执行完整质量验证",
-                cost: "较高",
-              },
-            ] as const
-          ).map((mode) => (
-            <button
-              key={mode.id}
-              type="button"
-              role="radio"
-              aria-checked={aiMode === mode.id}
-              className={`ai-mode-card${aiMode === mode.id ? " selected" : ""}`}
-              onClick={() => {
-                setAIMode(mode.id);
-                setError("");
-              }}
-            >
-              <span className="ai-mode-title">
-                <Icon
-                  name={
-                    mode.id === "local"
-                      ? "file"
-                      : mode.id === "review"
-                        ? "shield"
-                        : "spark"
-                  }
-                />
-                {mode.title}
-              </span>
-              <small>范围：{mode.scope}</small>
-              <small>产物：{mode.result}</small>
-              <small>验证：{mode.verification}</small>
-              <span className="ai-mode-cost">费用：{mode.cost}</span>
-            </button>
-          ))}
-        </div>
-        <div className="ai-mode-controls">
-          {aiMode === "local" && (
-            <label className="ai-local-target">
-              局部修改范围
-              <select
-                aria-label="AI 局部修改范围"
-                value={localTarget}
-                onChange={(event) => setLocalTarget(event.target.value)}
+      <div ref={aiReveal.ref} className="reveal-target draft-ai-target">
+        <DisclosureCard
+          ref={aiPanel}
+          className="ai-inline"
+          summary="AI 辅助当前草稿"
+          open
+        >
+          <div
+            className="ai-mode-grid"
+            role="radiogroup"
+            aria-label="AI 辅助模式"
+          >
+            {(
+              [
+                {
+                  id: "local",
+                  title: "局部修改",
+                  scope: "一个选定区域",
+                  result: "差异建议，人工采纳",
+                  verification: "不执行整题验证",
+                  cost: "较低",
+                },
+                {
+                  id: "review",
+                  title: "全面审查并修正",
+                  scope: "完整题面与已有资产",
+                  result: "最小修正 Patch",
+                  verification: "采纳后仍需验证",
+                  cost: "中等",
+                },
+                {
+                  id: "complete",
+                  title: "补全整题并验证",
+                  scope: "题面、解法与全部验证资产",
+                  result: "通过门禁的完整草稿",
+                  verification: "执行完整质量验证",
+                  cost: "较高",
+                },
+              ] as const
+            ).map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                role="radio"
+                aria-checked={aiMode === mode.id}
+                className={`ai-mode-card${aiMode === mode.id ? " selected" : ""}`}
+                onClick={() => {
+                  setAIMode(mode.id);
+                  setError("");
+                }}
               >
-                <option value="statement">润色题面</option>
-                <option value="samples">完善样例</option>
-                <option value="constraints">改进约束</option>
-                <option value="testcases">设计测试</option>
-              </select>
-            </label>
-          )}
-          <label className="ai-requirement-field">
-            补充要求
-            <textarea
-              aria-label="AI 修改要求"
-              rows={4}
-              value={requirement}
-              onChange={(event) => setRequirement(event.target.value)}
-              placeholder="补充你的要求，无需再次粘贴题目"
-              onKeyDown={(event) => {
-                if (
-                  event.key === "Enter" &&
-                  (event.ctrlKey || event.metaKey) &&
-                  !event.nativeEvent.isComposing
-                ) {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  void runAI();
-                }
-              }}
-            />
-          </label>
-          <div className="ai-mode-action-row">
-            <span className="muted">按 Ctrl/Cmd + Enter 也可开始。</span>
-            <Button
-              disabled={
-                busy ||
-                (!problemSchema.safeParse(values).success && aiMode !== "complete") ||
-                (!!modelConfig.data &&
-                  !modelConfig.data.system_configured &&
-                  !modelConfig.data.personal_configured)
-              }
-              onClick={() => void runAI()}
-            >
-              {aiMode === "review"
-                ? "开始全面审查"
-                : aiMode === "complete"
-                  ? "补全并验证整题"
-                  : "生成局部修改"}
-            </Button>
+                <span className="ai-mode-title">
+                  <Icon
+                    name={
+                      mode.id === "local"
+                        ? "file"
+                        : mode.id === "review"
+                          ? "shield"
+                          : "spark"
+                    }
+                  />
+                  {mode.title}
+                </span>
+                <small>范围：{mode.scope}</small>
+                <small>产物：{mode.result}</small>
+                <small>验证：{mode.verification}</small>
+                <span className="ai-mode-cost">费用：{mode.cost}</span>
+              </button>
+            ))}
           </div>
-        </div>
-        <p className="muted">
-          {!problemSchema.safeParse(values).success && aiMode !== "complete"
-            ? "当前题面缺少必填字段，此模式不会自动切换。请先补全，或选择“补全整题并验证”。"
-            : aiMode === "review"
-              ? "审查只修正已有内容，不补造缺失模块；采纳后必须重新验证。"
-              : aiMode === "complete"
-                ? "该模式可能重构多个区域，并执行参考解、错误解与随机对拍验证。"
-                : "只返回所选范围的修改，其他字段保持不变。"}{" "}
-          模型调用会产生费用，确定性格式错误最多自动修复一次。
-        </p>
-        {modelConfig.data &&
-          !modelConfig.data.system_configured &&
-          !modelConfig.data.personal_configured && (
-            <p role="alert">
-              尚未配置可用模型。<Link to="/account">前往账户配置</Link>
-            </p>
-          )}
-      </DisclosureCard>
+          <div className="ai-mode-controls">
+            {aiMode === "local" && (
+              <label className="ai-local-target">
+                局部修改范围
+                <select
+                  aria-label="AI 局部修改范围"
+                  value={localTarget}
+                  onChange={(event) => setLocalTarget(event.target.value)}
+                >
+                  <option value="statement">润色题面</option>
+                  <option value="samples">完善样例</option>
+                  <option value="constraints">改进约束</option>
+                  <option value="testcases">设计测试</option>
+                </select>
+              </label>
+            )}
+            <label className="ai-requirement-field">
+              补充要求
+              <textarea
+                aria-label="AI 修改要求"
+                rows={4}
+                value={requirement}
+                onChange={(event) => setRequirement(event.target.value)}
+                placeholder="补充你的要求，无需再次粘贴题目"
+                onKeyDown={(event) => {
+                  if (
+                    event.key === "Enter" &&
+                    (event.ctrlKey || event.metaKey) &&
+                    !event.nativeEvent.isComposing
+                  ) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void runAI();
+                  }
+                }}
+              />
+            </label>
+            <div className="ai-mode-action-row">
+              <span className="muted">按 Ctrl/Cmd + Enter 也可开始。</span>
+              <Button
+                disabled={
+                  busy ||
+                  (!problemSchema.safeParse(values).success &&
+                    aiMode !== "complete") ||
+                  (!!modelConfig.data &&
+                    !modelConfig.data.system_configured &&
+                    !modelConfig.data.personal_configured)
+                }
+                onClick={() => void runAI()}
+              >
+                {aiMode === "review"
+                  ? "开始全面审查"
+                  : aiMode === "complete"
+                    ? "补全并验证整题"
+                    : "生成局部修改"}
+              </Button>
+            </div>
+          </div>
+          <p className="muted">
+            {!problemSchema.safeParse(values).success && aiMode !== "complete"
+              ? "当前题面缺少必填字段，此模式不会自动切换。请先补全，或选择“补全整题并验证”。"
+              : aiMode === "review"
+                ? "审查只修正已有内容，不补造缺失模块；采纳后必须重新验证。"
+                : aiMode === "complete"
+                  ? "该模式可能重构多个区域，并执行参考解、错误解与随机对拍验证。"
+                  : "只返回所选范围的修改，其他字段保持不变。"}{" "}
+            模型调用会产生费用，确定性格式错误最多自动修复一次。
+          </p>
+          {modelConfig.data &&
+            !modelConfig.data.system_configured &&
+            !modelConfig.data.personal_configured && (
+              <p role="alert">
+                尚未配置可用模型。<Link to="/account">前往账户配置</Link>
+              </p>
+            )}
+        </DisclosureCard>
+      </div>
     </div>
   );
 }
@@ -1175,7 +1400,11 @@ export function authoringTaskOrigin(
       source: "problem" as const,
       draftId: undefined,
     };
-  return { path: "/authoring", source: "authoring" as const, draftId: undefined };
+  return {
+    path: "/authoring",
+    source: "authoring" as const,
+    draftId: undefined,
+  };
 }
 
 export function AuthoringTask() {
@@ -1185,13 +1414,17 @@ export function AuthoringTask() {
   const { navigateInSlot } = useActivity();
   const [actionError, setActionError] = useState(""),
     [busy, setBusy] = useState(false);
-  useRegisterActivity(t ? {
-    id: `ai:${t.task_id}`,
-    kind: "ai",
-    title: t.action === "verify" ? "草稿验证" : "AI 命题",
-    path: `/authoring/tasks/${t.task_id}`,
-    status: t.progress || t.status,
-  } : null);
+  useRegisterActivity(
+    t
+      ? {
+          id: `ai:${t.task_id}`,
+          kind: "ai",
+          title: t.action === "verify" ? "草稿验证" : "AI 命题",
+          path: `/authoring/tasks/${t.task_id}`,
+          status: t.progress || t.status,
+        }
+      : null,
+  );
   if (!t) return <p className="skeleton">{error?.message || "读取任务…"}</p>;
   const result = t.result,
     preview = t.preview || {};
@@ -1201,7 +1434,10 @@ export function AuthoringTask() {
     setBusy(true);
     setActionError("");
     try {
-      const recovered = await api<{ draft_id: string }>(`/ai/problem-tasks/${t.task_id}/save-draft`, json("POST"));
+      const recovered = await api<{ draft_id: string }>(
+        `/ai/problem-tasks/${t.task_id}/save-draft`,
+        json("POST"),
+      );
       await queryClient.invalidateQueries({ queryKey: ["task", t.task_id] });
       navigateInSlot(`/authoring/drafts/${recovered.draft_id}`);
     } catch (e) {
@@ -1227,7 +1463,8 @@ export function AuthoringTask() {
           base_problem_id: current.base_problem_id,
           requirement: current.requirement,
           problem: proposal?.problem || result.problem,
-          reference_solution: proposal?.reference_solution ?? current.reference_solution,
+          reference_solution:
+            proposal?.reference_solution ?? current.reference_solution,
           brute_solution: proposal?.brute_solution ?? current.brute_solution,
           generator_code: proposal?.generator_code ?? current.generator_code,
           review: isReviewPatch
@@ -1240,7 +1477,9 @@ export function AuthoringTask() {
               }
             : current.review,
           revision: current.revision,
-          change_summary: isReviewPatch ? "采纳 AI 全面审查" : "采纳 AI 局部建议",
+          change_summary: isReviewPatch
+            ? "采纳 AI 全面审查"
+            : "采纳 AI 局部建议",
         }),
       );
       queryClient.setQueryData(["draft", targetDraftId], updated);
@@ -1263,31 +1502,41 @@ export function AuthoringTask() {
         {t.action === "verify" ? "草稿本地验证" : "AI 命题"}
       </h1>
       <section className="task-request-card">
-        <span className="eyebrow"><Icon name="file" /> 本次任务</span>
+        <span className="eyebrow">
+          <Icon name="file" /> 本次任务
+        </span>
         <p>{t.requirement}</p>
       </section>
-      <TaskProgress task={t} disconnected={disconnected} />
-      {!terminal(t.status) && (
-        <p className="task-stage-note">
-          生成中 · 以下内容尚未验证，完成前不能发布。离开页面后任务仍会继续。
-        </p>
-      )}
-      {t.status === "completed" &&
-        t.draft_id &&
-        (result?.verification?.publishable || result?.verification?.quality_gate_passed) && (
-          <Button variant="default" asChild>
-            <TaskLink to={"/authoring/drafts/" + t.draft_id + "?step=检查与发布"}>
-              打开已验证草稿
-            </TaskLink>
-          </Button>
+      <div className="task-outcome">
+        <TaskProgress task={t} disconnected={disconnected} />
+        {!terminal(t.status) && (
+          <p className="task-stage-note">
+            生成中 · 以下内容尚未验证，完成前不能发布。离开页面后任务仍会继续。
+          </p>
         )}
+        {t.status === "completed" &&
+          t.draft_id &&
+          (result?.verification?.publishable ||
+            result?.verification?.quality_gate_passed) && (
+            <Button variant="default" asChild>
+              <TaskLink
+                to={"/authoring/drafts/" + t.draft_id + "?step=检查与发布"}
+              >
+                打开已验证草稿
+              </TaskLink>
+            </Button>
+          )}
+      </div>
       {result?.kind === "verification" && result.verification && (
         <VerificationReport report={result.verification} />
       )}
       {result?.kind === "section_patch" && (
         <>
           <p className="task-stage-note">局部建议已复审，尚未通过整题验证。</p>
-          <div className="ai-review-card"><span className="eyebrow">AI 修改说明</span><RichText text={result.review} /></div>
+          <div className="ai-review-card">
+            <span className="eyebrow">AI 修改说明</span>
+            <RichText text={result.review} />
+          </div>
           <DisclosureCard summary="查看修改前后差异" open>
             <DiffView before={result.baseline} after={result.problem} />
           </DisclosureCard>
@@ -1326,7 +1575,12 @@ export function AuthoringTask() {
           </Button>
         </>
       )}
-      {result?.kind === "review" && <div className="ai-review-card"><span className="eyebrow">AI 审查结果</span><RichText text={result.review} /></div>}
+      {result?.kind === "review" && (
+        <div className="ai-review-card">
+          <span className="eyebrow">AI 审查结果</span>
+          <RichText text={result.review} />
+        </div>
+      )}
       {result?.initial_problem && (
         <DisclosureCard summary="查看复审前后的题面">
           <DiffView before={result.initial_problem} after={result.problem} />
@@ -1350,7 +1604,15 @@ export function AuthoringTask() {
               ["input_description", "输入格式"],
               ["output_description", "输出格式"],
               ["constraints", "数据范围"],
-            ].map(([k, label]) => preview[k] && <section className="preview-field" key={k}><h3>{label}</h3><RichText text={preview[k]} /></section>)}
+            ].map(
+              ([k, label]) =>
+                preview[k] && (
+                  <section className="preview-field" key={k}>
+                    <h3>{label}</h3>
+                    <RichText text={preview[k]} />
+                  </section>
+                ),
+            )}
             {preview.samples?.map(
               (s: { input: string; output: string }, i: number) => (
                 <div className="samples" key={i}>
@@ -1373,64 +1635,122 @@ export function AuthoringTask() {
           result.kind !== "review" &&
           result.kind !== "review_patch" && (
             <DisclosureCard summary="审查意见">
-              <div className="ai-review-card"><RichText text={result.review} /></div>
+              <div className="ai-review-card">
+                <RichText text={result.review} />
+              </div>
             </DisclosureCard>
           )}
       </div>
       {["failed", "cancelled"].includes(t.status) && (
         <div className="notice">
-          <p>{t.action === "verify" ? "本地验证未完成。请返回草稿查看并修正检查项，再选择基础检查或完整验证；本地检查不调用模型。" : "已保留当前成果。重新生成会创建新任务并产生费用。"}</p>
+          <p>
+            {t.action === "verify"
+              ? "本地验证未完成。请返回草稿查看并修正检查项，再选择基础检查或完整验证；本地检查不调用模型。"
+              : "已保留当前成果。重新生成会创建新任务并产生费用。"}
+          </p>
           {t.action === "verify" ? (
-            <Button asChild><TaskLink to={taskOrigin.path}>{taskOrigin.source === "draft" ? "继续修正并检查草稿" : "打开来源页面"}</TaskLink></Button>
-          ) : (
-          <div className="action-group">
-            {taskOrigin.path !== "/authoring" && <>
-              <TaskAction to={taskOrigin.path} label="打开来源页面" />
-            </>}
-            {t.recovery_draft_id ? (
-              <Button variant="default" asChild><TaskLink to={`/authoring/drafts/${t.recovery_draft_id}`}>打开恢复草稿</TaskLink></Button>
-            ) : (
-              <Button variant="default" disabled={busy} onClick={() => void saveRecoveryDraft()}>将当前成果另存为草稿</Button>
-            )}
-            <Button disabled={busy} onClick={async () => {
-              setBusy(true);
-              try {
-                const r = await api<{ task_id: string }>("/ai/problem-tasks/", {
-                  ...json("POST", {
-                    requirement: t.requirement,
-                    problem_id: t.problem_id,
-                    draft_id: sourceDraftId,
-                    workflow_version: 2,
-                    action: t.action,
-                    target_section: t.target_section,
-                    resume_task_id:
-                      result?.kind === "candidate" ? t.task_id : undefined,
-                  }),
-                  headers: { "Idempotency-Key": crypto.randomUUID() },
-                });
-                navigateInSlot("/authoring/tasks/" + r.task_id);
-              } catch (e) {
-                setActionError(errorText(e));
-              } finally {
-                setBusy(false);
-              }
-            }}>
-            {result?.kind === "candidate" ? "从已完成阶段继续" : "重新生成"}
+            <Button asChild>
+              <TaskLink to={taskOrigin.path}>
+                {taskOrigin.source === "draft"
+                  ? "继续修正并检查草稿"
+                  : "打开来源页面"}
+              </TaskLink>
             </Button>
-          </div>
+          ) : (
+            <div className="action-group">
+              {taskOrigin.path !== "/authoring" && (
+                <>
+                  <TaskAction to={taskOrigin.path} label="打开来源页面" />
+                </>
+              )}
+              {t.recovery_draft_id ? (
+                <Button variant="default" asChild>
+                  <TaskLink to={`/authoring/drafts/${t.recovery_draft_id}`}>
+                    打开恢复草稿
+                  </TaskLink>
+                </Button>
+              ) : (
+                <Button
+                  variant="default"
+                  disabled={busy}
+                  onClick={() => void saveRecoveryDraft()}
+                >
+                  将当前成果另存为草稿
+                </Button>
+              )}
+              <Button
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    const r = await api<{ task_id: string }>(
+                      "/ai/problem-tasks/",
+                      {
+                        ...json("POST", {
+                          requirement: t.requirement,
+                          problem_id: t.problem_id,
+                          draft_id: sourceDraftId,
+                          workflow_version: 2,
+                          action: t.action,
+                          target_section: t.target_section,
+                          resume_task_id:
+                            result?.kind === "candidate"
+                              ? t.task_id
+                              : undefined,
+                        }),
+                        headers: { "Idempotency-Key": crypto.randomUUID() },
+                      },
+                    );
+                    navigateInSlot("/authoring/tasks/" + r.task_id);
+                  } catch (e) {
+                    setActionError(errorText(e));
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {result?.kind === "candidate" ? "从已完成阶段继续" : "重新生成"}
+              </Button>
+            </div>
           )}
         </div>
       )}
       {actionError && <ErrorNotice message={actionError} />}
       {t.status === "failed" && t.action !== "verify" && (
-        <section className="verification-report level-basic" aria-label="失败成果恢复说明">
+        <section
+          className="verification-report level-basic"
+          aria-label="失败成果恢复说明"
+        >
           <h3>可恢复的命题成果</h3>
           <dl className="metadata-grid">
-            <div><dt>失败阶段</dt><dd>{result?.validation?.stage || t.stage || "生成"}</dd></div>
-            <div><dt>失败检查</dt><dd>{result?.validation?.message || t.error || "模型响应未通过结构或本地验证"}</dd></div>
-            <div><dt>已保存内容</dt><dd>{result?.problem ? "题面" : preview.title ? "部分题面" : "任务需求"}{result?.reference_solution ? "、参考解" : ""}{result?.generator_code ? "、生成器" : ""}</dd></div>
+            <div>
+              <dt>失败阶段</dt>
+              <dd>{result?.validation?.stage || t.stage || "生成"}</dd>
+            </div>
+            <div>
+              <dt>失败检查</dt>
+              <dd>
+                {result?.validation?.message ||
+                  t.error ||
+                  "模型响应未通过结构或本地验证"}
+              </dd>
+            </div>
+            <div>
+              <dt>已保存内容</dt>
+              <dd>
+                {result?.problem
+                  ? "题面"
+                  : preview.title
+                    ? "部分题面"
+                    : "任务需求"}
+                {result?.reference_solution ? "、参考解" : ""}
+                {result?.generator_code ? "、生成器" : ""}
+              </dd>
+            </div>
           </dl>
-          <p className="muted">可以零费用另存为未验证草稿后人工修正；发布前仍须重新通过基础检查或完整验证。</p>
+          <p className="muted">
+            可以零费用另存为未验证草稿后人工修正；发布前仍须重新通过基础检查或完整验证。
+          </p>
         </section>
       )}
     </div>

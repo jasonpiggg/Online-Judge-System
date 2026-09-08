@@ -11,15 +11,11 @@ describe("Pagination", () => {
     expect(paginationWindow(20, 20)).toEqual([16, 17, 18, 19, 20]);
   });
 
-  it("renders the one-page boundary without duplicate page numbers", () => {
-    render(<Pagination page={1} totalPages={1} onChange={vi.fn()} />);
-    expect(screen.getAllByRole("button")).toHaveLength(5);
-    expect(screen.getByRole("button", { name: "第 1 页" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    for (const name of ["首页", "上一页", "下一页", "尾页"])
-      expect(screen.getByRole("button", { name })).toBeDisabled();
+  it("hides pagination for a single page or an empty list", () => {
+    const { rerender } = render(<Pagination page={1} totalPages={1} onChange={vi.fn()} />);
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    rerender(<Pagination page={1} totalPages={0} onChange={vi.fn()} />);
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
 
   it("navigates by number, arrows, first and last page", () => {

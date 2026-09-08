@@ -1,0 +1,40 @@
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-sans:
+    system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
+    "Noto Sans SC", sans-serif;
+  --font-mono:
+    "JetBrains Mono", "Cascadia Code", Consolas, "Microsoft YaHei", monospace;
+  --font-body: 16px;
+  --font-ui: 14px;
+  --accent: #2563eb;
+  --ink: #1d293d;
+  --muted: #617087;
+  --surface: #fff;
+  --soft: #f5f8fe;
+  --border: #e3eaf3;
+  --control-border: #b8c5d6;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --control-height: 40px;
+  --editor-height: clamp(280px, 50dvh, 460px);
+}
+
+@media (max-width: 760px) {
+  :root {
+    --control-height: 44px;
+  }
+}

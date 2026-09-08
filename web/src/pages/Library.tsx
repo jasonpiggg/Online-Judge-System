@@ -103,15 +103,17 @@ export function Library() {
           ))}
         </select>
       </div>
-      <DifficultyGuide />
       {error && <p role="alert">{error.message}</p>}
       {!problems && !error ? (
         <div className="skeleton">正在加载题目…</div>
       ) : (
         <>
-          <p className="list-summary">
-            共 <strong>{filtered?.length}</strong> 道题目
-          </p>
+          <div className="list-toolbar">
+            <p className="list-summary">
+              共 <strong>{filtered?.length}</strong> 道题目
+            </p>
+            <DifficultyGuide compact />
+          </div>
           <div className="problem-list">
             <div className="list-head">
               <span className="library-id">题号</span>
@@ -134,7 +136,9 @@ export function Library() {
                   scrollY: window.scrollY,
                 }}
               >
-                <span className="problem-id library-id">{p.id}</span>
+                <span className="problem-id library-id" title={p.id}>
+                  {p.id}
+                </span>
                 <div className="problem-title">
                   <strong>{p.title}</strong>
                   <div className="tags">

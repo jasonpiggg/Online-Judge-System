@@ -6,7 +6,10 @@ import { BackLink } from "../components/BackLink";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { EvaluationView } from "../components/Evaluation";
 import { Icon } from "../components/Icon";
-import { useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
+import {
+  useRecoverUnavailableTask,
+  useRegisterActivity,
+} from "../components/Activity";
 
 type PublicLogResult = {
   details?: CaseResult[];
@@ -22,12 +25,19 @@ export function PublicLog({ user: _user }: { user: User }) {
     queryFn: () => api<PublicLogResult>(`/submissions/${id}/log`),
   });
   useRecoverUnavailableTask(query.error);
-  useRegisterActivity({ id: `log:${id}`, kind: "submission", title: `日志 #${id}`, path: `/logs/submissions/${id}${location.search}`, status: query.isPending ? "读取中" : query.error ? "不可查看" : "已加载" });
+  useRegisterActivity({
+    id: `log:${id}`,
+    kind: "submission",
+    title: `日志 #${id}`,
+    path: `/logs/submissions/${id}${location.search}`,
+    status: query.isPending ? "读取中" : query.error ? "不可查看" : "已加载",
+  });
   const data = query.data;
-  const counts = data?.details?.reduce<Record<string, number>>((all, item) => {
-    all[item.result] = (all[item.result] || 0) + 1;
-    return all;
-  }, {}) || {};
+  const counts =
+    data?.details?.reduce<Record<string, number>>((all, item) => {
+      all[item.result] = (all[item.result] || 0) + 1;
+      return all;
+    }, {}) || {};
   const total = data?.details?.length ?? null;
   const passed = data?.details ? counts.AC || 0 : null;
   const complete = data?.score != null;
@@ -71,11 +81,25 @@ export function PublicLog({ user: _user }: { user: User }) {
   return (
     <div className="page public-log-page">
       <BackLink />
-      <div className="page-heading"><div><h1><Icon name="chart" />提交 #{id} 的评测日志</h1><p className="muted">课程评测日志只展示逐测试点结果、时间、内存与总分；编译、运行或任务错误请从有权限的提交详情查看。</p></div></div>
+      <div className="page-heading">
+        <div>
+          <h1>
+            <Icon name="chart" />
+            提交 #{id} 的评测日志
+          </h1>
+          <p className="muted">查看测试点结果、耗时、内存与得分。</p>
+        </div>
+      </div>
       {query.error ? (
         <>
           <ErrorNotice
-            title={unavailable === 403 ? "这份日志当前不可见" : unavailable === 404 ? "没有找到这份提交" : "无法查看这份评测日志"}
+            title={
+              unavailable === 403
+                ? "这份日志当前不可见"
+                : unavailable === 404
+                  ? "没有找到这份提交"
+                  : "无法查看这份评测日志"
+            }
             message={query.error.message}
           />
           <p className="permission-note">
@@ -95,7 +119,8 @@ export function PublicLog({ user: _user }: { user: User }) {
             caseDetailsHidden={!data.details}
           />
           <p className="permission-note">
-            <Icon name="shield" /> 此日志不包含源码、隐藏输入、标准输出、HTTP 响应、后台代码或原始编译诊断。
+            <Icon name="shield" />{" "}
+            此日志不公开源码或隐藏测试数据。编译诊断请从有权限的提交详情查看。
           </p>
         </>
       ) : (
