@@ -1,0 +1,8 @@
+@import "../src/styles/tokens.css";
+@import "../src/styles/components.css";
+@import "../src/styles/pages.css";
+.oj-component{font-family:system-ui,"Microsoft YaHei",sans-serif;font-size:16px;color:#1d293d;width:100%;min-width:0;--font-mono:"JetBrains Mono",Consolas,monospace;--editor-height:380px}
+.oj-component pre{max-width:100%;overflow:auto;background:white;font-size:14px}
+.oj-component .markdown{max-width:none;overflow-wrap:anywhere}
+.oj-component button{cursor:pointer}.oj-component .diff-text{white-space:pre}
+@media(prefers-reduced-motion:reduce){.oj-component *{scroll-behavior:auto!important;animation:none!important}}

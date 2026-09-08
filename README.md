@@ -308,3 +308,10 @@ cgroup 与网络隔离**。默认只绑定 localhost，禁止将任意代码执�
 提交详情、提交列表的扩展 metadata 及 AI 做题助手遵循同一测试点可见性边界，私有题目不返回测试点状态汇总。前端私有日志仅展示得分和权限说明，不展示测试点通过数、状态、耗时、内存或过滤器。公开日志不授予他人源码、编译或运行信息的访问权限；这些仍由提交详情的本人/管理员权限控制。未登录请求仍须先认证。
 
 原始运行日志仅显示非空消息并区分编译、运行及错误来源。差异视图的每一侧支持独立横向/纵向滚动及键盘聚焦，长行保持完整，不跨栏覆盖；小屏默认使用单列布局。
+# 默认入口
+
+启动脚本默认运行 FastAPI 与 Streamlit，浏览器地址为 `http://127.0.0.1:8501`。Streamlit 页面通过本地组件提供 Monaco、Markdown、数学公式和 Diff，业务请求由 Python REST 客户端完成；React 代码和测试保留在 `web/`。
+
+需要使用 React 时显式传入 `-React` / `--react`（Linux 使用 `scripts/run.sh --react`）；旧的 `-Legacy` / `--legacy` 参数继续作为 Streamlit 别名。不要同时传入两种模式。
+
+完整迁移清单见 [`docs/streamlit-migration-ledger.md`](docs/streamlit-migration-ledger.md)，安全及课程接口差异见 [`docs/experiment-compatibility.md`](docs/experiment-compatibility.md)。

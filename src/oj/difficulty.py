@@ -43,3 +43,14 @@ DIFFICULTY_RULES = (
     + "\n".join(f"{level['label']}: {level['description']}" for level in DIFFICULTIES)
     + "\nClassify by required reasoning and algorithmic skill, not test count or score.\n"
 )
+
+
+def comparable_problem(value: object) -> object:
+    """Compare legacy standard aliases without changing persisted/raw task inputs."""
+    if not isinstance(value, dict):
+        return value
+    result = dict(value)
+    difficulty = result.get("difficulty")
+    if isinstance(difficulty, str) and difficulty.strip().casefold() in ALIASES:
+        result["difficulty"] = ALIASES[difficulty.strip().casefold()]
+    return result

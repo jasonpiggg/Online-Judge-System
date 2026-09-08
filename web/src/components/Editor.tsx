@@ -7,7 +7,7 @@ import "monaco-editor/languages/definitions/javascript/register";
 import "monaco-editor/languages/definitions/java/register";
 import "monaco-editor/languages/definitions/go/register";
 import "monaco-editor/languages/definitions/rust/register";
-import EditorWorker from "monaco-editor/editor/editor.worker?worker";
+import EditorWorker from "monaco-editor/editor/editor.worker?worker&inline";
 (globalThis as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
   getWorker: () => new EditorWorker(),
 };

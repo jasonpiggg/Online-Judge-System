@@ -23,62 +23,97 @@ def activate_user(user: dict[str, object]) -> None:
 
 
 def auth_screen(api: ApiClient) -> None:
-    st.markdown(
-        '<div class="oj-brand"><span class="oj-mark">{ }</span>Atelier OJ</div>',
-        unsafe_allow_html=True,
-    )
-    st.divider()
-    left, right = st.columns([1.15, 1], gap="large")
-    with left:
-        heading("专注解题，\n看见进步。", note="一个清晰、可靠的编程练习空间。")
-        st.markdown(
-            '<div class="oj-intro"><h2>从思路到通过，少一点打断。</h2>'
-            "<p>在同一页阅读题目、编写代码与查看结果。每个测试点都有答案。</p></div>",
-            unsafe_allow_html=True,
-        )
-        for title, description in [
-            ("01  阅读与编写", "题面、样例与代码同屏，思路不必来回切换。"),
-            ("02  真实评测", "运行 Python / C++14，查看时间、内存和逐点结果。"),
-            ("03  回顾与改进", "保留提交记录，使用 AI 辅助命题并验证测试数据。"),
-        ]:
-            st.markdown(f"**{title}**")
-            st.caption(description)
-    with right, st.container(border=True):
-        st.subheader("欢迎回来")
-        st.caption("登录你的工作区，继续上一次思考。")
-        login, register = st.tabs(["登录", "注册账户"])
-        with login, st.form("login"):
-            username = st.text_input("用户名", placeholder="输入用户名", key="login-name")
-            password = st.text_input("密码", type="password", key="login-password")
-            if st.form_submit_button("进入工作台", type="primary", width="stretch"):
-                result = call(
-                    lambda: api.post(
-                        "/api/auth/login",
-                        json={
-                            "username": username,
-                            "password": password,
-                        },
-                    )
+    import time
+    import uuid
+
+    from pydantic import ValidationError
+
+    from frontend.components import control
+    from oj.schemas import Credentials
+
+    heading("Atelier OJ", note="登录，继续练习。注册后将自动登录并返回当前页面。")
+    if flash := st.session_state.pop("flash", None):
+        st.warning(flash)
+    if error := st.session_state.get("auth_error"):
+        st.error(error)
+    remaining = max(0, int(st.session_state.get("auth_retry_at", 0) - time.monotonic()))
+    if remaining:
+
+        @st.fragment(run_every=1)
+        def countdown() -> None:
+            seconds = max(0, int(st.session_state.get("auth_retry_at", 0) - time.monotonic()))
+            if not seconds:
+                st.rerun()
+            st.info(f"登录尝试过于频繁，请在 {seconds} 秒后重试。")
+
+        countdown()
+    login, register = st.tabs(["登录", "注册"])
+    for container, mode, label in [(login, "login", "进入工作台"), (register, "register", "注册")]:
+        with container:
+            show = st.checkbox("显示密码", key=f"auth-show-{mode}")
+            with st.form(f"auth-{mode}"):
+                name = st.text_input("用户名", key=f"auth-name-{mode}")
+                password = st.text_input(
+                    "密码", type="default" if show else "password", key=f"auth-password-{mode}"
                 )
-                if result:
-                    activate_user(result["data"])
-                    st.rerun()
-        with register, st.form("register"):
-            username = st.text_input("新用户名", help="3–40 个字符")
-            password = st.text_input("设置密码", type="password", help="至少 6 个字符")
-            if st.form_submit_button("注册", width="stretch"):
-                if call(
-                    lambda: api.post(
-                        "/api/users/",
-                        json={
-                            "username": username,
-                            "password": password,
-                        },
+                confirmation = (
+                    st.text_input(
+                        "确认密码", type="default" if show else "password", key="auth-confirm"
                     )
-                ):
-                    st.success("账户已创建。请切换到登录标签进入工作区。")
-        with st.expander("本地演示账户"):
-            st.caption("管理员：admin / admintestpassword。仅用于本地课程实验。")
+                    if mode == "register"
+                    else password
+                )
+                if st.form_submit_button(label, type="primary", disabled=remaining > 0):
+                    try:
+                        Credentials(username=name, password=password)
+                        if password != confirmation:
+                            raise ValueError("两次输入的密码不一致。")
+                    except ValidationError as exc:
+                        st.error("；".join(e["msg"] for e in exc.errors(include_input=False)))
+                    except ValueError as exc:
+                        st.error(str(exc))
+                    else:
+                        st.session_state.auth_request = {
+                            "action": mode,
+                            "username": name,
+                            "password": password,
+                            "nonce": uuid.uuid4().hex,
+                        }
+    if pending := st.session_state.get("auth_request"):
+        result = control("auth", "auth-bridge", api=api.base_url, **pending).result
+        if result:
+            st.session_state.pop("auth_request", None)
+            payload = result.get("payload", {})
+            error = payload.get("error", {})
+            fields = error.get("fields", [])
+            st.session_state.auth_error = (
+                "；".join(f"{f['field']}：{f['message']}" for f in fields)
+                or error.get("title")
+                or payload.get("msg", "登录失败")
+            )
+            if "banned" in str(payload.get("msg", "")).casefold():
+                st.session_state.auth_error = "账户已被禁用，请联系管理员。"
+            if result.get("status") == 429:
+                st.session_state.auth_retry_at = time.monotonic() + int(
+                    result.get("retryAfter") or 300
+                )
+            st.rerun()
+
+
+def logout_control(api: ApiClient) -> None:
+    import uuid
+
+    from frontend.components import control
+
+    if st.button("退出登录", width="stretch"):
+        st.session_state.logout_nonce = uuid.uuid4().hex
+    if nonce := st.session_state.get("logout_nonce"):
+        result = control("auth", "logout-bridge", action="logout", nonce=nonce, api=api.base_url)
+        if result.result:
+            st.session_state.pop("logout_nonce", None)
+            st.error("退出请求失败，请重试。")
+        # Do not render private pages while browser logout is in progress.
+        st.stop()
 
 
 def profile_page(api: ApiClient) -> None:
@@ -95,3 +130,9 @@ def profile_page(api: ApiClient) -> None:
         st.subheader(user["username"])
         st.write(f"用户 ID：{user['user_id']}")
         st.caption(f"加入时间：{user['join_time']}")
+    from frontend.ai import model_settings
+
+    with st.expander("个人模型设置"):
+        config = call(lambda: api.get("/api/ai/model-config"))
+        if config:
+            model_settings(api, config["data"])

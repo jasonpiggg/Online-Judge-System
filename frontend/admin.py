@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import streamlit as st
+from pydantic import ValidationError
 
 from frontend.client import ApiClient
-from frontend.ui import call, heading, pager
+from frontend.navigation import go, page_number, pagination
+from frontend.ui import call, heading
+from oj.schemas import Credentials
 
 
 @st.dialog("恢复初始实验数据")
@@ -20,18 +23,27 @@ def reset_dialog(api: ApiClient) -> None:
 
 def admin_page(api: ApiClient) -> None:
     heading("管理中心", note="管理账户与评测配置。危险操作需要额外确认。")
+    sections = ["用户", "角色审计", "全站提交", "题目管理", "语言", "访问审计", "系统设置"]
+    selected = st.query_params.get("section", "用户")
     section = st.segmented_control(
         "管理模块",
-        ["用户", "语言", "访问审计", "系统设置"],
-        default="用户",
+        sections,
+        default=selected if selected in sections else "用户",
         label_visibility="collapsed",
     )
+    if section:
+        st.query_params["section"] = section
     if section == "用户":
-        page = st.session_state.get("users-page", 1)
-        result = call(lambda: api.get("/api/users/", params={"page": page, "page_size": 10}))
+        search = st.text_input("搜索用户名或用户 ID", value=st.query_params.get("q", ""))
+        if search != st.query_params.get("q", ""):
+            st.query_params.update(q=search, users_page="1")
+        page = page_number("users_page")
+        result = call(
+            lambda: api.get("/api/users/", params={"page": page, "page_size": 10, "q": search})
+        )
         if not result:
             return
-        pager("users-page", result["data"]["total"])
+        pagination(result["data"]["total"], "users_page")
         users = result["data"]["users"]
         st.dataframe(users, width="stretch", hide_index=True)
         if users:
@@ -40,6 +52,10 @@ def admin_page(api: ApiClient) -> None:
                 who = st.selectbox(
                     "目标用户", users, format_func=lambda x: f"{x['user_id']} · {x['username']}"
                 )
+                with st.expander("用户资料"):
+                    detail = call(lambda: api.get(f"/api/users/{who['user_id']}"))
+                    if detail:
+                        st.json(detail["data"])
                 role = st.selectbox(
                     "角色",
                     ["user", "admin", "banned"],
@@ -64,22 +80,44 @@ def admin_page(api: ApiClient) -> None:
                 password = st.text_input("初始密码", type="password")
                 admin = st.checkbox("创建为管理员")
                 if st.form_submit_button("创建账户"):
+                    try:
+                        Credentials(username=name, password=password)
+                    except ValidationError as exc:
+                        st.error("；".join(e["msg"] for e in exc.errors(include_input=False)))
+                        return
                     endpoint = "/api/users/admin" if admin else "/api/users/"
                     if call(
                         lambda: api.post(endpoint, json={"username": name, "password": password})
                     ):
                         st.success("账户已创建")
+    elif section == "全站提交":
+        go("records")
+    elif section == "题目管理":
+        go("resources", section="题目")
+    elif section == "角色审计":
+        result = call(
+            lambda: api.get(
+                "/api/logs/roles/",
+                params={"page": page_number(), "page_size": 10, "include_metadata": True},
+            )
+        )
+        if result:
+            pagination(result["data"]["total"])
+            st.dataframe(result["data"]["logs"], hide_index=True, width="stretch")
+            if not result["data"]["logs"]:
+                st.info("还没有角色修改记录。")
     elif section == "语言":
         language_page(api)
     elif section == "访问审计":
-        a, b = st.columns(2)
-        uid = a.number_input("用户 ID（0 为全部）", min_value=0, value=0, step=1)
-        pid = b.text_input("题号（留空为全部）")
-        signature = (uid, pid)
-        if st.session_state.get("audit-filter") != signature:
-            st.session_state["audit-page"] = 1
-            st.session_state["audit-filter"] = signature
-        params = {"page_size": 10, "page": st.session_state.get("audit-page", 1)}
+        with st.form("audit-filters"):
+            a, b = st.columns(2)
+            uid = a.text_input("用户 ID（留空为全部）", value=st.query_params.get("user_id", ""))
+            pid = b.text_input("题号（留空为全部）", value=st.query_params.get("problem_id", ""))
+            if st.form_submit_button("查询访问审计"):
+                st.query_params.update(user_id=uid, problem_id=pid, audit_page="1")
+                st.rerun()
+        uid, pid = st.query_params.get("user_id", ""), st.query_params.get("problem_id", "")
+        params = {"page_size": 10, "page": page_number("audit_page"), "include_metadata": True}
         if uid:
             params["user_id"] = uid
         if pid:
@@ -89,9 +127,9 @@ def admin_page(api: ApiClient) -> None:
             return
         result = call(lambda: api.get("/api/logs/access/", params=params))
         if result:
-            pager("audit-page", has_next=len(result["data"]) == 10)
-            st.dataframe(result["data"], width="stretch", hide_index=True)
-            if not result["data"]:
+            pagination(result["data"]["total"], "audit_page")
+            st.dataframe(result["data"]["logs"], width="stretch", hide_index=True)
+            if not result["data"]["logs"]:
                 st.info("当前筛选条件下没有访问日志。")
     else:
         st.subheader("实验环境")

@@ -1,0 +1,185 @@
+"""Native Streamlit routes plus bounded, account-scoped task navigation."""
+
+from __future__ import annotations
+
+from typing import Any
+
+import streamlit as st
+
+DETAILS = {"workspace", "editor", "draft", "ai_task", "submission", "public_log"}
+PARAMS = {
+    "id",
+    "q",
+    "difficulty",
+    "progress",
+    "page",
+    "user_id",
+    "problem_id",
+    "section",
+    "draft_page",
+    "task_page",
+    "language",
+    "message_page",
+    "status",
+    "outcome",
+    "users_page",
+    "audit_page",
+    "submission_id",
+}
+
+
+def route(page: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "page": page,
+        "params": {k: str(v) for k, v in (params or {}).items() if k in PARAMS and v is not None},
+    }
+
+
+def identity(entry: dict[str, Any]) -> tuple[str, str]:
+    return entry["page"], entry.get("params", {}).get("id", "")
+
+
+def go(page: str, *, title: str = "", **params: Any) -> None:
+    target = route(page, params)
+    current = st.session_state.get("current_route", route("library"))
+    slots = st.session_state.setdefault("task_slots", [])
+    if page in DETAILS:
+        existing = next((s for s in slots if identity(s["current"]) == identity(target)), None)
+        active = next((s for s in slots if s["key"] == st.session_state.get("active_slot")), None)
+        if existing:
+            existing["current"] = target
+            st.session_state.active_slot = existing["key"]
+        elif active and current["page"] in DETAILS:
+            active["history"].append(current)
+            active["history"] = active["history"][-20:]
+            active["current"] = target
+            active["title"] = title or params.get("id", page)
+        else:
+            if len(slots) >= 40:
+                st.warning("已打开 40 个任务，请先关闭不需要的页面。")
+                return
+            import uuid
+
+            slot = {
+                "key": uuid.uuid4().hex,
+                "current": target,
+                "origin": current,
+                "history": [],
+                "title": title or params.get("id", page),
+            }
+            slots.append(slot)
+            st.session_state.active_slot = slot["key"]
+    else:
+        st.session_state.pop("active_slot", None)
+    st.switch_page(st.session_state.pages[page], query_params=target["params"])
+
+
+def back() -> None:
+    slots = st.session_state.get("task_slots", [])
+    active = next((s for s in slots if s["key"] == st.session_state.get("active_slot")), None)
+    if active:
+        target = active["history"].pop() if active["history"] else active["origin"]
+        active["current"] = target
+        st.switch_page(st.session_state.pages[target["page"]], query_params=target["params"])
+    go("library")
+
+
+def restore_slots(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    result = []
+    for slot in value[:40]:
+        if not isinstance(slot, dict) or not isinstance(slot.get("key"), str):
+            continue
+        history = slot.get("history", [])
+        if not isinstance(history, list):
+            continue
+        entries = [slot.get("current"), slot.get("origin"), *history[:20]]
+        if any(
+            not isinstance(e, dict)
+            or e.get("page") not in st.session_state.pages
+            or not isinstance(e.get("params"), dict)
+            for e in entries
+        ):
+            continue
+        result.append(
+            {
+                "key": slot["key"][:80],
+                "title": str(slot.get("title", "任务"))[:100],
+                "current": route(entries[0]["page"], entries[0]["params"]),
+                "origin": route(entries[1]["page"], entries[1]["params"]),
+                "history": [route(e["page"], e["params"]) for e in entries[2:]],
+            }
+        )
+    return result
+
+
+def task_bar() -> None:
+    slots = st.session_state.get("task_slots", [])
+    if not slots:
+        return
+    with st.container(key="task-bar", horizontal=True):
+        for slot in slots:
+            if st.button(
+                str(slot["title"]),
+                key=f"slot-{slot['key']}",
+                type="primary"
+                if slot["key"] == st.session_state.get("active_slot")
+                else "secondary",
+            ):
+                st.session_state.active_slot = slot["key"]
+                target = slot["current"]
+                st.switch_page(
+                    st.session_state.pages[target["page"]], query_params=target["params"]
+                )
+        if st.button("关闭当前任务", key="close-current-task"):
+            st.session_state.confirm_close = True
+    if st.session_state.get("confirm_close"):
+        st.warning(
+            "关闭页面不会取消后台任务。请确认未保存内容已有备份；需要停止任务时请使用中断按钮。"
+        )
+        yes, no = st.columns(2)
+        if yes.button("确认关闭", key="close-task-yes"):
+            active = next(
+                (s for s in slots if s["key"] == st.session_state.get("active_slot")), None
+            )
+            if active:
+                slots.remove(active)
+                target = active["origin"]
+            else:
+                target = route("library")
+            st.session_state.pop("confirm_close", None)
+            st.session_state.pop("active_slot", None)
+            st.switch_page(st.session_state.pages[target["page"]], query_params=target["params"])
+        if no.button("取消", key="close-task-no"):
+            st.session_state.pop("confirm_close", None)
+            st.rerun()
+
+
+def page_number(name: str = "page") -> int:
+    try:
+        return min(2**31 - 1, max(1, int(st.query_params.get(name, "1"))))
+    except ValueError:
+        return 1
+
+
+def pagination(total: int, name: str = "page", size: int = 10) -> int:
+    page = page_number(name)
+    last = max(1, (total + size - 1) // size)
+    if page > last:
+        st.query_params[name] = str(last)
+        st.rerun()
+    with st.container(horizontal=True):
+        for label, value in [
+            ("首页", 1),
+            ("上一页", page - 1),
+            ("下一页", page + 1),
+            ("尾页", last),
+        ]:
+            if st.button(
+                label, key=f"{name}-{label}", disabled=value < 1 or value > last or value == page
+            ):
+                st.query_params[name] = str(value)
+                st.rerun()
+        st.caption(f"第 {page} / {last} 页 · {total} 条")
+    return page

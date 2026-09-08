@@ -10,50 +10,28 @@ from frontend.client import ApiError
 
 CSS = """
 <style>
-body,.stApp {font-family:'Aptos','Noto Sans SC','Microsoft YaHei',sans-serif;}
-[data-testid="stHeader"] {background:#f2efe7e8;}
-[data-testid="stMainBlockContainer"] {max-width:1440px;padding:3.5rem 2.5rem 4rem!important;}
-h1,h2,h3 {font-family:Georgia,'Noto Serif SC','Songti SC',serif;letter-spacing:-.018em;}
-[data-testid="stSidebar"][aria-expanded="true"] {width:256px!important;min-width:256px!important;}
-[data-testid="stAppDeployButton"] {display:none;}
-[data-testid="stSidebar"] [data-testid="stPageLink"] a {
- min-height:46px;border-radius:5px;padding:9px 12px;border-left:2px solid transparent;}
-[data-testid="stSidebar"] [data-testid="stPageLink"] p {font-size:16px;font-weight:600;}
-[data-testid="stSidebar"] [data-testid="stPageLink"] a[aria-current="page"] {
- background:#465348;color:white;border-left-color:#e2a17d;}
-[data-testid="stWidgetLabel"] p {font-size:15px;font-weight:500;}
-[data-testid="stCaptionContainer"] {font-size:13px;color:#6f716a;}
-[data-testid="stSidebar"] [data-testid="stCaptionContainer"] {color:#c9c8bf;}
-.stButton button,.stFormSubmitButton button {min-height:44px;font-weight:600;}
-[data-baseweb="input"], [data-baseweb="select"]>div {min-height:44px;}
-.oj-header {margin:0 0 24px;}.oj-header h1 {margin:0;font-size:30px;font-weight:750;}
-.oj-header p {margin:8px 0 0;color:#6f716a;font-size:15px;}
-.oj-brand {display:flex;align-items:center;gap:12px;margin:0 0 18px;font-size:22px;font-weight:750;}
-.oj-mark {display:inline-grid;place-items:center;width:38px;height:38px;border-radius:5px;
- background:#b95e43;color:#fffaf1;font:600 19px 'Cascadia Mono',monospace;}
-.oj-intro {padding:18px 0 20px;border-top:1px solid #cfc7b9;border-bottom:1px solid #cfc7b9;
- margin:0 0 24px;}.oj-intro h2 {font-size:23px;margin:0 0 6px;}
-.oj-intro p {color:#62675f;margin:0;}
-.oj-pill {display:inline-block;padding:3px 9px;border-radius:999px;background:#e8e3d8;
- color:#59635a;font-size:12px;margin:0 5px 4px 0;border:1px solid #d8d0c2;}
-.oj-status {padding:6px 10px;border-radius:4px;font-weight:650;display:inline-block;}
-.oj-status.pass {color:#31634a;background:#dfeadf;border:1px solid #c6d9c8;}
-.oj-status.fail {color:#8f463a;background:#f2ded8;border:1px solid #e3c4bc;}
-.oj-status.wait {color:#765d24;background:#eee5c9;border:1px solid #dfd1a6;}
-.oj-problem-row {padding:3px 0 0;}.oj-problem-row h3 {margin:.1rem 0 .35rem;font-size:20px;}
-.oj-kicker {font:600 12px 'Cascadia Mono',monospace;letter-spacing:.08em;color:#8a6b58;}
-.st-key-account-footer {margin-top:40px;border-top:1px solid #30465f;padding-top:20px;}
-.st-key-editor-panel,.st-key-statement-panel {
- background:#fbf9f3;border:1px solid #d9d2c5;border-radius:6px;padding:20px;}
-[data-testid="stVerticalBlockBorderWrapper"]>div {background:#fbf9f3;}
-[data-testid="stForm"] {background:#fbf9f3;}
-[data-testid="stMetric"] {border-left:2px solid #b95e43;padding-left:12px;}
-@media(max-width:760px){
- [data-testid="stMainBlockContainer"]{padding:3rem 1rem 3rem!important;}
- .oj-header h1{font-size:26px;}
- .oj-intro{padding:16px 0;}.oj-intro h2{font-size:21px;}
- [data-testid="stSidebar"][aria-expanded="true"]{min-width:256px;width:256px;}
-}
+body,.stApp {font-family:system-ui,'Microsoft YaHei',sans-serif;color:#1d293d;background:#fff}
+[data-testid="stHeader"] {background:#ffffffee}
+[data-testid="stMainBlockContainer"] {max-width:1440px;padding:1.5rem 2rem 4rem}
+h1,h2,h3 {font-family:inherit;letter-spacing:-.015em}
+[data-testid="stAppDeployButton"] {display:none}
+[data-testid="stWidgetLabel"] p,.stButton button,[data-testid="stCaptionContainer"] {font-size:14px}
+.stButton button,.stFormSubmitButton button {min-height:40px;border-radius:8px}
+[data-testid="stCaptionContainer"] {color:#617087}
+.oj-header {margin:0 0 20px}.oj-header h1{margin:0;font-size:28px}
+.oj-header p{margin:8px 0;color:#617087}
+.oj-pill,.oj-status {display:inline-block;border:1px solid #e3eaf3;background:#f5f8fe;
+border-radius:8px;padding:4px 9px;margin:3px;font-size:14px}
+.oj-status.pass{color:#197348}.oj-status.fail{color:#b42332}.oj-status.wait{color:#8c6415}
+[data-testid="stExpander"],[data-testid="stForm"]{border-color:#e3eaf3;border-radius:12px}
+[data-testid="stMetricValue"]{font-size:24px}
+.st-key-task-bar {position:sticky;top:3rem;z-index:90;background:#fff;
+border-bottom:1px solid #e3eaf3;padding:6px 0}
+pre,code {font-family:'JetBrains Mono',Consolas,monospace}
+.st-key-section-nav {position:sticky;top:7rem;background:#fff;z-index:80}
+@media(max-width:760px){[data-testid="stMainBlockContainer"]{padding:1rem .75rem 3rem}
+.stButton button{min-height:44px}.oj-header h1{font-size:24px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 </style>
 """
 
@@ -88,8 +66,11 @@ def call(action: Callable[[], dict[str, Any]]) -> dict[str, Any] | None:
 
 
 def navigate(page: str, **state: Any) -> None:
+    from frontend.navigation import go
+
     st.session_state.update(state)
-    st.switch_page(st.session_state.pages[page])
+    pid = state.get("current_problem")
+    go(page, **({"id": pid} if pid else {}))
 
 
 def pills(values: list[str]) -> None:

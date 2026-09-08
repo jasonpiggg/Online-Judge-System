@@ -174,11 +174,16 @@ def stop_owned(role: str, record: Any) -> None:
     psutil.wait_procs(alive, timeout=3)
 
 
-def start_services(state: dict[str, Any], timeout: float, *, legacy: bool = False) -> None:
+def start_services(
+    state: dict[str, Any], timeout: float, *, streamlit: bool = True, legacy: bool | None = None
+) -> None:
+    # `legacy=True` remains a source-compatible alias used by older launcher tests/callers.
+    if legacy is not None:
+        streamlit = legacy
     launched: list[str] = []
     try:
         for role, (port, _, arguments) in SERVICES.items():
-            if role == "frontend" and not legacy:
+            if role == "frontend" and not streamlit:
                 continue
             proc = owned_process(role, state.get(role))
             if proc is None:
@@ -238,7 +243,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["start", "stop", "status"], nargs="?", default="start")
     parser.add_argument("--no-browser", action="store_true")
-    parser.add_argument("--legacy", action="store_true", help="Open the optional Streamlit UI")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--react", "-React", action="store_true", help="Open the optional React UI")
+    mode.add_argument("--legacy", action="store_true", help="Compatibility alias for Streamlit")
     parser.add_argument("--timeout", type=float, default=45)
     args = parser.parse_args()
     if not 1 <= args.timeout <= 120:
@@ -247,9 +254,9 @@ def main() -> int:
         with launch_lock():
             state = read_state()
             if args.action == "start":
-                if not args.legacy and not (ROOT / "web" / "dist" / "index.html").is_file():
-                    raise RuntimeError("Web UI missing. Run: cd web; npm ci; npm run build")
-                start_services(state, args.timeout, legacy=args.legacy)
+                if args.react and not (ROOT / "web" / "dist" / "index.html").is_file():
+                    raise RuntimeError("React UI missing. Run: cd web; npm ci; npm run build")
+                start_services(state, args.timeout, streamlit=not args.react)
             elif args.action == "stop":
                 for role in reversed(SERVICES):
                     stop_owned(role, state.get(role))
@@ -260,7 +267,7 @@ def main() -> int:
                     running = owned_process(role, state.get(role)) is not None and healthy(role)
                     print(f"{role}: {'ready' if running else 'not running / not ready'}")
         if args.action == "start":
-            url = "http://127.0.0.1:8501" if args.legacy else URL
+            url = URL if args.react else "http://127.0.0.1:8501"
             print(f"OJ is ready: {url}")
             if not args.no_browser and not webbrowser.open(url):
                 print(f"Could not open the browser automatically. Open {url} manually.")

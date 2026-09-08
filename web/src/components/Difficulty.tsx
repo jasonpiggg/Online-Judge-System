@@ -29,7 +29,7 @@ export function DifficultyGuide({ compact = false }: { compact?: boolean }) {
           ))}
       </dl>
       <p className="muted">
-        按解题思维与算法要求分级，不以测试点数或分数判断。未知等级显示「未分级」。
+        按解题思维与算法要求分级，不以测试点数或分数判断。自定义等级保留原文并使用中性色。
       </p>
     </details>
   );

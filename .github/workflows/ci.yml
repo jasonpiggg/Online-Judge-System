@@ -51,7 +51,7 @@ jobs:
           fail-on-scopes: runtime, development, unknown
           show-openssf-scorecard: false
           retry-on-snapshot-warnings: true
-      - run: npm run lint && npm run test && npm run build
+      - run: npm run lint && npm run test && npm run build && npm run build:streamlit
         working-directory: web
       - run: npx playwright install --with-deps chromium
         working-directory: web

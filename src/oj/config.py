@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import Field, PositiveInt, SecretStr
+from pydantic import Field, PositiveInt, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +17,27 @@ class Settings(BaseSettings):
     session_cookie: str = "oj_session"
     session_ttl_seconds: int = Field(default=28_800, ge=300, le=2_592_000)
     cookie_secure: bool = False
+    streamlit_origins: list[str] = ["http://127.0.0.1:8501", "http://localhost:8501"]
+
+    @field_validator("streamlit_origins")
+    @classmethod
+    def exact_streamlit_origins(cls, origins: list[str]) -> list[str]:
+        for origin in origins:
+            value = urlsplit(origin)
+            if (
+                value.scheme not in {"http", "https"}
+                or not value.hostname
+                or value.username
+                or value.password
+                or value.path
+                or value.query
+                or value.fragment
+                or "*" in origin
+            ):
+                raise ValueError("Streamlit origins must be exact HTTP(S) origins without paths")
+            _ = value.port  # Validate malformed or out-of-range ports as well.
+        return list(dict.fromkeys(origins))
+
     login_account_failure_limit: int = Field(default=5, ge=2, le=100)
     login_account_window_seconds: int = Field(default=300, ge=30, le=86_400)
     login_client_failure_limit: int = Field(default=30, ge=5, le=1000)

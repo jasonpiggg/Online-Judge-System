@@ -39,7 +39,7 @@ if st.button("switch"):
 @pytest.mark.parametrize("role", ["admin", "user"])
 def test_native_navigation_role_scope(monkeypatch: Any, role: str) -> None:
     def fake_request(_self: ApiClient, _method: str, path: str, **_kwargs: Any) -> dict[str, Any]:
-        if path == "/api/users/1":
+        if path in {"/api/users/1", '/api/auth/me'}:
             return {
                 "code": 200,
                 "msg": "success",
@@ -60,7 +60,7 @@ def test_native_navigation_role_scope(monkeypatch: Any, role: str) -> None:
     app.session_state.mobile = True
     app.run(timeout=20)
     assert not app.exception
-    assert ("admin" in app.session_state.pages) == (role == "admin")
+    assert (app.session_state.pages['admin'].visibility == 'visible') == (role == 'admin')
     assert app.session_state.mobile is True  # No component result must not reset viewport state.
     assert "library" in app.session_state.pages and "workspace" in app.session_state.pages
 

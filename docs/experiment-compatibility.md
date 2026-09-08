@@ -13,5 +13,6 @@
 - 明确保留的扩展保护：唯一管理员不可被降权或禁用（409）；已删除题目的旧提交不可重测（409）；
   不安全语言命令拒绝执行；资源与上传大小设有安全边界。这些不宣称与官方文档零差异。
 
-Streamlit 默认入口与 React 全量功能迁移将另行交付。当前兼容入口仍为 `scripts/run.ps1 -Legacy`
-或 `scripts/run.sh --legacy`。真实模型历史验证不等同于本轮重新调用模型；本轮使用本地 mock。
+Streamlit 是默认入口，启动地址为 `http://127.0.0.1:8501`。React 仍作为可选入口：
+`scripts/run.ps1 -React`、`scripts/run.sh --react` 或 `Open-OJ.cmd -React`；旧的
+`-Legacy` / `--legacy` 参数保留为 Streamlit 别名。真实模型历史验证不等同于本轮重新调用模型；本轮使用本地 mock。

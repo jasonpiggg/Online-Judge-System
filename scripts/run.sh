@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 export PYTHONPATH="$repo_root${PYTHONPATH:+:$PYTHONPATH}"
 
-if [[ "${1:-}" != "--legacy" ]]; then
+if [[ "${1:-}" == "--react" || "${1:-}" == "-React" ]]; then
   if [[ ! -f web/dist/index.html ]]; then
     echo "Web UI missing. Run: cd web && npm ci && npm run build" >&2
     exit 1

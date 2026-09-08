@@ -33,12 +33,20 @@ class ApiClient:
             )
             session.mount("http://", HTTPAdapter(max_retries=retry))
             session.mount("https://", HTTPAdapter(max_retries=retry))
+            cookie = st.context.cookies.get(os.getenv("OJ_SESSION_COOKIE", "oj_session"))
+            if isinstance(cookie, str) and cookie:
+                session.cookies.set(os.getenv("OJ_SESSION_COOKIE", "oj_session"), cookie)
             st.session_state.http_session = session
         self.session: requests.Session = st.session_state.http_session
 
     def request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         try:
-            result = self.session.request(method, f"{self.base_url}{path}", timeout=15, **kwargs)
+            headers = dict(kwargs.pop("headers", {}))
+            if user := st.session_state.get("user"):
+                headers["x-oj-user"] = str(user["user_id"])
+            result = self.session.request(
+                method, f"{self.base_url}{path}", timeout=15, headers=headers, **kwargs
+            )
             try:
                 payload = result.json()
             except requests.exceptions.JSONDecodeError as exc:
