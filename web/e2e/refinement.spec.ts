@@ -1,4 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
+async function showProblemActions(page: Page) {
+  const menu = page.locator(".problem-actions-menu");
+  await menu.waitFor({ state: "attached" });
+  if (await menu.getAttribute("open") === null)
+    await menu.locator("summary").first().click();
+}
 async function login(page: Page) {
   await page.goto("/problems");
   await page.getByLabel("用户名", { exact: true }).fill("admin");
@@ -24,6 +30,7 @@ test("reopening edit reuses its draft and tabs restore list context", async ({
   const original = await page.evaluate(
     () => window.history.state.usr.ids.length as number,
   );
+  await showProblemActions(page);
   await page.getByRole("button", { name: "编辑题目", exact: true }).click();
   await expect(page).toHaveURL(/authoring\/drafts/);
   const draftUrl = new URL(page.url()).pathname;
@@ -33,6 +40,7 @@ test("reopening edit reuses its draft and tabs restore list context", async ({
     .click();
   await expect(page.locator(".activity-tab.active")).toHaveCount(0);
   await openProblem(page);
+  await showProblemActions(page);
   await page.getByRole("button", { name: "编辑题目", exact: true }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe(draftUrl);
   await expect(page.locator(".activity-tab")).toHaveCount(1);
@@ -272,6 +280,7 @@ test("explicit new tab keeps its source, restores scroll and remains usable at 2
   await page.getByRole("button", { name: "代码", exact: true }).click();
   await page.waitForTimeout(400);
   const scroll = await page.evaluate(() => scrollY);
+  await showProblemActions(page);
   await page.getByLabel("编辑题目的打开方式").click();
   const positionBeforeLeaving = await page.evaluate(() => scrollY);
   await page.getByRole("button", { name: "在新标签页打开", exact: true }).click();
@@ -282,6 +291,7 @@ test("explicit new tab keeps its source, restores scroll and remains usable at 2
   // Clicking a heading action scrolls the page there; restore that latest position.
   await expect.poll(async () => Math.abs(await page.evaluate(() => scrollY) - positionBeforeLeaving)).toBeLessThan(4);
   expect(scroll).toBeGreaterThan(0);
+  await showProblemActions(page);
   await page.getByRole("button", { name: "编辑题目", exact: true }).click();
   await expect(page.locator(".activity-tab")).toHaveCount(2);
   await page.getByRole("navigation", { name: "主导航" }).getByRole("link", { name: "题库", exact: true }).click();

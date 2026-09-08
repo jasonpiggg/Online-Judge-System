@@ -44,26 +44,51 @@ export function Resources() {
         ))}
       </div>
       <div ref={panelReveal.ref} className="resource-tab-panel reveal-target">
-      {tab === "题目" ? (
-        <AdminProblems />
-      ) : tab === "语言" ? (
-        <LanguageSettings />
-      ) : (
-        <section className="resource-panel public-log-lookup">
-          <div className="section-title"><Icon name="chart" /><h2>查看公开评测日志</h2></div>
-          <p>输入已知提交编号。只有本人、管理员或题目已开启公开日志时才能查看测试点明细；公开日志不等于公开提交摘要、源码或输入输出。</p>
-          <p className="permission-note">403 表示这不是你的提交且题目未公开日志；404 表示提交编号不存在；尚未完成的提交可能暂时没有测试点结果。</p>
-          <Button asChild variant="outline"><Link to="/submissions">返回我的提交并选择日志</Link></Button>
-          <form className="public-log-form" onSubmit={(event) => {
-            event.preventDefault();
-            if (submissionId.trim()) navigate(`/logs/submissions/${submissionId.trim()}?${new URLSearchParams({ from: location.pathname + location.search })}`);
-          }}>
-            <label>提交编号<input aria-describedby="public-log-help" inputMode="numeric" pattern="[0-9]+" value={submissionId} onChange={(event) => setSubmissionId(event.target.value)} placeholder="例如 1024" required /></label>
-            <p id="public-log-help" className="muted">提交编号可从做题页或提交记录中找到。</p>
-            <div className="form-actions"><Button variant="default">查看日志</Button></div>
-          </form>
-        </section>
-      )}
+        {tab === "题目" ? (
+          <AdminProblems />
+        ) : tab === "语言" ? (
+          <LanguageSettings />
+        ) : (
+          <section className="resource-panel public-log-lookup">
+            <div className="section-title">
+              <Icon name="chart" />
+              <h2>查看公开评测日志</h2>
+            </div>
+            <form
+              className="public-log-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (submissionId.trim())
+                  navigate(
+                    `/logs/submissions/${submissionId.trim()}?${new URLSearchParams({ from: location.pathname + location.search })}`,
+                  );
+              }}
+            >
+              <label>
+                提交编号
+                <input
+                  aria-describedby="public-log-help"
+                  inputMode="numeric"
+                  pattern="[0-9]+"
+                  value={submissionId}
+                  onChange={(event) => setSubmissionId(event.target.value)}
+                  placeholder="例如 1024"
+                  required
+                />
+              </label>
+              <p id="public-log-help" className="muted">
+                提交编号可从做题页或提交记录中找到。
+              </p>
+              <div className="form-actions">
+                <Button variant="default">查看日志</Button>
+              </div>
+            </form>
+            <p className="muted">
+              可查看本人的提交或题目已公开的评测日志，不包含源码和隐藏测试数据。
+            </p>
+            <Link to="/submissions">返回我的提交并选择日志</Link>
+          </section>
+        )}
       </div>
     </div>
   );

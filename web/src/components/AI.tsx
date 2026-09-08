@@ -50,8 +50,22 @@ export type CodeSuggestion = {
 };
 
 const excludedFenceLanguages = new Set([
-  "text", "txt", "plaintext", "log", "console", "output", "json", "yaml", "yml",
-  "markdown", "md", "bash", "shell", "sh", "powershell", "diff",
+  "text",
+  "txt",
+  "plaintext",
+  "log",
+  "console",
+  "output",
+  "json",
+  "yaml",
+  "yml",
+  "markdown",
+  "md",
+  "bash",
+  "shell",
+  "sh",
+  "powershell",
+  "diff",
 ]);
 
 export function extractCodeSuggestions(
@@ -62,34 +76,62 @@ export function extractCodeSuggestions(
   const matches = [...answer.matchAll(/```([^\n`]*)\n([\s\S]*?)```/g)].filter(
     (match) => {
       const label = match[1].trim().toLowerCase();
-      return /^[a-z][a-z0-9_+.-]*$/i.test(label) && !excludedFenceLanguages.has(label);
+      return (
+        /^[a-z][a-z0-9_+.-]*$/i.test(label) &&
+        !excludedFenceLanguages.has(label)
+      );
     },
   );
   return matches.flatMap((candidate, offset) => {
     const code = candidate[2].trimEnd();
     if (!code.trim()) return [];
     const rawLanguage = candidate[1].trim().toLowerCase();
-    const language = ({ py: "python", py3: "python", python3: "python", "c++": "cpp", js: "javascript", ts: "typescript" } as Record<string, string>)[rawLanguage] || rawLanguage;
+    const language =
+      (
+        {
+          py: "python",
+          py3: "python",
+          python3: "python",
+          "c++": "cpp",
+          js: "javascript",
+          ts: "typescript",
+        } as Record<string, string>
+      )[rawLanguage] || rawLanguage;
     const warnings: string[] = [];
-    const nonEmptyLines = code.split(/\r?\n/).filter((line) => line.trim()).length;
-    if (language !== currentLanguage) warnings.push(`代码块标记为 ${language}，当前编辑器语言是 ${currentLanguage}。`);
-    if (nonEmptyLines < 3) warnings.push("代码较短，可能只是讲解片段。覆盖前请确认它包含完整解法。");
+    const nonEmptyLines = code
+      .split(/\r?\n/)
+      .filter((line) => line.trim()).length;
+    if (language !== currentLanguage)
+      warnings.push(
+        `代码块标记为 ${language}，当前编辑器语言是 ${currentLanguage}。`,
+      );
+    if (nonEmptyLines < 3)
+      warnings.push("代码较短，可能只是讲解片段。覆盖前请确认它包含完整解法。");
     if (currentCode.trim() && code.length < currentCode.trim().length * 0.3)
       warnings.push("这次覆盖会删除当前代码的大部分内容。");
-    if (code.trim() === currentCode.trim()) warnings.push("候选代码与当前代码相同。");
-    return [{
-      code,
-      language,
-      canApply: code.trim() !== currentCode.trim(),
-      reason: "此候选尚未编译或评测。请先查看差异，确认后再覆盖并重新提交。",
-      warnings,
-      index: offset + 1,
-    }];
+    if (code.trim() === currentCode.trim())
+      warnings.push("候选代码与当前代码相同。");
+    return [
+      {
+        code,
+        language,
+        canApply: code.trim() !== currentCode.trim(),
+        reason: "此候选尚未编译或评测。请先查看差异，确认后再覆盖并重新提交。",
+        warnings,
+        index: offset + 1,
+      },
+    ];
   });
 }
 
-export function extractCodeSuggestion(answer: string, currentCode: string, currentLanguage: string) {
-  return extractCodeSuggestions(answer, currentCode, currentLanguage).at(-1) || null;
+export function extractCodeSuggestion(
+  answer: string,
+  currentCode: string,
+  currentLanguage: string,
+) {
+  return (
+    extractCodeSuggestions(answer, currentCode, currentLanguage).at(-1) || null
+  );
 }
 export function useTask(id?: string) {
   const [disconnected, setDisconnected] = useState(false);
@@ -180,14 +222,32 @@ export function TaskProgress({
       <p className="muted">
         {elapsed} 秒{disconnected ? " · 连接恢复中，正在读取已保存进度" : ""}
       </p>
-      {(task.error || error) && <ErrorNotice title="任务没有完成" message={task.error || error} />}
+      {(task.error || error) && (
+        <ErrorNotice title="任务没有完成" message={task.error || error} />
+      )}
       <DisclosureCard summary="用量与费用">
         <dl className="usage-summary">
-          <div><dt>输入 Token</dt><dd>{task.usage.input_tokens.toLocaleString()}</dd></div>
-          <div><dt>输出 Token</dt><dd>{task.usage.output_tokens.toLocaleString()}</dd></div>
-          <div><dt>费用</dt><dd>{task.usage.currency} {task.usage.cost.toFixed(5)}</dd></div>
+          <div>
+            <dt>输入 Token</dt>
+            <dd>{task.usage.input_tokens.toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt>输出 Token</dt>
+            <dd>{task.usage.output_tokens.toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt>费用</dt>
+            <dd>
+              {task.usage.currency} {task.usage.cost.toFixed(5)}
+            </dd>
+          </div>
         </dl>
-        <p className="muted usage-note">{task.usage.source === "provider" ? "来源：服务商返回用量。" : "来源：本地估算用量。"} 费用按配置单价估算；单价未配置不表示免费。</p>
+        <p className="muted usage-note">
+          {task.usage.source === "provider"
+            ? "来源：服务商返回用量。"
+            : "来源：本地估算用量。"}{" "}
+          费用按配置单价估算；单价未配置不表示免费。
+        </p>
       </DisclosureCard>
     </div>
   );
@@ -222,8 +282,14 @@ export function Assistant({
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [proposed, setProposed] = useState<(CodeSuggestion & { baseline: string; editorLanguage: string }) | null>(null),
-    [applied, setApplied] = useState<{ before: string; after: string; language: string } | null>(null),
+    [proposed, setProposed] = useState<
+      (CodeSuggestion & { baseline: string; editorLanguage: string }) | null
+    >(null),
+    [applied, setApplied] = useState<{
+      before: string;
+      after: string;
+      language: string;
+    } | null>(null),
     [copyMessage, setCopyMessage] = useState(""),
     [historyPage, setHistoryPage] = useState(1),
     [selectedHistory, setSelectedHistory] = useState<string>(),
@@ -361,17 +427,32 @@ export function Assistant({
         </div>
         {(snapshot !== code ||
           (snapshotLanguage && snapshotLanguage !== language)) && (
-          <p className="version-note">此回答基于较早的代码版本，请勿把旧评测结论直接套用到当前代码。</p>
+          <p className="version-note">
+            此回答基于较早的代码版本，请勿把旧评测结论直接套用到当前代码。
+          </p>
         )}
         {status === "completed" && suggestions.length > 0 && (
           <div className="code-candidate-actions">
             {suggestions.map((suggestion) => (
-              <Button key={`${suggestion.language}-${suggestion.index}`} onClick={() => {
-                const stale = snapshot !== code || (!!snapshotLanguage && snapshotLanguage !== language);
-                setProposed({ ...suggestion, baseline: code, editorLanguage: language,
-                  warnings: stale ? [...suggestion.warnings, "回答基于较早的代码快照；差异已按当前编辑器重新生成。"] : suggestion.warnings,
-                });
-              }}>
+              <Button
+                key={`${suggestion.language}-${suggestion.index}`}
+                onClick={() => {
+                  const stale =
+                    snapshot !== code ||
+                    (!!snapshotLanguage && snapshotLanguage !== language);
+                  setProposed({
+                    ...suggestion,
+                    baseline: code,
+                    editorLanguage: language,
+                    warnings: stale
+                      ? [
+                          ...suggestion.warnings,
+                          "回答基于较早的代码快照；差异已按当前编辑器重新生成。",
+                        ]
+                      : suggestion.warnings,
+                  });
+                }}
+              >
                 查看代码候选 {suggestion.index} 差异（{suggestion.language}）
               </Button>
             ))}
@@ -423,6 +504,28 @@ export function Assistant({
         </p>
       )}
       {topicMessage && <p role="status">{topicMessage}</p>}
+
+      {error && <ErrorNotice message={error} />}
+      <div className="current-answer">
+        {task && (
+          <section>
+            <p className="user-message">{task.requirement}</p>
+            <TaskProgress task={task} disconnected={disconnected} />
+            {answer
+              ? showAnswer(
+                  answer,
+                  task.code_snapshot || "",
+                  task.language,
+                  task.status,
+                )
+              : !terminal(task.status) && (
+                  <p className="skeleton">
+                    正在组织回答，内容生成后会显示在这里…
+                  </p>
+                )}
+          </section>
+        )}
+      </div>
       <form
         className="assistant-composer"
         onSubmit={(e) => {
@@ -437,7 +540,11 @@ export function Assistant({
             onChange={(e) => setMessage(e.target.value)}
             placeholder="例如：为什么边界情况会出错？"
             onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
                 event.preventDefault();
                 void send();
               }
@@ -462,96 +569,147 @@ export function Assistant({
           </Button>
         </div>
       </form>
-      {error && <ErrorNotice message={error} />}
-      <div className="current-answer">
-        {task && (
-          <section>
-            <p className="user-message">{task.requirement}</p>
-            <TaskProgress task={task} disconnected={disconnected} />
-            {answer
-              ? showAnswer(answer, task.code_snapshot || "", task.language, task.status)
-              : !terminal(task.status) && (
-                  <p className="skeleton">
-                    正在组织回答，内容生成后会显示在这里…
-                  </p>
-                )}
-          </section>
-        )}
-      </div>
-      {history.isPending && conversation && <p className="skeleton">正在读取历史对话…</p>}
-      {history.error && <ErrorNotice title="历史对话暂时无法读取" message={history.error.message} />}
-      {(history.data?.total || 0) > (active ? 1 : 0) && (() => {
-        const messages = history.data?.messages.filter((item) => item.task_id !== active) || [];
-        const selected = messages.find((item) => item.task_id === selectedHistory);
-        return (
-        <section className="assistant-history" aria-labelledby="assistant-history-title">
-          <div className="assistant-history-heading">
-            <div>
-              <span className="eyebrow">对话记录</span>
-              <h4 id="assistant-history-title">历史对话</h4>
-            </div>
-            <span className="muted">{Math.max(0, (history.data?.total || 0) - (active ? 1 : 0))} 轮</span>
-          </div>
-          <div className={`assistant-history-layout${selected ? " has-selection" : ""}`}>
-            <div className="history-list" role="list" aria-label="历史对话列表">
-              {messages.map((item) => (
-                <div role="listitem" key={item.task_id}>
-                  <button
-                    type="button"
-                    className={`history-turn${selectedHistory === item.task_id ? " selected" : ""}`}
-                    aria-expanded={selectedHistory === item.task_id}
-                    onClick={() => setSelectedHistory((current) => current === item.task_id ? undefined : item.task_id)}
-                  >
-                    <span>{item.message}</span>
-                    <small>
-                      {item.language || "代码快照"}
-                      {item.submission_id ? ` · 提交 #${item.submission_id}` : ""}
-                      {` · ${new Date(item.created_at).toLocaleString()}`}
-                    </small>
-                    <i className={`history-status tone-${item.status}`}>{item.status === "completed" ? "已完成" : item.status === "failed" ? "失败" : "处理中"}</i>
-                  </button>
+      {history.isPending && conversation && (
+        <p className="skeleton">正在读取历史对话…</p>
+      )}
+      {history.error && (
+        <ErrorNotice
+          title="历史对话暂时无法读取"
+          message={history.error.message}
+        />
+      )}
+      {(history.data?.total || 0) > (active ? 1 : 0) &&
+        (() => {
+          const messages =
+            history.data?.messages.filter((item) => item.task_id !== active) ||
+            [];
+          const selected = messages.find(
+            (item) => item.task_id === selectedHistory,
+          );
+          return (
+            <section
+              className="assistant-history"
+              aria-labelledby="assistant-history-title"
+            >
+              <div className="assistant-history-heading">
+                <div>
+                  <span className="eyebrow">对话记录</span>
+                  <h4 id="assistant-history-title">历史对话</h4>
                 </div>
-              ))}
-            </div>
-            {selected && (
-              <div className="history-answer" aria-live="polite">
-                <p className="user-message">{selected.message}</p>
-                {selected.text
-                  ? showAnswer(selected.text, selected.code_snapshot, selected.language, selected.status)
-                  : <p className="muted">这一轮没有可显示的回答。</p>}
+                <span className="muted">
+                  {Math.max(0, (history.data?.total || 0) - (active ? 1 : 0))}{" "}
+                  轮
+                </span>
               </div>
-            )}
-          </div>
-          {(history.data?.total || 0) > 5 && (
-            <Pagination
-              page={historyPage}
-              totalPages={Math.ceil((history.data?.total || 0) / 5)}
-              label="AI 历史对话分页"
-              onChange={(page) => {
-                setSelectedHistory(undefined);
-                setHistoryPage(page);
-              }}
-            />
-          )}
-        </section>
-        );
-      })()}
+              <div
+                className={`assistant-history-layout${selected ? " has-selection" : ""}`}
+              >
+                <div
+                  className="history-list"
+                  role="list"
+                  aria-label="历史对话列表"
+                >
+                  {messages.map((item) => (
+                    <div role="listitem" key={item.task_id}>
+                      <button
+                        type="button"
+                        className={`history-turn${selectedHistory === item.task_id ? " selected" : ""}`}
+                        aria-expanded={selectedHistory === item.task_id}
+                        onClick={() =>
+                          setSelectedHistory((current) =>
+                            current === item.task_id ? undefined : item.task_id,
+                          )
+                        }
+                      >
+                        <span>{item.message}</span>
+                        <small>
+                          {item.language || "代码快照"}
+                          {item.submission_id
+                            ? ` · 提交 #${item.submission_id}`
+                            : ""}
+                          {` · ${new Date(item.created_at).toLocaleString()}`}
+                        </small>
+                        <i className={`history-status tone-${item.status}`}>
+                          {item.status === "completed"
+                            ? "已完成"
+                            : item.status === "failed"
+                              ? "失败"
+                              : "处理中"}
+                        </i>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {selected && (
+                  <div className="history-answer" aria-live="polite">
+                    <p className="user-message">{selected.message}</p>
+                    {selected.text ? (
+                      showAnswer(
+                        selected.text,
+                        selected.code_snapshot,
+                        selected.language,
+                        selected.status,
+                      )
+                    ) : (
+                      <p className="muted">这一轮没有可显示的回答。</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              {(history.data?.total || 0) > 5 && (
+                <Pagination
+                  page={historyPage}
+                  totalPages={Math.ceil((history.data?.total || 0) / 5)}
+                  label="AI 历史对话分页"
+                  onChange={(page) => {
+                    setSelectedHistory(undefined);
+                    setHistoryPage(page);
+                  }}
+                />
+              )}
+            </section>
+          );
+        })()}
       {proposed && (
         <section className="code-review-card">
           <div className="section-heading">
-            <div><span className="eyebrow">代码审查</span><h3>应用前检查修改</h3></div>
+            <div>
+              <span className="eyebrow">代码审查</span>
+              <h3>应用前检查修改</h3>
+            </div>
           </div>
-          <p className={proposed.canApply ? "status-good" : "notice-inline"}>{proposed.reason}</p>
-          {proposed.warnings.map((warning) => <p className="notice-inline" key={warning}>{warning}</p>)}
-          <DiffView before={{ code: proposed.baseline }} after={{ code: proposed.code }} />
-          {(code !== proposed.baseline || language !== proposed.editorLanguage) && <p className="notice-inline">审查打开后代码或语言已改变。请关闭并重新审查，当前内容不会被覆盖。</p>}
+          <p className={proposed.canApply ? "status-good" : "notice-inline"}>
+            {proposed.reason}
+          </p>
+          {proposed.warnings.map((warning) => (
+            <p className="notice-inline" key={warning}>
+              {warning}
+            </p>
+          ))}
+          <DiffView
+            before={{ code: proposed.baseline }}
+            after={{ code: proposed.code }}
+          />
+          {(code !== proposed.baseline ||
+            language !== proposed.editorLanguage) && (
+            <p className="notice-inline">
+              审查打开后代码或语言已改变。请关闭并重新审查，当前内容不会被覆盖。
+            </p>
+          )}
           <div className="review-actions">
             {proposed.canApply && (
               <Button
                 variant="default"
-                disabled={code !== proposed.baseline || language !== proposed.editorLanguage}
+                disabled={
+                  code !== proposed.baseline ||
+                  language !== proposed.editorLanguage
+                }
                 onClick={() => {
-                  if (code !== proposed.baseline || language !== proposed.editorLanguage) return;
+                  if (
+                    code !== proposed.baseline ||
+                    language !== proposed.editorLanguage
+                  )
+                    return;
                   setApplied({ before: code, after: proposed.code, language });
                   onApply(proposed.code);
                   setProposed(null);
@@ -560,16 +718,42 @@ export function Assistant({
                 确认覆盖编辑器
               </Button>
             )}
-            <Button onClick={async () => {
-              try { await navigator.clipboard.writeText(proposed.code); setCopyMessage("建议代码已复制。"); }
-              catch { setCopyMessage("复制失败，请在差异区选中并手动复制代码。"); }
-            }}>复制建议代码</Button>
+            <Button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(proposed.code);
+                  setCopyMessage("建议代码已复制。");
+                } catch {
+                  setCopyMessage("复制失败，请在差异区选中并手动复制代码。");
+                }
+              }}
+            >
+              复制建议代码
+            </Button>
             <Button onClick={() => setProposed(null)}>关闭审查</Button>
           </div>
         </section>
       )}
       {copyMessage && <p role="status">{copyMessage}</p>}
-      {applied && <div className="notice"><p>AI 建议已应用，原代码仍保留，可撤销本次替换。</p><Button disabled={code !== applied.after || language !== applied.language} onClick={() => { onApply(applied.before); setApplied(null); }}>撤销 AI 替换</Button>{(code !== applied.after || language !== applied.language) && <p className="muted">代码已继续编辑或语言已切换，为保留新内容，已停用撤销。</p>}</div>}
+      {applied && (
+        <div className="notice">
+          <p>AI 建议已应用，原代码仍保留，可撤销本次替换。</p>
+          <Button
+            disabled={code !== applied.after || language !== applied.language}
+            onClick={() => {
+              onApply(applied.before);
+              setApplied(null);
+            }}
+          >
+            撤销 AI 替换
+          </Button>
+          {(code !== applied.after || language !== applied.language) && (
+            <p className="muted">
+              代码已继续编辑或语言已切换，为保留新内容，已停用撤销。
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

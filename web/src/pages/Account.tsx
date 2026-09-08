@@ -139,46 +139,57 @@ export function ModelSettings() {
 }
 export function Account({ user }: { user: User }) {
   return (
-    <div className="page narrow">
-      <h1>
-        <Icon name="chart" />
-        {user.username}
-      </h1>
-      <p className="muted">
-        加入于 {user.join_time} · {user.role === "admin" ? "管理员" : "学习者"}
-      </p>
-      <div className="stats">
-        <div>
-          <strong>{user.resolve_count}</strong>
-          <span>已通过题目</span>
+    <div className="page narrow account-page">
+      <section aria-label="账户信息">
+        <h1>
+          <Icon name="chart" />
+          {user.username}
+        </h1>
+        <p className="muted">
+          加入于 {user.join_time} ·{" "}
+          {user.role === "admin" ? "管理员" : "学习者"}
+        </p>
+      </section>
+      <section aria-labelledby="practice-statistics">
+        <h2 id="practice-statistics">练习统计</h2>
+        <div className="stats">
+          <div>
+            <strong>{user.resolve_count}</strong>
+            <span>已通过题目</span>
+          </div>
+          <div>
+            <strong>{user.submit_count}</strong>
+            <span>提交次数</span>
+          </div>
         </div>
-        <div>
-          <strong>{user.submit_count}</strong>
-          <span>提交次数</span>
-        </div>
-      </div>
+      </section>
       <ModelSettings />
-      <DisclosureCard className="account-language-settings" summary="评测语言配置">
+      <DisclosureCard
+        className="account-language-settings"
+        summary="评测语言配置"
+      >
         <LanguageSettings heading={false} />
       </DisclosureCard>
-      <Button
-        onClick={async () => {
-          await api("/auth/logout", json("POST"));
-          for (const storage of [localStorage, sessionStorage]) {
-            for (const key of Object.keys(storage)) {
-              if (
-                key.startsWith(`oj-draft-${user.user_id}-`) ||
-                key.startsWith(`oj-author-${user.user_id}-`)
-              )
-                storage.removeItem(key);
+      <div className="account-signout">
+        <Button
+          onClick={async () => {
+            await api("/auth/logout", json("POST"));
+            for (const storage of [localStorage, sessionStorage]) {
+              for (const key of Object.keys(storage)) {
+                if (
+                  key.startsWith(`oj-draft-${user.user_id}-`) ||
+                  key.startsWith(`oj-author-${user.user_id}-`)
+                )
+                  storage.removeItem(key);
+              }
             }
-          }
-          queryClient.clear();
-          window.location.assign("/problems");
-        }}
-      >
-        退出登录
-      </Button>
+            queryClient.clear();
+            window.location.assign("/problems");
+          }}
+        >
+          退出登录
+        </Button>
+      </div>
     </div>
   );
 }

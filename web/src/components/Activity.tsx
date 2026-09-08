@@ -540,21 +540,27 @@ export function ActivityProvider({
       const removed = slotsRef.current.filter(
         (slot) => slot.id === id || slot.current.id === id,
       );
-      const historyEntries = slotsRef.current.flatMap(slot => slot.backStack).filter(entry => entry.id === id);
+      const historyEntries = slotsRef.current
+        .flatMap((slot) => slot.backStack)
+        .filter((entry) => entry.id === id);
       if (!removed.length && !historyEntries.length) return;
       if (
-        (historyEntries.some(entry => entry.unsafeToClose) || removed.some((slot) =>
-          [slot.current, ...slot.backStack].some(
-            (entry) => entry.unsafeToClose,
-          ),
-        )) &&
+        (historyEntries.some((entry) => entry.unsafeToClose) ||
+          removed.some((slot) =>
+            [slot.current, ...slot.backStack].some(
+              (entry) => entry.unsafeToClose,
+            ),
+          )) &&
         !window.confirm("仍有内容未安全保存，确认关闭此标签页？")
       )
         return;
       const ids = new Set(removed.map((slot) => slot.id));
-      const next = slotsRef.current.filter((slot) => !ids.has(slot.id)).map(slot => ({
-        ...slot, backStack: slot.backStack.filter(entry => entry.id !== id),
-      }));
+      const next = slotsRef.current
+        .filter((slot) => !ids.has(slot.id))
+        .map((slot) => ({
+          ...slot,
+          backStack: slot.backStack.filter((entry) => entry.id !== id),
+        }));
       commit(next);
       try {
         sessionStorage.setItem(
@@ -984,9 +990,9 @@ export function ActivityBar() {
     </div>
   );
   return (
-    <div className="activity-strip" aria-label="进行中的任务">
+    <div className="activity-strip" aria-label="已打开的任务">
       <div className="activity-strip-inner">
-        <span className="activity-label">进行中</span>
+        <span className="activity-label">已打开</span>
         <div className="activity-tabs">
           {visible.map((slot) => tab(slot))}
           {overflow.length > 0 && (

@@ -13,6 +13,15 @@ import { LanguageSettings } from "../components/LanguageSettings";
 import { useActionReveal } from "../components/useActionReveal";
 import { DisclosureCard } from "../components/DisclosureCard";
 
+const adminSections = [
+  "用户",
+  "题目",
+  "提交",
+  "语言",
+  "访问审计",
+  "角色审计",
+  "系统设置",
+];
 type AuditPage = { logs: Record<string, any>[]; total: number };
 export function Admin({ user }: { user: User }) {
   const location = useLocation();
@@ -23,7 +32,9 @@ export function Admin({ user }: { user: User }) {
     [confirm, setConfirm] = useState(""),
     [busy, setBusy] = useState(false),
     [auditUserId, setAuditUserId] = useState(params.get("user_id") || ""),
-    [auditProblemId, setAuditProblemId] = useState(params.get("problem_id") || "");
+    [auditProblemId, setAuditProblemId] = useState(
+      params.get("problem_id") || "",
+    );
   const profileReveal = useActionReveal<HTMLElement>();
   const tabReveal = useActionReveal<HTMLDivElement>();
   const page = Math.max(1, Number(params.get("page")) || 1);
@@ -99,6 +110,12 @@ export function Admin({ user }: { user: User }) {
         : tab === "访问审计"
           ? logs.data?.total
           : undefined;
+  const changeSection = (value: string) => {
+    setError("");
+    setMessage("");
+    setParams({ tab: value });
+    tabReveal.reveal();
+  };
   return (
     <div className="page">
       <div className="page-heading">
@@ -111,391 +128,413 @@ export function Admin({ user }: { user: User }) {
         </div>
         <span className="badge admin-badge">管理员工作台</span>
       </div>
-      <div className="step-tabs">
-        {[
-          "用户",
-          "题目",
-          "提交",
-          "语言",
-          "访问审计",
-          "角色审计",
-          "系统设置",
-        ].map((v) => (
+      <label className="mobile-admin-selector">
+        管理类别
+        <select
+          aria-label="管理类别"
+          value={tab}
+          onChange={(event) => changeSection(event.target.value)}
+        >
+          {adminSections.map((value) => (
+            <option key={value}>{value}</option>
+          ))}
+        </select>
+      </label>
+      <div className="step-tabs admin-sections" aria-label="管理分类导航">
+        {adminSections.map((v) => (
           <Button
             key={v}
             variant={v === tab ? "default" : "ghost"}
-            onClick={() => {
-              setError("");
-              setMessage("");
-              setParams({ tab: v });
-              tabReveal.reveal();
-            }}
+            aria-current={v === tab ? "page" : undefined}
+            onClick={() => changeSection(v)}
           >
             {v}
           </Button>
         ))}
       </div>
       <div ref={tabReveal.ref} className="admin-tab-panel reveal-target">
-      {(error || loadError) && (
-        <p role="alert">{error || loadError?.message}</p>
-      )}
-      {tab === "题目" && <AdminProblems adminView />}
-      {tab === "提交" && <Records user={user} adminView />}
-      {tab === "角色审计" && (
-        <>
-          <h2>角色变更记录</h2>
-          {roleLogs.isPending && <p className="skeleton">正在加载…</p>}
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>操作人</th>
-                  <th>目标用户</th>
-                  <th>变更前</th>
-                  <th>变更后</th>
-                  <th>时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roleLogs.data?.logs.map((l) => (
-                  <tr key={l.id}>
-                    <td>
-                      {l.actor_name} <small>#{l.actor_id}</small>
-                    </td>
-                    <td>
-                      {l.target_name} <small>#{l.target_id}</small>
-                    </td>
-                    <td>{roleLabel(l.old_role)}</td>
-                    <td>{roleLabel(l.new_role)}</td>
-                    <td>{new Date(l.time).toLocaleString()}</td>
+        {(error || loadError) && (
+          <p role="alert">{error || loadError?.message}</p>
+        )}
+        {tab === "题目" && <AdminProblems adminView />}
+        {tab === "提交" && <Records user={user} adminView />}
+        {tab === "角色审计" && (
+          <>
+            <h2>角色变更记录</h2>
+            {roleLogs.isPending && <p className="skeleton">正在加载…</p>}
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>操作人</th>
+                    <th>目标用户</th>
+                    <th>变更前</th>
+                    <th>变更后</th>
+                    <th>时间</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {roleLogs.data?.total === 0 && (
-            <p className="empty">尚无角色变更记录。</p>
-          )}
-        </>
-      )}
-      {message && <p role="status">{message}</p>}
-      {tab === "用户" && (
-        <>
-          <div className="section-heading">
-            <h2>用户管理</h2>
-            <Button asChild>
-              <Link to="/admin?tab=提交">
-                查看全站提交 <Icon name="arrow" />
-              </Link>
-            </Button>
-          </div>
-          <SearchInput
-            label="搜索用户"
-            placeholder="搜索用户名或用户 ID"
-            value={params.get("q") || ""}
-            navigationKey={location.key}
-            onCommit={(value) =>
-              setParams({ tab: "用户", q: value }, { replace: true })
-            }
-          />
-          {users.isPending && <p className="skeleton">正在加载用户…</p>}
-          {profile.isPending && params.get("user_id") && (
-            <p className="skeleton">正在读取用户资料…</p>
-          )}
-          {profile.data && (
-            <section ref={profileReveal.ref} className="admin-detail reveal-target" aria-label="用户资料">
-              <div className="section-heading">
-                <h2>{profile.data.username}</h2>
-                <Button asChild>
-                  <Link to={`/admin?tab=提交&user_id=${profile.data.user_id}`}>
-                    查看此用户提交
-                  </Link>
-                </Button>
-              </div>
-              <dl className="metadata-grid">
-                <div>
-                  <dt>用户 ID</dt>
-                  <dd>{profile.data.user_id}</dd>
+                </thead>
+                <tbody>
+                  {roleLogs.data?.logs.map((l) => (
+                    <tr key={l.id}>
+                      <td>
+                        {l.actor_name} <small>#{l.actor_id}</small>
+                      </td>
+                      <td>
+                        {l.target_name} <small>#{l.target_id}</small>
+                      </td>
+                      <td>{roleLabel(l.old_role)}</td>
+                      <td>{roleLabel(l.new_role)}</td>
+                      <td>{new Date(l.time).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {roleLogs.data?.total === 0 && (
+              <p className="empty">尚无角色变更记录。</p>
+            )}
+          </>
+        )}
+        {message && <p role="status">{message}</p>}
+        {tab === "用户" && (
+          <>
+            <div className="section-heading">
+              <h2>用户管理</h2>
+              <Button asChild>
+                <Link to="/admin?tab=提交">
+                  查看全站提交 <Icon name="arrow" />
+                </Link>
+              </Button>
+            </div>
+            <SearchInput
+              label="搜索用户"
+              placeholder="搜索用户名或用户 ID"
+              value={params.get("q") || ""}
+              navigationKey={location.key}
+              onCommit={(value) =>
+                setParams({ tab: "用户", q: value }, { replace: true })
+              }
+            />
+            {users.isPending && <p className="skeleton">正在加载用户…</p>}
+            {profile.isPending && params.get("user_id") && (
+              <p className="skeleton">正在读取用户资料…</p>
+            )}
+            {profile.data && (
+              <section
+                ref={profileReveal.ref}
+                className="admin-detail reveal-target"
+                aria-label="用户资料"
+              >
+                <div className="section-heading">
+                  <h2>{profile.data.username}</h2>
+                  <Button asChild>
+                    <Link
+                      to={`/admin?tab=提交&user_id=${profile.data.user_id}`}
+                    >
+                      查看此用户提交
+                    </Link>
+                  </Button>
                 </div>
-                <div>
-                  <dt>角色</dt>
-                  <dd>{roleLabel(profile.data.role)}</dd>
-                </div>
-                <div>
-                  <dt>加入时间</dt>
-                  <dd>{profile.data.join_time}</dd>
-                </div>
-                <div>
-                  <dt>通过题目 / 提交次数</dt>
-                  <dd>
-                    {profile.data.resolve_count} / {profile.data.submit_count}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-          )}
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>用户</th>
-                  <th>角色</th>
-                  <th>通过 / 提交</th>
-                  <th>修改角色</th>
-                  <th>查看</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.data?.users.map((u) => (
-                  <tr key={u.user_id}>
-                    <td>
-                      <strong>{u.username}</strong>
-                      <small className="cell-note">ID {u.user_id}</small>
-                    </td>
-                    <td>
-                      <span className={`badge role-${u.role}`}>
-                        {roleLabel(u.role)}
-                      </span>
-                    </td>
-                    <td>
-                      {u.resolve_count} / {u.submit_count}
-                    </td>
-                    <td>
-                      <form
-                        className="row"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          const f = new FormData(e.currentTarget);
-                          void action(() =>
-                            api(
-                              `/users/${u.user_id}/role`,
-                              json("PUT", { role: f.get("role") }),
-                            ),
-                          );
-                        }}
-                      >
-                        <select
-                          name="role"
-                          aria-label={`${u.username}的角色`}
-                          defaultValue={u.role}
+                <dl className="metadata-grid">
+                  <div>
+                    <dt>用户 ID</dt>
+                    <dd>{profile.data.user_id}</dd>
+                  </div>
+                  <div>
+                    <dt>角色</dt>
+                    <dd>{roleLabel(profile.data.role)}</dd>
+                  </div>
+                  <div>
+                    <dt>加入时间</dt>
+                    <dd>{profile.data.join_time}</dd>
+                  </div>
+                  <div>
+                    <dt>通过题目 / 提交次数</dt>
+                    <dd>
+                      {profile.data.resolve_count} / {profile.data.submit_count}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+            )}
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>用户</th>
+                    <th>角色</th>
+                    <th>通过 / 提交</th>
+                    <th>修改角色</th>
+                    <th>查看</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.data?.users.map((u) => (
+                    <tr key={u.user_id}>
+                      <td>
+                        <strong>{u.username}</strong>
+                        <small className="cell-note">ID {u.user_id}</small>
+                      </td>
+                      <td>
+                        <span className={`badge role-${u.role}`}>
+                          {roleLabel(u.role)}
+                        </span>
+                      </td>
+                      <td>
+                        {u.resolve_count} / {u.submit_count}
+                      </td>
+                      <td>
+                        <form
+                          className="row"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const f = new FormData(e.currentTarget);
+                            void action(() =>
+                              api(
+                                `/users/${u.user_id}/role`,
+                                json("PUT", { role: f.get("role") }),
+                              ),
+                            );
+                          }}
                         >
-                          <option value="user">学习者</option>
-                          <option value="admin">管理员</option>
-                          <option value="banned">禁用</option>
-                        </select>
-                        <Button disabled={busy}>保存</Button>
-                      </form>
-                    </td>
-                    <td>
-                      <div className="action-group">
-                        <Button asChild size="compact" variant="ghost">
-                          <Link onClick={profileReveal.reveal} to={`/admin?tab=用户&user_id=${u.user_id}`}>
-                            资料
-                          </Link>
-                        </Button>
-                        <Button asChild size="compact">
-                          <Link to={`/admin?tab=提交&user_id=${u.user_id}`}>
-                            提交记录
-                          </Link>
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {users.data?.total === 0 && <p className="empty">没有匹配的用户。</p>}
-          <DisclosureCard summary="创建用户">
+                          <select
+                            name="role"
+                            aria-label={`${u.username}的角色`}
+                            defaultValue={u.role}
+                          >
+                            <option value="user">学习者</option>
+                            <option value="admin">管理员</option>
+                            <option value="banned">禁用</option>
+                          </select>
+                          <Button disabled={busy}>保存</Button>
+                        </form>
+                      </td>
+                      <td>
+                        <div className="action-group">
+                          <Button asChild size="compact" variant="ghost">
+                            <Link
+                              onClick={profileReveal.reveal}
+                              to={`/admin?tab=用户&user_id=${u.user_id}`}
+                            >
+                              资料
+                            </Link>
+                          </Button>
+                          <Button asChild size="compact">
+                            <Link to={`/admin?tab=提交&user_id=${u.user_id}`}>
+                              提交记录
+                            </Link>
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {users.data?.total === 0 && (
+              <p className="empty">没有匹配的用户。</p>
+            )}
+            <DisclosureCard summary="创建用户">
+              <form
+                className="form-grid narrow"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const f = new FormData(e.currentTarget);
+                  void action(() =>
+                    api(
+                      f.get("role") === "admin" ? "/users/admin" : "/users/",
+                      json("POST", {
+                        username: f.get("username"),
+                        password: f.get("password"),
+                      }),
+                    ),
+                  );
+                }}
+              >
+                <label>
+                  用户名
+                  <input name="username" minLength={3} required />
+                </label>
+                <label>
+                  初始密码
+                  <input
+                    type="password"
+                    name="password"
+                    minLength={6}
+                    required
+                    autoComplete="new-password"
+                  />
+                </label>
+                <label>
+                  角色
+                  <select name="role">
+                    <option value="user">学习者</option>
+                    <option value="admin">管理员</option>
+                  </select>
+                </label>
+                <div className="form-actions">
+                  <Button disabled={busy}>创建</Button>
+                </div>
+              </form>
+            </DisclosureCard>
+          </>
+        )}
+        {tab === "语言" && <LanguageSettings />}
+        {tab === "访问审计" && (
+          <>
+            <p className="permission-note">
+              <Icon name="shield" /> 按用户 ID
+              或题号查询访问记录，至少填写一项。
+            </p>
             <form
-              className="form-grid narrow"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const f = new FormData(e.currentTarget);
-                void action(() =>
-                  api(
-                    f.get("role") === "admin" ? "/users/admin" : "/users/",
-                    json("POST", {
-                      username: f.get("username"),
-                      password: f.get("password"),
-                    }),
-                  ),
-                );
+              className="filters filter-panel audit-filter-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const userId = auditUserId.trim();
+                const problemId = auditProblemId.trim();
+                if (!userId && !problemId) {
+                  setError("请至少填写用户 ID 或题号。");
+                  return;
+                }
+                setError("");
+                setParams({
+                  tab: "访问审计",
+                  ...(userId ? { user_id: userId } : {}),
+                  ...(problemId ? { problem_id: problemId } : {}),
+                  page: "1",
+                });
               }}
             >
               <label>
-                用户名
-                <input name="username" minLength={3} required />
-              </label>
-              <label>
-                初始密码
+                用户 ID
                 <input
-                  type="password"
-                  name="password"
-                  minLength={6}
-                  required
-                  autoComplete="new-password"
+                  aria-label="审计用户 ID"
+                  inputMode="numeric"
+                  pattern="[0-9]+"
+                  value={auditUserId}
+                  onChange={(event) => setAuditUserId(event.target.value)}
+                  placeholder="例如 12"
                 />
               </label>
               <label>
-                角色
-                <select name="role">
-                  <option value="user">学习者</option>
-                  <option value="admin">管理员</option>
-                </select>
+                题号
+                <input
+                  aria-label="审计题号"
+                  value={auditProblemId}
+                  onChange={(event) => setAuditProblemId(event.target.value)}
+                  placeholder="例如 sum_2"
+                />
               </label>
-              <div className="form-actions">
-                <Button disabled={busy}>创建</Button>
-              </div>
+              <Button variant="default">查询审计</Button>
             </form>
-          </DisclosureCard>
-        </>
-      )}
-      {tab === "语言" && <LanguageSettings />}
-      {tab === "访问审计" && (
-        <>
-          <p className="permission-note">
-            <Icon name="shield" /> 官方访问审计接口要求至少指定用户 ID 或题号，不提供一级条件全空的全量查询。
-          </p>
-          <form
-            className="filters filter-panel audit-filter-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const userId = auditUserId.trim();
-              const problemId = auditProblemId.trim();
-              if (!userId && !problemId) {
-                setError("请至少填写用户 ID 或题号。");
-                return;
-              }
-              setError("");
+            {!hasAuditScope && (
+              <p className="empty">
+                请至少填写用户 ID 或题号，再查询访问审计。
+              </p>
+            )}
+            {hasAuditScope && logs.isPending && (
+              <p className="skeleton">正在读取访问审计…</p>
+            )}
+            {logs.data?.total === 0 && (
+              <p className="empty">没有匹配的访问记录。</p>
+            )}
+            {hasAuditScope && (
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>用户</th>
+                      <th>题目</th>
+                      <th>操作</th>
+                      <th>状态</th>
+                      <th>时间</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logs.data?.logs.map((l, i) => (
+                      <tr key={i}>
+                        <td>
+                          <Link to={`/admin?tab=用户&user_id=${l.user_id}`}>
+                            用户 {l.user_id}
+                          </Link>
+                        </td>
+                        <td>
+                          <Link
+                            to={`/admin?tab=题目&problem_id=${l.problem_id}`}
+                          >
+                            {l.problem_id}
+                          </Link>
+                        </td>
+                        <td>
+                          {l.action === "view_logs" ? "查看评测日志" : l.action}
+                        </td>
+                        <td>
+                          <span
+                            className={
+                              String(l.status) === "200"
+                                ? "badge tone-AC"
+                                : "badge tone-WA"
+                            }
+                          >
+                            {String(l.status) === "200"
+                              ? "允许访问"
+                              : "拒绝访问"}{" "}
+                            · {l.status}
+                          </span>
+                        </td>
+                        <td>{new Date(l.time).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+        {paginationTotal !== undefined && (
+          <Pagination
+            page={page}
+            totalPages={Math.ceil(paginationTotal / 20)}
+            label={`${tab}分页`}
+            onChange={(next) =>
               setParams({
-                tab: "访问审计",
-                ...(userId ? { user_id: userId } : {}),
-                ...(problemId ? { problem_id: problemId } : {}),
-                page: "1",
-              });
-            }}
-          >
+                ...Object.fromEntries(params),
+                page: String(next),
+              })
+            }
+          />
+        )}
+        {tab === "系统设置" && (
+          <DisclosureCard summary="恢复初始实验数据">
+            <p>
+              此操作会清除运行数据、重置账户和题目，并退出所有会话。输入 RESET
+              确认。
+            </p>
             <label>
-              用户 ID
+              输入 RESET 确认
               <input
-                aria-label="审计用户 ID"
-                inputMode="numeric"
-                pattern="[0-9]+"
-                value={auditUserId}
-                onChange={(event) => setAuditUserId(event.target.value)}
-                placeholder="例如 12"
+                aria-label="重置确认"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
               />
             </label>
-            <label>
-              题号
-              <input
-                aria-label="审计题号"
-                value={auditProblemId}
-                onChange={(event) => setAuditProblemId(event.target.value)}
-                placeholder="例如 sum_2"
-              />
-            </label>
-            <Button variant="default">查询审计</Button>
-          </form>
-          {!hasAuditScope && (
-            <p className="empty">请至少填写用户 ID 或题号，再查询访问审计。</p>
-          )}
-          {hasAuditScope && logs.isPending && <p className="skeleton">正在读取访问审计…</p>}
-          {logs.data?.total === 0 && (
-            <p className="empty">没有匹配的访问记录。</p>
-          )}
-          {hasAuditScope && <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>用户</th>
-                  <th>题目</th>
-                  <th>操作</th>
-                  <th>状态</th>
-                  <th>时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.data?.logs.map((l, i) => (
-                  <tr key={i}>
-                    <td>
-                      <Link to={`/admin?tab=用户&user_id=${l.user_id}`}>
-                        用户 {l.user_id}
-                      </Link>
-                    </td>
-                    <td>
-                      <Link to={`/admin?tab=题目&problem_id=${l.problem_id}`}>
-                        {l.problem_id}
-                      </Link>
-                    </td>
-                    <td>
-                      {l.action === "view_logs" ? "查看评测日志" : l.action}
-                    </td>
-                    <td>
-                      <span
-                        className={
-                          String(l.status) === "200"
-                            ? "badge tone-AC"
-                            : "badge tone-WA"
-                        }
-                      >
-                        {String(l.status) === "200" ? "允许访问" : "拒绝访问"} ·{" "}
-                        {l.status}
-                      </span>
-                    </td>
-                    <td>{new Date(l.time).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>}
-        </>
-      )}
-      {paginationTotal !== undefined && (
-        <Pagination
-          page={page}
-          totalPages={Math.ceil(paginationTotal / 20)}
-          label={`${tab}分页`}
-          onChange={(next) =>
-            setParams({
-              ...Object.fromEntries(params),
-              page: String(next),
-            })
-          }
-        />
-      )}
-      {tab === "系统设置" && (
-        <DisclosureCard summary="恢复初始实验数据">
-          <p>
-            此操作会清除运行数据、重置账户和题目，并退出所有会话。输入 RESET
-            确认。
-          </p>
-          <label>
-            输入 RESET 确认
-            <input
-              aria-label="重置确认"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-            />
-          </label>
-          <div className="form-actions">
-            <Button
-              variant="destructive"
-              disabled={busy || confirm !== "RESET"}
-              onClick={() =>
-                void action(async () => {
-                  await api("/reset/", json("POST"));
-                  queryClient.clear();
-                  window.location.assign("/problems");
-                })
-              }
-            >
-              重置数据
-            </Button>
-          </div>
-        </DisclosureCard>
-      )}
+            <div className="form-actions">
+              <Button
+                variant="destructive"
+                disabled={busy || confirm !== "RESET"}
+                onClick={() =>
+                  void action(async () => {
+                    await api("/reset/", json("POST"));
+                    queryClient.clear();
+                    window.location.assign("/problems");
+                  })
+                }
+              >
+                重置数据
+              </Button>
+            </div>
+          </DisclosureCard>
+        )}
       </div>
     </div>
   );

@@ -29,6 +29,7 @@ export function Pagination({
     const value = Math.min(total, Math.max(1, next));
     if (value !== current) onChange(value);
   };
+  if (total === 1) return null;
   return (
     <nav className="pagination" aria-label={label}>
       <Button disabled={current === 1} onClick={() => go(1)}>

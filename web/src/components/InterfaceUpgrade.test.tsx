@@ -76,7 +76,7 @@ describe("activity task tabs", () => {
   it("ignores malformed local activity data", () => {
     localStorage.setItem("oj-activities-7", JSON.stringify({ unexpected: true }));
     render(<MemoryRouter><ActivityProvider userId="7"><ActivityBar /></ActivityProvider></MemoryRouter>);
-    expect(screen.queryByLabelText("进行中的任务")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("已打开的任务")).not.toBeInTheDocument();
   });
 
   it("normalizes transient query parameters", () => {

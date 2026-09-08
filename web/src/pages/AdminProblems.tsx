@@ -1,10 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Link,
-  useLocation,
-  useSearchParams,
-} from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { api, json, queryClient, errorText } from "../api";
 import type { Problem } from "../types";
 import { Button } from "../components/ui/button";
@@ -33,6 +29,7 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
     value: boolean;
   } | null>(null);
   const detailReveal = useActionReveal<HTMLElement>();
+  const listReveal = useActionReveal<HTMLDivElement>();
   const problems = useQuery({
     queryKey: ["admin-problems"],
     queryFn: () => api<Problem[]>("/problems/?include_metadata=true"),
@@ -92,7 +89,7 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
         <p className="skeleton">正在加载题库…</p>
       ) : (
         <>
-          <div className="table-scroll">
+          <div ref={listReveal.ref} className="table-scroll reveal-target">
             <table>
               <thead>
                 <tr>
@@ -149,13 +146,20 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
       )}
       {id && detail.isPending && <p className="skeleton">正在读取题目详情…</p>}
       {p && (
-        <section ref={detailReveal.ref} className="admin-detail reveal-target" aria-label="题目详细信息">
+        <section
+          ref={detailReveal.ref}
+          className="admin-detail reveal-target"
+          aria-label="题目详细信息"
+        >
           <div className="section-heading">
             <div>
               <span className="eyebrow">题目详情</span>
               <h2>{p.title}</h2>
             </div>
-            <DifficultyBadge value={p.difficulty} />
+            <div className="action-group">
+              <DifficultyBadge value={p.difficulty} />
+              <Button onClick={() => listReveal.reveal()}>返回列表</Button>
+            </div>
           </div>
           <dl className="metadata-grid">
             <div>
@@ -195,7 +199,16 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
             <Button asChild>
               <TaskLink to={`/problems/${p.id}`}>打开做题页</TaskLink>
             </Button>
-            <TaskAction label="编辑题目" disabled={busy} onError={e => void action(async () => { throw e; })} resolve={() => editingDraftPath(p, findEditingDraft(p.id))} />
+            <TaskAction
+              label="编辑题目"
+              disabled={busy}
+              onError={(e) =>
+                void action(async () => {
+                  throw e;
+                })
+              }
+              resolve={() => editingDraftPath(p, findEditingDraft(p.id))}
+            />
             <Button asChild>
               <Link
                 to={
@@ -207,6 +220,39 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
                 {adminView ? "查看该题全部提交" : "查看我的提交"}
               </Link>
             </Button>
+          </div>
+          {adminView && (
+            <div className="setting-row">
+              <div>
+                <strong>公开评测日志</strong>
+                <p className="muted">
+                  允许其他登录用户查看逐点状态、耗时和内存，不公开提交代码。
+                </p>
+              </div>
+              <Switch
+                checked={
+                  visibility?.id === p.id ? visibility.value : p.public_cases
+                }
+                disabled={busy || visibility?.id === p.id}
+                ariaLabel="公开评测日志"
+                label={
+                  (visibility?.id === p.id ? visibility.value : p.public_cases)
+                    ? "已公开"
+                    : "未公开"
+                }
+                onChange={(checked) => {
+                  setVisibility({ id: p.id, value: checked });
+                  void action(() =>
+                    api(
+                      `/problems/${p.id}/log_visibility`,
+                      json("PUT", { public_cases: checked }),
+                    ),
+                  ).finally(() => setVisibility(null));
+                }}
+              />
+            </div>
+          )}
+          <div className="danger-actions">
             {adminView && (
               <Button
                 variant="destructive"
@@ -227,31 +273,6 @@ export function AdminProblems({ adminView = false }: { adminView?: boolean }) {
               </Button>
             )}
           </div>
-          {adminView && (
-            <div className="setting-row">
-              <div>
-                <strong>公开评测日志</strong>
-                <p className="muted">
-                  允许其他登录用户查看逐点状态、耗时和内存，不公开提交代码。
-                </p>
-              </div>
-              <Switch
-                checked={visibility?.id === p.id ? visibility.value : p.public_cases}
-                disabled={busy || visibility?.id === p.id}
-                ariaLabel="公开评测日志"
-                label={(visibility?.id === p.id ? visibility.value : p.public_cases) ? "已公开" : "未公开"}
-                onChange={(checked) => {
-                    setVisibility({ id: p.id, value: checked });
-                    void action(() =>
-                      api(
-                        `/problems/${p.id}/log_visibility`,
-                        json("PUT", { public_cases: checked }),
-                      ),
-                    ).finally(() => setVisibility(null));
-                }}
-              />
-            </div>
-          )}
           <DisclosureCard summary="完整题面与样例">
             <Statement problem={p} />
           </DisclosureCard>

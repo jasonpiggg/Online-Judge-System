@@ -12,9 +12,9 @@ export function DifficultyBadge({ value }: { value?: string }) {
   );
 }
 
-export function DifficultyGuide() {
+export function DifficultyGuide({ compact = false }: { compact?: boolean }) {
   return (
-    <details className="difficulty-guide">
+    <details className={`difficulty-guide${compact ? " compact-guide" : ""}`}>
       <summary>难度分级标准</summary>
       <dl>
         {difficulties

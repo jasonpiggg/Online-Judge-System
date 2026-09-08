@@ -1,7 +1,13 @@
 import { useLanguages } from "../languages";
 import { CodeImport } from "../components/CodeImport";
 import { editingDraftPath } from "../problem-actions";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   useLocation,
@@ -20,7 +26,13 @@ import { ResultPanel, VerdictBadge } from "../components/Evaluation";
 import { Icon } from "../components/Icon";
 import { readBackup, writeBackup, clearBackup } from "../draft-backup";
 import { BackLink } from "../components/BackLink";
-import { TaskAction, TaskLink, useActivity, useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
+import {
+  TaskAction,
+  TaskLink,
+  useActivity,
+  useRecoverUnavailableTask,
+  useRegisterActivity,
+} from "../components/Activity";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { Pagination } from "../components/Pagination";
 export const DEFAULT_EDITOR_FONT_SIZE = 14;
@@ -41,7 +53,12 @@ export function Workspace({ user }: { user: User }) {
 }
 function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const navigate = useNavigate();
-  const { activeSlot, replaceCurrent, findEditingDraft, remove: removeActivity } = useActivity();
+  const {
+    activeSlot,
+    replaceCurrent,
+    findEditingDraft,
+    remove: removeActivity,
+  } = useActivity();
   const location = useLocation();
   const [params] = useSearchParams();
   const state = location.state as {
@@ -81,7 +98,9 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
   const manualScroll = useRef(false);
   const restoredSlot = useRef<string | undefined>(undefined);
   const requestedTab = params.get("tab");
-  const tab: Section = sections.includes(requestedTab as Section) ? requestedTab as Section : "题目";
+  const tab: Section = sections.includes(requestedTab as Section)
+    ? (requestedTab as Section)
+    : "题目";
   const submission = params.get("submission");
   const index = state?.ids?.indexOf(p.id) ?? -1;
   const languages = useLanguages();
@@ -125,7 +144,9 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
         loadedBackup.current = backup;
         setReady(true);
       })
-      .catch((e) => { if (!cancelled) setError(errorText(e)); });
+      .catch((e) => {
+        if (!cancelled) setError(errorText(e));
+      });
     return () => {
       cancelled = true;
       generation.current += 1;
@@ -218,7 +239,16 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
       submitting.current = false;
       setBusy(false);
     }
-  }, [ready, language, p.id, params, replaceCurrent, location.pathname, location.state, user.user_id]);
+  }, [
+    ready,
+    language,
+    p.id,
+    params,
+    replaceCurrent,
+    location.pathname,
+    location.state,
+    user.user_id,
+  ]);
   useEffect(() => {
     // Keep the requested page while React Query is loading the new query key.
     if (!history.data) return;
@@ -232,24 +262,31 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
       assistantPanel.current.open = true;
     const nav = document.querySelector(".section-nav")?.getBoundingClientRect();
     const node = document.getElementById(`section-${target}`);
-    if (node) node.style.scrollMarginTop = `${Math.max(0, nav?.bottom || 0) + 16}px`;
-    document
-      .getElementById(`section-${target}`)
-      ?.scrollIntoView({
-        block: "start",
-        behavior: smooth && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto",
-      });
+    if (node)
+      node.style.scrollMarginTop = `${Math.max(0, nav?.bottom || 0) + 16}px`;
+    document.getElementById(`section-${target}`)?.scrollIntoView({
+      block: "start",
+      behavior:
+        smooth && !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "smooth"
+          : "auto",
+    });
   }, []);
   useLayoutEffect(() => {
     if (!activeSlot) return;
     const path = location.pathname + location.search;
-    if (passiveNavigation.current === path) { passiveNavigation.current = ""; return; }
+    if (passiveNavigation.current === path) {
+      passiveNavigation.current = "";
+      return;
+    }
     if (restoredSlot.current !== activeSlot.id) {
       restoredSlot.current = activeSlot.id;
-      if (tab === "AI" && assistantPanel.current) assistantPanel.current.open = true;
+      if (tab === "AI" && assistantPanel.current)
+        assistantPanel.current.open = true;
       const saved = activeSlot.current.scrollY;
       if (typeof saved === "number" && Number.isFinite(saved)) {
-        window.scrollTo({ top: saved, behavior: "instant" }); return;
+        window.scrollTo({ top: saved, behavior: "instant" });
+        return;
       }
     }
     jump(tab);
@@ -259,22 +296,43 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
     let frame = 0;
     const cancelJump = () => {
       manualScroll.current = true;
-      if (scrollTarget.current) window.scrollTo({ top: window.scrollY, behavior: "instant" });
+      if (scrollTarget.current)
+        window.scrollTo({ top: window.scrollY, behavior: "instant" });
       scrollTarget.current = null;
     };
     const keyboard = (event: KeyboardEvent) => {
-      if ((event.target as HTMLElement)?.closest("input,textarea,select,[contenteditable=true],.monaco-editor")) return;
-      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) cancelJump();
+      if (
+        (event.target as HTMLElement)?.closest(
+          "input,textarea,select,[contenteditable=true],.monaco-editor",
+        )
+      )
+        return;
+      if (
+        [
+          "ArrowUp",
+          "ArrowDown",
+          "PageUp",
+          "PageDown",
+          "Home",
+          "End",
+          " ",
+        ].includes(event.key)
+      )
+        cancelJump();
     };
     const sync = () => {
       frame = 0;
-      if (scrollTarget.current || submitting.current || !manualScroll.current) return;
-      const nav = document.querySelector(".section-nav")?.getBoundingClientRect();
+      if (scrollTarget.current || submitting.current || !manualScroll.current)
+        return;
+      const nav = document
+        .querySelector(".section-nav")
+        ?.getBoundingClientRect();
       const threshold = Math.max(0, nav?.bottom || 0) + 24;
       let current: Section = "题目";
       for (const section of sections) {
         const node = document.getElementById(`section-${section}`);
-        if (node && node.getBoundingClientRect().top <= threshold) current = section;
+        if (node && node.getBoundingClientRect().top <= threshold)
+          current = section;
       }
       // Read the committed browser URL so a delayed scroll frame cannot erase
       // a submission/section navigation that happened after this effect rendered.
@@ -288,8 +346,12 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
         replaceCurrent(path, location.state as object);
       }
     };
-    const onScroll = () => { if (!frame) frame = requestAnimationFrame(sync); };
-    const scrollEnd = () => { scrollTarget.current = null; };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(sync);
+    };
+    const scrollEnd = () => {
+      scrollTarget.current = null;
+    };
     window.addEventListener("wheel", cancelJump, { passive: true });
     window.addEventListener("touchstart", cancelJump, { passive: true });
     window.addEventListener("pointerdown", cancelJump, { passive: true });
@@ -305,74 +367,116 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
       window.removeEventListener("scrollend", scrollEnd);
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [activeSlot?.id, location.pathname, location.search, location.state, replaceCurrent]);
+  }, [
+    activeSlot?.id,
+    location.pathname,
+    location.search,
+    location.state,
+    replaceCurrent,
+  ]);
   return (
     <div className="workpage">
       <div className="work-nav">
-        <div className="work-back"><BackLink /></div>
-        {index >= 0 && <div className="problem-switcher" aria-label="相邻题目">
-          {index > 0 ? (
-            <Button asChild size="compact">
-              <TaskLink to={`/problems/${state!.ids![index - 1]}`} state={state}>
+        <div className="work-back">
+          <BackLink />
+        </div>
+        {index >= 0 && (
+          <div className="problem-switcher" aria-label="相邻题目">
+            {index > 0 ? (
+              <Button asChild size="compact">
+                <TaskLink
+                  to={`/problems/${state!.ids![index - 1]}`}
+                  state={state}
+                >
+                  <Icon name="chevronLeft" /> 上一题
+                </TaskLink>
+              </Button>
+            ) : (
+              <Button size="compact" disabled>
                 <Icon name="chevronLeft" /> 上一题
-              </TaskLink>
-            </Button>
-          ) : <Button size="compact" disabled><Icon name="chevronLeft" /> 上一题</Button>}
-          {index >= 0 && index < (state?.ids?.length || 0) - 1 ? (
-            <Button asChild size="compact">
-              <TaskLink to={`/problems/${state!.ids![index + 1]}`} state={state}>
+              </Button>
+            )}
+            {index >= 0 && index < (state?.ids?.length || 0) - 1 ? (
+              <Button asChild size="compact">
+                <TaskLink
+                  to={`/problems/${state!.ids![index + 1]}`}
+                  state={state}
+                >
+                  下一题 <Icon name="chevronRight" />
+                </TaskLink>
+              </Button>
+            ) : (
+              <Button size="compact" disabled>
                 下一题 <Icon name="chevronRight" />
-              </TaskLink>
-            </Button>
-          ) : <Button size="compact" disabled>下一题 <Icon name="chevronRight" /></Button>}
-        </div>}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
       <div className="work-heading-row">
         <div className="work-heading">
-          <span className="eyebrow">
-            <Icon name="book" /> 编程练习
-          </span>
           <h1>{p.title}</h1>
           <p className="muted">
             {p.id} · <DifficultyBadge value={p.difficulty} /> · {p.time_limit}{" "}
             秒 · {p.memory_limit} MB
           </p>
         </div>
-        <div className="problem-actions" aria-label="题目操作">
-          <TaskAction label="编辑题目" onError={e => setError(errorText(e))} resolve={() => editingDraftPath(p, findEditingDraft(p.id))} />
-          {user.role === "admin" && (
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                if (
-                  window.prompt(`删除后无法恢复，请输入题号 ${p.id} 确认`) !==
-                  p.id
-                )
-                  return;
-                try {
-                  await api(`/problems/${p.id}`, json("DELETE"));
-                  removeActivity(`problem:${p.id}`);
-                  navigate("/problems");
-                } catch (e) {
-                  setError(errorText(e));
-                }
-              }}
-            >
-              删除题目
-            </Button>
-          )}
-        </div>
+        <details
+          className="problem-actions-menu"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector("summary")?.focus();
+            }
+          }}
+        >
+          <summary>
+            题目操作 <Icon name="chevronDown" />
+          </summary>
+          <div className="problem-actions" aria-label="题目操作">
+            <TaskAction
+              label="编辑题目"
+              onError={(e) => setError(errorText(e))}
+              resolve={() => editingDraftPath(p, findEditingDraft(p.id))}
+            />
+            {user.role === "admin" && (
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  if (
+                    window.prompt(`删除后无法恢复，请输入题号 ${p.id} 确认`) !==
+                    p.id
+                  )
+                    return;
+                  try {
+                    await api(`/problems/${p.id}`, json("DELETE"));
+                    removeActivity(`problem:${p.id}`);
+                    navigate("/problems");
+                  } catch (e) {
+                    setError(errorText(e));
+                  }
+                }}
+              >
+                删除题目
+              </Button>
+            )}
+          </div>
+        </details>
       </div>
       <nav className="section-nav" aria-label="做题快捷跳转">
         {sections.map((t) => (
           <Button
             key={t}
             variant={tab === t ? "default" : "ghost"}
+            aria-current={tab === t ? "location" : undefined}
             onClick={() => {
               const next = new URLSearchParams(params);
               next.set("tab", t);
               passiveNavigation.current = `${location.pathname}?${next}`;
-              replaceCurrent(passiveNavigation.current, location.state as object);
+              replaceCurrent(
+                passiveNavigation.current,
+                location.state as object,
+              );
               jump(t, true);
             }}
           >
@@ -415,28 +519,46 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
                   <option key={v}>{v}</option>
                 ))}
               </select>
-              <CodeImport language={language} disabled={!ready || backupFailed || !!conflict || inFlight.current} onApply={async (target, imported) => {
-                // Persist both source and target backups before changing editor language.
-                // Target loading then reads this backup after establishing its server revision.
-                const epoch = generation.current;
-                const destination = `oj-draft-${user.user_id}-${p.id}-${target}`;
-                const remote = await api<{ code: string; revision: number } | null>(`/workspace-drafts/${p.id}/${target}`);
-                if (generation.current !== epoch) throw new Error("页面或语言已变化，请重新导入。");
-                const existing = readBackup(destination);
-                if (existing && existing.code !== (remote?.code || "") && existing.revision !== (remote?.revision || 0))
-                  throw new Error("目标语言草稿存在版本冲突，请切换到该语言处理后再导入。");
-                writeBackup(backup, latest.current, revision.current);
-                writeBackup(destination, imported, remote?.revision || 0);
-                if (target === language) {
-                  revision.current = remote?.revision || 0;
-                  synced.current = remote?.code || "";
-                  setCode(imported);
-                } else {
-                  setReady(false);
-                  localStorage.setItem("oj-language", target);
-                  setLanguage(target);
-                }
-              }} />
+              <div className="code-import">
+                <CodeImport
+                  language={language}
+                  disabled={
+                    !ready || backupFailed || !!conflict || inFlight.current
+                  }
+                  onApply={async (target, imported) => {
+                    // Persist both source and target backups before changing editor language.
+                    // Target loading then reads this backup after establishing its server revision.
+                    const epoch = generation.current;
+                    const destination = `oj-draft-${user.user_id}-${p.id}-${target}`;
+                    const remote = await api<{
+                      code: string;
+                      revision: number;
+                    } | null>(`/workspace-drafts/${p.id}/${target}`);
+                    if (generation.current !== epoch)
+                      throw new Error("页面或语言已变化，请重新导入。");
+                    const existing = readBackup(destination);
+                    if (
+                      existing &&
+                      existing.code !== (remote?.code || "") &&
+                      existing.revision !== (remote?.revision || 0)
+                    )
+                      throw new Error(
+                        "目标语言草稿存在版本冲突，请切换到该语言处理后再导入。",
+                      );
+                    writeBackup(backup, latest.current, revision.current);
+                    writeBackup(destination, imported, remote?.revision || 0);
+                    if (target === language) {
+                      revision.current = remote?.revision || 0;
+                      synced.current = remote?.code || "";
+                      setCode(imported);
+                    } else {
+                      setReady(false);
+                      localStorage.setItem("oj-language", target);
+                      setLanguage(target);
+                    }
+                  }}
+                />
+              </div>
               <label className="font-control">
                 字号{" "}
                 <select
@@ -450,33 +572,38 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
                 </select>
               </label>
             </div>
-            {ready ? (
-              <CodeEditor
-                value={code}
-                onChange={setCode}
-                language={language}
-                size={size}
-                onSubmit={() => void submit()}
-              />
-            ) : (
-              <div className="skeleton">读取草稿…</div>
-            )}
-            <div className="editor-footer">
-              <span className="muted" role="status">
-                {saving}
-              </span>
-              <Button
-                variant="default"
-                disabled={busy || !ready || !code.trim()}
-                onClick={() => void submit()}
-              >
-                {busy ? "提交中…" : "提交评测"}
-              </Button>
+            <div className="editor-body">
+              {ready ? (
+                <CodeEditor
+                  value={code}
+                  onChange={setCode}
+                  language={language}
+                  size={size}
+                  onSubmit={() => void submit()}
+                />
+              ) : (
+                <div className="skeleton">读取草稿…</div>
+              )}
+              <div className="editor-footer">
+                <span className="muted" role="status">
+                  {saving}
+                </span>
+                <Button
+                  variant="default"
+                  disabled={busy || !ready || !code.trim()}
+                  onClick={() => void submit()}
+                >
+                  {busy ? "提交中…" : "提交评测"}
+                </Button>
+              </div>
             </div>
           </div>
           {error && (
             <div className="error-recovery">
-              <ErrorNotice title={conflict ? "代码版本需要选择" : "代码草稿未能同步"} message={error} />
+              <ErrorNotice
+                title={conflict ? "代码版本需要选择" : "代码草稿未能同步"}
+                message={error}
+              />
               {!conflict && ready && (
                 <Button
                   onClick={() => {
@@ -534,14 +661,22 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
             ) : (
               <p className="muted empty">提交后，评测结果会显示在这里。</p>
             )}
-            <section className="problem-submission-history" aria-labelledby="problem-submission-history-title">
+            <section
+              className="problem-submission-history"
+              aria-labelledby="problem-submission-history-title"
+            >
               <div className="section-title">
                 <Icon name="chart" />
                 <h2 id="problem-submission-history-title">本题提交记录</h2>
-                {history.data && <span className="muted">共 {history.data.total} 条</span>}
+                {history.data && (
+                  <span className="muted">共 {history.data.total} 条</span>
+                )}
               </div>
               {history.error ? (
-                <ErrorNotice title="提交记录暂时无法读取" message={history.error.message} />
+                <ErrorNotice
+                  title="提交记录暂时无法读取"
+                  message={history.error.message}
+                />
               ) : history.isPending ? (
                 <p className="skeleton">正在读取本题提交记录…</p>
               ) : history.data?.submissions.length ? (
@@ -549,10 +684,12 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
                   <div className="submission-history-list">
                     {history.data.submissions.map((item) => {
                       const selected = item.submission_id === submission;
-                      const returnTo = `/problems/${p.id}?${new URLSearchParams({
-                        submission: item.submission_id,
-                        tab: "结果",
-                      })}`;
+                      const returnTo = `/problems/${p.id}?${new URLSearchParams(
+                        {
+                          submission: item.submission_id,
+                          tab: "结果",
+                        },
+                      )}`;
                       return (
                         <article
                           className={`submission-history-row${selected ? " selected" : ""}`}
@@ -562,19 +699,23 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
                           <div>
                             <strong>提交 #{item.submission_id}</strong>
                             <span className="muted">
-                              {item.language} · {new Date(item.created_at).toLocaleString()}
+                              {item.language} ·{" "}
+                              {new Date(item.created_at).toLocaleString()}
                             </span>
                           </div>
                           <VerdictBadge submission={item} />
                           <span className="submission-score">
                             {item.evaluation?.score ?? item.score ?? "—"} /{" "}
-                            {item.evaluation?.max_score ?? item.counts ?? "—"} 分
+                            {item.evaluation?.max_score ?? item.counts ?? "—"}{" "}
+                            分
                           </span>
                           <Button asChild size="compact">
                             <TaskLink
-                              to={`/submissions/${item.submission_id}?${new URLSearchParams({
-                                from: returnTo,
-                              })}`}
+                              to={`/submissions/${item.submission_id}?${new URLSearchParams(
+                                {
+                                  from: returnTo,
+                                },
+                              )}`}
                             >
                               查看详情 <Icon name="arrow" />
                             </TaskLink>
@@ -591,7 +732,9 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
                   />
                 </>
               ) : (
-                <p className="muted empty">还没有提交记录，完成代码后提交第一次评测。</p>
+                <p className="muted empty">
+                  还没有提交记录，完成代码后提交第一次评测。
+                </p>
               )}
             </section>
           </div>

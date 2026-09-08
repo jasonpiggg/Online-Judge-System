@@ -17,7 +17,12 @@ import { Pagination } from "../components/Pagination";
 import { BackLink } from "../components/BackLink";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { DisclosureCard } from "../components/DisclosureCard";
-import { TaskAction, TaskLink, useRecoverUnavailableTask, useRegisterActivity } from "../components/Activity";
+import {
+  TaskAction,
+  TaskLink,
+  useRecoverUnavailableTask,
+  useRegisterActivity,
+} from "../components/Activity";
 
 export function Records({
   user,
@@ -129,7 +134,7 @@ export function Records({
             <p className="list-summary">
               共 <strong>{data.total}</strong> 条记录
             </p>
-            <div className="table-scroll">
+            <div className="table-scroll records-table">
               <table>
                 <thead>
                   <tr>
@@ -145,14 +150,15 @@ export function Records({
                 <tbody>
                   {data.submissions.map((s) => (
                     <tr key={s.submission_id}>
-                      <td>
-                        <TaskLink menuLabel={`提交 #${s.submission_id}`}
+                      <td data-label="提交编号" className="record-id">
+                        <TaskLink
+                          menuLabel={`提交 #${s.submission_id}`}
                           to={`/submissions/${s.submission_id}?${new URLSearchParams({ from: returnTo })}`}
                         >
                           #{s.submission_id}
                         </TaskLink>
                       </td>
-                      <td>
+                      <td data-label="结果" className="record-verdict">
                         <TaskLink
                           to={`/submissions/${s.submission_id}?${new URLSearchParams({ from: returnTo })}`}
                         >
@@ -160,27 +166,47 @@ export function Records({
                         </TaskLink>
                       </td>
                       {isAdmin && (
-                        <td>
+                        <td data-label="提交用户" className="record-user">
                           <Link to={`/admin?tab=用户&user_id=${s.user_id}`}>
                             {s.username || `用户 ${s.user_id}`}
                           </Link>
                           <small className="cell-note">ID {s.user_id}</small>
                         </td>
                       )}
-                      <td>
+                      <td data-label="题号" className="record-problem">
                         {s.problem_deleted ? (
-                          <span>{s.problem_id} <small className="cell-note">题目已删除</small></span>
+                          <span>
+                            {s.problem_id}{" "}
+                            <small className="cell-note">题目已删除</small>
+                          </span>
                         ) : (
-                          <TaskLink to={`/problems/${s.problem_id}`}>{s.problem_id}</TaskLink>
+                          <TaskLink to={`/problems/${s.problem_id}`}>
+                            {s.problem_id}
+                          </TaskLink>
                         )}
                       </td>
-                      <td>
+                      <td data-label="语言" className="record-language">
                         <span className="language-tag">{s.language}</span>
                       </td>
-                      <td className="time-cell">
+                      <td
+                        data-label="提交时间"
+                        className="time-cell record-time"
+                      >
                         {new Date(s.created_at).toLocaleString()}
                       </td>
-                      <td>
+                      <td className="record-actions">
+                        <Button
+                          asChild
+                          size="compact"
+                          variant="outline"
+                          className="mobile-record-detail"
+                        >
+                          <TaskLink
+                            to={`/submissions/${s.submission_id}?${new URLSearchParams({ from: returnTo })}`}
+                          >
+                            查看详情
+                          </TaskLink>
+                        </Button>
                         <Button asChild size="compact" variant="outline">
                           <TaskLink
                             to={`/logs/submissions/${s.submission_id}?${new URLSearchParams({ from: returnTo })}`}
@@ -199,7 +225,9 @@ export function Records({
                 没有匹配的提交记录。
                 {!isAdmin && (
                   <Button asChild size="compact">
-                    <Link to="/problems">去做一道题 <Icon name="arrow" /></Link>
+                    <Link to="/problems">
+                      去做一道题 <Icon name="arrow" />
+                    </Link>
                   </Button>
                 )}
               </p>
@@ -242,18 +270,20 @@ export function SubmissionPage({ user }: { user: User }) {
   return (
     <div className="page">
       <BackLink />
-      <h1>提交 #{id}</h1>
-      {loadError && <ErrorNotice title="无法读取提交详情" message={loadError.message} />}
+      <div className="page-heading submission-heading">
+        <h1>提交 #{id}</h1>
+        {s && !s.problem_deleted && (
+          <TaskAction
+            to={`/problems/${s.problem_id}?submission=${id}&tab=代码`}
+            label="继续修改题目"
+          />
+        )}
+      </div>
+      {loadError && (
+        <ErrorNotice title="无法读取提交详情" message={loadError.message} />
+      )}
       {s && (
         <>
-          <div className="row">
-            <span className="eyebrow">
-              <Icon name="chart" /> 提交详情
-            </span>
-            {!s.problem_deleted && (
-              <TaskAction to={`/problems/${s.problem_id}?submission=${id}&tab=代码`} label="继续修改题目" />
-            )}
-          </div>
           <p className="muted">
             题号 {s.problem_id} · {s.username || `用户 ${s.user_id}`} ·{" "}
             {s.language} · {new Date(s.created_at).toLocaleString()}
