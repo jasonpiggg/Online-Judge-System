@@ -132,26 +132,13 @@ export function updateSlot(
         },
   );
 }
-export function findTask(
-  slots: TaskSlot[],
-  path: string,
-  includeHistory = true,
-) {
+// Page identity belongs to the visible tab; history entries only support Back.
+export function findTask(slots: TaskSlot[], path: string) {
   const identity = routeIdentity(path);
-  const ordered = slots.slice().sort((a, b) => b.touchedAt - a.touchedAt);
-  const current = ordered.find(
+  const current = slots.slice().sort((a, b) => b.touchedAt - a.touchedAt).find(
     (slot) => routeIdentity(slot.current.path) === identity,
   );
   if (current) return { slot: current, index: -1, entry: current.current };
-  if (includeHistory)
-    for (const slot of ordered) {
-      const reversed = slot.backStack
-        .slice()
-        .reverse()
-        .findIndex((entry) => routeIdentity(entry.path) === identity);
-      const index = reversed < 0 ? -1 : slot.backStack.length - 1 - reversed;
-      if (index >= 0) return { slot, index, entry: slot.backStack[index] };
-    }
 }
 function readStored(storageKey: string): TaskSlot[] {
   try {
@@ -409,11 +396,7 @@ export function ActivityProvider({
           processedKeys.current.values().next().value!,
         );
       if (!existing || routeState.taskAction === "new") {
-        const found = findTask(
-          slotsRef.current,
-          entry.path,
-          routeState.taskAction !== "new",
-        );
+        const found = findTask(slotsRef.current, entry.path);
         if (found) {
           restore(found, entry.path, cleanState(loc.state));
           return;
@@ -431,6 +414,13 @@ export function ActivityProvider({
       }
       const same =
         routeIdentity(existing.current.path) === routeIdentity(entry.path);
+      if (!same) {
+        const found = findTask(slotsRef.current, entry.path);
+        if (found) {
+          restore(found, entry.path, cleanState(loc.state));
+          return;
+        }
+      }
       const nextEntry = {
         ...(same ? existing.current : {}),
         ...entry,
@@ -470,7 +460,7 @@ export function ActivityProvider({
     (to: string, extra?: object) => {
       if (!confirmLeave()) return;
       capture();
-      const found = findTask(slotsRef.current, to, true);
+      const found = findTask(slotsRef.current, to);
       if (found) {
         // A plain resource link restores the existing section; explicit query targets win.
         restore(found, to.includes("?") ? to : found.entry.path, extra);
@@ -580,6 +570,13 @@ export function ActivityProvider({
     if (!activeSlot?.backStack.length || !confirmLeave()) return;
     const index = activeSlot.backStack.length - 1;
     const entry = activeSlot.backStack[index];
+    // History is for Back only; never overwrite another open page to restore it.
+    const found = findTask(slotsRef.current, entry.path);
+    if (found) {
+      capture();
+      restore(found, found.entry.path);
+      return;
+    }
     const restored = {
       ...activeSlot,
       current: entry,
@@ -599,13 +596,13 @@ export function ActivityProvider({
         taskAction: "back",
       },
     });
-  }, [activeSlot, commit, confirmLeave, navigate]);
+  }, [activeSlot, capture, commit, confirmLeave, navigate, restore]);
   const findEditingDraft = useCallback((id: string) => {
     const ordered = slotsRef.current
       .slice()
       .sort((a, b) => b.touchedAt - a.touchedAt);
     return ordered
-      .flatMap((slot) => [slot.current, ...slot.backStack.slice().reverse()])
+      .map((slot) => slot.current)
       .find((entry) => entry.kind === "draft" && entry.baseProblemId === id);
   }, []);
   useEffect(() => {

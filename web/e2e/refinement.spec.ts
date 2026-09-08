@@ -43,7 +43,7 @@ test("reopening edit reuses its draft and tabs restore list context", async ({
   await showProblemActions(page);
   await page.getByRole("button", { name: "编辑题目", exact: true }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe(draftUrl);
-  await expect(page.locator(".activity-tab")).toHaveCount(1);
+  await expect(page.locator(".activity-tab")).toHaveCount(2);
   await page.getByRole("button", { name: /返回 sum_2/ }).click();
   // This reopening came from the filtered list, so the preserved context has one item.
   await expect(
