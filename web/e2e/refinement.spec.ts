@@ -359,4 +359,6 @@ test("statement uses available width and assistant groups answers at desktop and
     await page.locator(".assistant").screenshot({path: info.outputPath(`assistant-${width}.png`)});
     await page.locator(".statement-pane").screenshot({path: info.outputPath(`statement-${width}.png`)});
   }
+  await page.getByRole("button", { name: "新对话", exact: true }).click();
+  await expect(page.getByText("已开始新对话，后续回答不会携带此前对话内容。", { exact: true })).toBeVisible();
 });
