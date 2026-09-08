@@ -189,7 +189,7 @@ def draft_page(api: ApiClient) -> None:
         d["problem"].get("title") or "未命名草稿",
         note=f"{d['status']} · v{state['revision']} · 保存草稿无需填写全部字段",
     )
-    if d["status"] == "ready" and st.session_state.user["role"] == "admin":
+    if d["status"] in {"ready", "published"} and st.session_state.user["role"] == "admin":
         if st.button("题目管理", key=f"draft-problem-management-{did}"):
             go("resources", section="题目", id=d["problem"].get("id"))
     if conflict := state.get("conflict"):
