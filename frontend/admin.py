@@ -70,35 +70,7 @@ def admin_page(api: ApiClient) -> None:
                     ):
                         st.success("账户已创建")
     elif section == "语言":
-        languages = call(lambda: api.get("/api/languages/", params={"include_metadata": True}))
-        if languages:
-            st.dataframe(languages["data"]["languages"], width="stretch", hide_index=True)
-        with st.expander("注册评测语言", expanded=True), st.form("register-language"):
-            a, b = st.columns(2)
-            name = a.text_input("语言标识", placeholder="python_alt")
-            extension = b.text_input("文件扩展名", placeholder=".py")
-            compile_cmd = st.text_input(
-                "编译命令（可选）", help="仅允许安全可执行程序及 {src}/{exe} 模板"
-            )
-            run_cmd = st.text_input("运行命令", placeholder="python3 {src}")
-            a, b = st.columns(2)
-            seconds = a.number_input("默认时间 / 秒", min_value=0.1, max_value=30.0, value=3.0)
-            memory = b.number_input("默认内存 / MB", min_value=16, max_value=2048, value=128)
-            if st.form_submit_button("注册语言", type="primary"):
-                if call(
-                    lambda: api.post(
-                        "/api/languages/",
-                        json={
-                            "name": name,
-                            "file_ext": extension,
-                            "compile_cmd": compile_cmd or None,
-                            "run_cmd": run_cmd,
-                            "time_limit": seconds,
-                            "memory_limit": memory,
-                        },
-                    )
-                ):
-                    st.success("语言已注册。题目选择继承限制时将使用此配置。")
+        language_page(api)
     elif section == "访问审计":
         a, b = st.columns(2)
         uid = a.number_input("用户 ID（0 为全部）", min_value=0, value=0, step=1)
@@ -112,6 +84,9 @@ def admin_page(api: ApiClient) -> None:
             params["user_id"] = uid
         if pid:
             params["problem_id"] = pid
+        if not uid and not pid.strip():
+            st.info("请填写用户 ID 或题号后查询访问审计。")
+            return
         result = call(lambda: api.get("/api/logs/access/", params=params))
         if result:
             pager("audit-page", has_next=len(result["data"]) == 10)
@@ -125,3 +100,35 @@ def admin_page(api: ApiClient) -> None:
         st.caption("保留数据升级不需要重置。此操作仅用于重新开始课程演示。")
         if st.button("重置实验系统", type="secondary"):
             reset_dialog(api)
+
+
+def language_page(api: ApiClient) -> None:
+    languages = call(lambda: api.get("/api/languages/", params={"include_metadata": True}))
+    if languages:
+        st.dataframe(languages["data"]["languages"], width="stretch", hide_index=True)
+    with st.expander("注册评测语言", expanded=True), st.form("register-language"):
+        a, b = st.columns(2)
+        name = a.text_input("语言标识", placeholder="python_alt")
+        extension = b.text_input("文件扩展名", placeholder=".py")
+        compile_cmd = st.text_input(
+            "编译命令（可选）", help="仅允许安全可执行程序及 {src}/{exe} 模板"
+        )
+        run_cmd = st.text_input("运行命令", placeholder="python3 {src}")
+        a, b = st.columns(2)
+        seconds = a.number_input("默认时间 / 秒", min_value=0.1, max_value=30.0, value=3.0)
+        memory = b.number_input("默认内存 / MB", min_value=16, max_value=2048, value=128)
+        if st.form_submit_button("注册语言", type="primary"):
+            if call(
+                lambda: api.post(
+                    "/api/languages/",
+                    json={
+                        "name": name,
+                        "file_ext": extension,
+                        "compile_cmd": compile_cmd or None,
+                        "run_cmd": run_cmd,
+                        "time_limit": seconds,
+                        "memory_limit": memory,
+                    },
+                )
+            ):
+                st.success("语言已注册。题目选择继承限制时将使用此配置。")

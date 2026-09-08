@@ -6,10 +6,11 @@ from fastapi.responses import JSONResponse
 from oj.auth import CurrentUser, get_current_user
 from oj.errors import APIError, response
 from oj.languages import get_language
+from oj.route_security import AuthorizedRoute
 from oj.schemas import WorkspaceDraftUpdate
 from oj.submissions import now_iso
 
-router = APIRouter(prefix="/api/workspace-drafts")
+router = APIRouter(route_class=AuthorizedRoute, prefix="/api/workspace-drafts")
 
 
 @router.get("/{problem_id}/{language}")

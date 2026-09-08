@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from oj.ai_authoring import utcnow
 from oj.auth import CurrentUser, get_current_user
 from oj.errors import APIError, response
+from oj.route_security import AuthorizedRoute
 from oj.schemas import (
     AIModelConfig,
     AIProblemTaskCreate,
@@ -19,7 +20,7 @@ from oj.schemas import (
     DraftProblem,
 )
 
-router = APIRouter(prefix="/api/ai")
+router = APIRouter(route_class=AuthorizedRoute, prefix="/api/ai")
 
 
 @router.get("/model-config")

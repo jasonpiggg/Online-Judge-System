@@ -7,8 +7,10 @@ from fastapi.responses import JSONResponse
 
 from oj.auth import CurrentUser, get_current_user, require_admin
 from oj.errors import APIError, response
+from oj.pagination import page_window
+from oj.route_security import AuthorizedRoute
 
-router = APIRouter(prefix="/api")
+router = APIRouter(route_class=AuthorizedRoute, prefix="/api")
 
 @router.get("/logs/roles/")
 async def role_logs(
@@ -87,7 +89,7 @@ async def access_logs(
     user_id: int | None = None,
     problem_id: str | None = None,
     page: int | None = Query(default=None, ge=1),
-    page_size: int | None = Query(default=None, ge=1, le=100),
+    page_size: int | None = Query(default=None, ge=1),
     include_metadata: bool = False,
     _admin: CurrentUser = Depends(require_admin),
 ) -> JSONResponse:
@@ -105,11 +107,15 @@ async def access_logs(
         params.append(problem_id)
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
     count_params = tuple(params)
+    total = await request.app.state.db.fetchone(
+        f"SELECT COUNT(*) AS n FROM access_logs{where}",  # noqa: S608
+        count_params,
+    )
     sql = f"SELECT user_id,problem_id,action,time,status FROM access_logs{where} ORDER BY id DESC"  # noqa: S608
     if page_size is not None:
         page = page or 1
         sql += " LIMIT ? OFFSET ?"
-        params.extend((page_size, (page - 1) * page_size))
+        params.extend(page_window(page, page_size, total["n"]))
     rows = await request.app.state.db.fetchall(sql, params)
     logs = [
         {
@@ -123,8 +129,4 @@ async def access_logs(
     ]
     if not include_metadata:
         return response(data=logs)
-    total = await request.app.state.db.fetchone(
-        f"SELECT COUNT(*) AS n FROM access_logs{where}",  # noqa: S608
-        count_params,
-    )
     return response(data={"logs": logs, "total": int(total["n"])})

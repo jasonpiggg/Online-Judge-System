@@ -38,7 +38,6 @@ from oj.ai_sections import (
     merge_section,
     section_prompt,
 )
-from oj.difficulty import normalize_difficulty
 from oj.errors import APIError
 from oj.evaluation import evaluation_summary, private_evaluation
 from oj.judge import judge_code
@@ -254,19 +253,12 @@ class AIExperience(AIAuthoringManager):
                 if draft["status"] in {"archived", "published"}:
                     raise APIError(409, "此草稿已归档或发布，请从题目创建新的编辑草稿")
                 draft_problem = json.loads(draft["problem_json"])
-                if "difficulty" in draft_problem:
-                    draft_problem["difficulty"] = normalize_difficulty(draft_problem["difficulty"])
                 payload["base_problem"] = draft_problem
                 payload["source_revision"] = draft["revision"]
                 payload["assets"] = {
                     k: draft[k] for k in ("reference_solution", "brute_solution", "generator_code")
                 }
                 payload["assets"].update(json.loads(draft["review_json"]))
-            # Alias normalization must not make an unchanged pre-upgrade task unresumable.
-            if payload.get("resume_task_id"):
-                previous_base = previous.get("base_problem")
-                if isinstance(previous_base, dict) and "difficulty" in previous_base:
-                    previous_base["difficulty"] = normalize_difficulty(previous_base["difficulty"])
             if payload.get("resume_task_id") and (
                 previous.get("base_problem") != payload.get("base_problem")
                 or previous.get("source_revision") != payload.get("source_revision")

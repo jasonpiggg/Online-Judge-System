@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from frontend.client import ApiClient
 from frontend.library import statement
 from frontend.ui import call, heading, navigate
-from oj.difficulty import DIFFICULTIES, normalize_difficulty
+from oj.difficulty import DIFFICULTIES
 from oj.schemas import Problem
 
 
@@ -147,10 +147,12 @@ def editor_page(api: ApiClient) -> None:
             with b:
                 field("题目标题", "title")
             levels = [level["value"] for level in DIFFICULTIES]
+            if draft.get("difficulty", "") not in levels:
+                levels.append(draft["difficulty"])
             draft["difficulty"] = st.selectbox(
                 "难度",
                 levels,
-                index=levels.index(normalize_difficulty(draft.get("difficulty", ""))),
+                index=levels.index(draft.get("difficulty", "")),
                 format_func=lambda value: value or "未分级",
                 key=f"{prefix}-difficulty",
                 help="按解题思维与算法要求分为入门、简单、中等、困难、挑战。",

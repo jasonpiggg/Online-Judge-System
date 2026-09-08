@@ -6,6 +6,6 @@ export function difficultyLevel(value?: string) {
   return (
     levels.find(
       (level) => level.value === key || level.aliases.includes(key),
-    ) || levels[0]
+    ) || { ...levels[0], value: value || "", label: value || levels[0].label }
   );
 }

@@ -10,10 +10,12 @@ from oj.auth import CurrentUser, get_current_user, require_admin
 from oj.errors import APIError, response
 from oj.evaluation import evaluation_batch, private_evaluation
 from oj.languages import get_language
+from oj.pagination import page_window
+from oj.route_security import AuthorizedRoute
 from oj.schemas import SubmissionCreate
 from oj.submissions import detail_from_row, now_iso, summary_from_row
 
-router = APIRouter(prefix="/api/submissions")
+router = APIRouter(route_class=AuthorizedRoute, prefix="/api/submissions")
 
 
 async def visible_evaluations(
@@ -94,7 +96,7 @@ async def list_submissions(
     status: str | None = Query(default=None, pattern="^(pending|success|error)$"),
     outcome: str | None = Query(default=None, pattern="^(passed|not_passed)$"),
     page: int | None = Query(default=None, ge=1),
-    page_size: int | None = Query(default=None, ge=1, le=100),
+    page_size: int | None = Query(default=None, ge=1),
     all_users: bool = False,
     include_metadata: bool = False,
     user: CurrentUser = Depends(submission_reader),
@@ -140,7 +142,7 @@ async def list_submissions(
     if page_size is not None:
         page = page or 1
         sql += " LIMIT ? OFFSET ?"
-        params.extend((page_size, (page - 1) * page_size))
+        params.extend(page_window(page, page_size, total["n"]))
     rows = await request.app.state.db.fetchall(sql, params)
     evaluations = await visible_evaluations(request, user, rows) if include_metadata else {}
     items = []

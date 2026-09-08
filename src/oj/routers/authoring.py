@@ -9,17 +9,15 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from oj.auth import CurrentUser, get_current_user
-from oj.difficulty import normalize_difficulty
 from oj.errors import APIError, response
+from oj.route_security import AuthorizedRoute
 from oj.schemas import Problem, ProblemDraftCreate, ProblemDraftUpdate, ProblemDraftVerify
 from oj.submissions import now_iso
 
-router = APIRouter(prefix="/api/problem-drafts")
+router = APIRouter(route_class=AuthorizedRoute, prefix="/api/problem-drafts")
 
 
 def _normalize_problem(problem: dict[str, Any]) -> dict[str, Any]:
-    if "difficulty" in problem:
-        problem["difficulty"] = normalize_difficulty(problem["difficulty"])
     return problem
 
 

@@ -135,7 +135,7 @@ export function Login() {
           else if (usernameLength > 40) validation.username = "用户名不能超过 40 个字符。";
           else if ([...username].some((character) => /\s/.test(character) || character.charCodeAt(0) <= 31 || character.charCodeAt(0) === 127)) validation.username = "用户名不能包含空格或控制字符。";
           if (passwordLength < 6) validation.password = "密码至少需要 6 个字符。";
-          else if (passwordLength > 200) validation.password = "密码不能超过 200 个字符。";
+          else if (new TextEncoder().encode(password).length > 72) validation.password = "密码最多 72 个 UTF-8 字节；旧超长密码请联系管理员人工重设。";
           if (register && password !== confirmation) validation.password_confirmation = "两次输入的密码不一致。";
           if (Object.keys(validation).length) {
             setFieldErrors(validation);

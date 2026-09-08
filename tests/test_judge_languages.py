@@ -28,10 +28,11 @@ def test_command_security() -> None:
 
 
 async def test_language_api(client: AsyncClient, app: FastAPI) -> None:
-    listing = await client.get("/api/languages/")
-    assert listing.json()["data"]["name"] == ["cpp", "python"]
+    assert (await client.get("/api/languages/")).status_code == 401
     assert (await client.post("/api/languages/", json={})).status_code == 401
     await login_admin(client)
+    listing = await client.get("/api/languages/")
+    assert listing.json()["data"]["name"] == ["cpp", "python"]
     payload = {
         "name": "python_alt",
         "file_ext": ".py",
