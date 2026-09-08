@@ -4,6 +4,7 @@ import { CodeEditor } from "../src/components/Editor";
 import { RichText } from "../src/components/Markdown";
 import { DiffView } from "../src/components/DiffView";
 import "./style.css";
+import { equivalentDraft } from "./draft-state";
 
 type Data = { mode: string; text?: string; code?: string; language?: string; size?: number; owner?: string; storageKey?: string; revision?: number; epoch?: number; before?: Record<string, unknown>; after?: Record<string, unknown>; api?: string; action?: string; username?: string; password?: string; nonce?: string; url?: string; dirty?: boolean; payload?: unknown; saved?: unknown; resolveBackup?: number };
 type Bridge = { data: Data; parentElement: HTMLElement | ShadowRoot; setStateValue: (key: string, value: unknown) => void; setTriggerValue: (key: string, value: unknown) => void };
@@ -14,10 +15,6 @@ function browserApi(api: string | undefined) {
   const target = new URL(api || location.origin);
   if (['localhost', '127.0.0.1'].includes(target.hostname) && ['localhost', '127.0.0.1'].includes(location.hostname)) target.hostname = location.hostname;
   return target.origin;
-}
-function canonical(value: unknown): string {
-  return JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
-    ? Object.fromEntries(Object.keys(item).sort().map(key => [key,item[key]])) : item);
 }
 const sameCode = (a: unknown, b: unknown) => typeof a === 'string' && typeof b === 'string' && a.replace(/\r\n/g,'\n') === b.replace(/\r\n/g,'\n');
 const dirtyControls = new Map<string, boolean>();
@@ -43,7 +40,7 @@ function Component({ bridge }: { bridge: Bridge }) {
       const raw = sessionStorage.getItem(storageKey) || localStorage.getItem(storageKey);
       if (raw) {
         const value = JSON.parse(raw);
-        if ((d.mode === 'editor' && typeof value.code === "string" && !sameCode(value.code, d.code)) || (d.mode === 'backup' && value.payload && typeof value.payload === 'object' && canonical(value.payload) !== canonical(d.payload))) {
+        if ((d.mode === 'editor' && typeof value.code === "string" && !sameCode(value.code, d.code)) || (d.mode === 'backup' && value.payload && typeof value.payload === 'object' && !equivalentDraft(value.payload, d.payload))) {
           backupPending.current = true;
           callbacks.current.setTriggerValue("backup", value);
         }
@@ -53,7 +50,7 @@ function Component({ bridge }: { bridge: Bridge }) {
   useEffect(() => {
     if (!storageKey) return;
     if (d.mode === 'editor') dirtyControls.set(storageKey, !sameCode(code, d.saved));
-    if (d.mode === 'backup') { dirtyControls.set(storageKey, canonical(d.payload) !== canonical(d.saved)); pendingFormInput = false; }
+    if (d.mode === 'backup') { dirtyControls.set(storageKey, !equivalentDraft(d.payload, d.saved)); pendingFormInput = false; }
     try {
       if (resolution.current !== d.resolveBackup) {
         resolution.current = d.resolveBackup; backupPending.current = false;
@@ -64,7 +61,7 @@ function Component({ bridge }: { bridge: Bridge }) {
         const raw = sessionStorage.getItem(storageKey) || localStorage.getItem(storageKey);
         if (raw && sameCode(JSON.parse(raw).code, d.saved)) { sessionStorage.removeItem(storageKey); localStorage.removeItem(storageKey); }
       } else if (d.mode === 'backup') {
-        if (canonical(d.payload) === canonical(d.saved)) { sessionStorage.removeItem(storageKey); localStorage.removeItem(storageKey); }
+        if (equivalentDraft(d.payload, d.saved)) { sessionStorage.removeItem(storageKey); localStorage.removeItem(storageKey); }
         else { const raw = JSON.stringify({payload:d.payload,revision:d.revision}); sessionStorage.setItem(storageKey,raw); localStorage.setItem(storageKey,raw); }
       }
     } catch { /* Never discard server data because storage is unavailable. */ }
@@ -95,9 +92,23 @@ function Component({ bridge }: { bridge: Bridge }) {
       seen.current = storage;
       let restored: unknown = [];
       try { const raw = localStorage.getItem(storage); if (raw) restored = JSON.parse(raw); } catch { /* Ignore malformed state. */ }
-      callbacks.current.setTriggerValue('restored', Array.isArray(restored) ? restored : []);
+      callbacks.current.setStateValue('restored', Array.isArray(restored) ? restored : []);
     }
     const surface = scrollSurface();
+    const updateSection = () => {
+      const sectionLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>('.st-key-section-nav a'));
+      let current = sectionLinks[0];
+      for (const link of sectionLinks) {
+        const section = document.getElementById(decodeURIComponent(link.hash.slice(1)));
+        if (section && section.getBoundingClientRect().top <= 180) current = link;
+      }
+      for (const link of sectionLinks) {
+        if (link === current) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      }
+    };
+    surface.addEventListener('scroll', updateSection, { passive: true });
+    updateSection();
     let restoreTimer: ReturnType<typeof setInterval> | undefined;
     try {
       const y = Number(sessionStorage.getItem(scrollKey) || 0);
@@ -135,7 +146,7 @@ function Component({ bridge }: { bridge: Bridge }) {
     };
     const interval = setInterval(() => void check(), 4000);
     const focus = () => void check(); window.addEventListener("focus", focus);
-    return () => { clearInterval(interval); clearInterval(restoreTimer); window.removeEventListener("focus", focus); surface.removeEventListener("scroll", save); document.removeEventListener('input', input, true); document.removeEventListener('click', navigate, true); window.removeEventListener("beforeunload", guard); };
+    return () => { clearInterval(interval); clearInterval(restoreTimer); window.removeEventListener("focus", focus); surface.removeEventListener("scroll", save); surface.removeEventListener("scroll", updateSection); document.removeEventListener('input', input, true); document.removeEventListener('click', navigate, true); window.removeEventListener("beforeunload", guard); };
   }, [d.mode, d.owner, d.payload, d.url]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   if (d.mode === "markdown") return <RichText text={d.text} />;

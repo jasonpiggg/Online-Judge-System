@@ -11,7 +11,7 @@ from frontend.authoring import authoring_page, draft_page, task_page
 from frontend.client import ApiClient, ApiError
 from frontend.components import control
 from frontend.editor import editor_page
-from frontend.library import library_page
+from frontend.library import breakpoint, library_page
 from frontend.navigation import DETAILS, restore_slots, route, task_bar
 from frontend.records import records_page, submission_page
 from frontend.resources import public_log_page, resources_page
@@ -83,12 +83,23 @@ pages = {
 }
 st.session_state.pages = pages
 nav = st.navigation(list(pages.values()), position="top")
+responsive = breakpoint(
+    data={"mobile": st.session_state.get("mobile")},
+    key="viewport-state",
+    on_mobile_change=lambda: None,
+    height=0,
+)
+if isinstance(responsive.mobile, bool):
+    st.session_state.mobile = responsive.mobile
 current = nav.url_path or "library"
+st.session_state.pop("active_slot", None)
 st.session_state.current_route = route(current, st.query_params.to_dict())
 for slot in st.session_state.get("task_slots", []):
-    if slot["current"]["page"] == current and slot["current"]["params"].get(
-        "id"
-    ) == st.query_params.get("id"):
+    if (
+        current in DETAILS
+        and slot["current"]["page"] == current
+        and slot["current"]["params"].get("id") == st.query_params.get("id")
+    ):
         slot["current"] = st.session_state.current_route
         st.session_state.active_slot = slot["key"]
         break
@@ -129,8 +140,11 @@ if st.session_state.get("user"):
             slots.append(slot)
             st.session_state.active_slot = slot["key"]
             st.rerun()
-    with st.sidebar:
-        st.write(f"**{user['username']}**")
-        st.caption("管理员" if user["role"] == "admin" else "学习者")
-        logout_control(api)
+    with st.container(horizontal=True, vertical_alignment="center", key="brand-bar"):
+        st.html('<div class="oj-brand">Atelier <span>OJ</span></div>')
+        with st.popover(f"{user['username']} · 账户"):
+            st.caption("管理员" if user["role"] == "admin" else "学习者")
+            st.page_link(pages["profile"], label="个人账户")
+            logout_control(api, key="header-logout")
+
 nav.run()

@@ -1,49 +1,25 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta, timezone
 from html import escape
+from pathlib import Path
 from typing import Any
 
 import streamlit as st
 
 from frontend.client import ApiError
 
-CSS = """
-<style>
-body,.stApp {font-family:system-ui,'Microsoft YaHei',sans-serif;color:#1d293d;background:#fff}
-[data-testid="stHeader"] {background:#ffffffee}
-[data-testid="stMainBlockContainer"] {max-width:1440px;padding:1.5rem 2rem 4rem}
-h1,h2,h3 {font-family:inherit;letter-spacing:-.015em}
-[data-testid="stAppDeployButton"] {display:none}
-[data-testid="stWidgetLabel"] p,.stButton button,[data-testid="stCaptionContainer"] {font-size:14px}
-.stButton button,.stFormSubmitButton button {min-height:40px;border-radius:8px}
-[data-testid="stCaptionContainer"] {color:#617087}
-.oj-header {margin:0 0 20px}.oj-header h1{margin:0;font-size:28px}
-.oj-header p{margin:8px 0;color:#617087}
-.oj-pill,.oj-status {display:inline-block;border:1px solid #e3eaf3;background:#f5f8fe;
-border-radius:8px;padding:4px 9px;margin:3px;font-size:14px}
-.oj-status.pass{color:#197348}.oj-status.fail{color:#b42332}.oj-status.wait{color:#8c6415}
-[data-testid="stExpander"],[data-testid="stForm"]{border-color:#e3eaf3;border-radius:12px}
-[data-testid="stMetricValue"]{font-size:24px}
-.st-key-task-bar {position:sticky;top:3rem;z-index:90;background:#fff;
-border-bottom:1px solid #e3eaf3;padding:6px 0}
-pre,code {font-family:'JetBrains Mono',Consolas,monospace}
-.st-key-section-nav {position:sticky;top:7rem;background:#fff;z-index:80}
-@media(max-width:760px){[data-testid="stMainBlockContainer"]{padding:1rem .75rem 3rem}
-.stButton button{min-height:44px}.oj-header h1{font-size:24px}}
-@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
-</style>
-"""
+CSS = "<style>" + Path(__file__).with_name("theme.css").read_text(encoding="utf-8") + "</style>"
 
 
 def apply_theme() -> None:
-    st.markdown(CSS, unsafe_allow_html=True)
+    st.html(CSS)
 
 
 def heading(kicker: str, title: str = "", note: str = "") -> None:
-    st.markdown(
+    st.html(
         f'<div class="oj-header"><h1>{escape(title or kicker)}</h1><p>{escape(note)}</p></div>',
-        unsafe_allow_html=True,
     )
 
 
@@ -74,9 +50,7 @@ def navigate(page: str, **state: Any) -> None:
 
 
 def pills(values: list[str]) -> None:
-    st.markdown(
-        "".join(f'<span class="oj-pill">{escape(v)}</span>' for v in values), unsafe_allow_html=True
-    )
+    st.html("".join(f'<span class="oj-pill">{escape(v)}</span>' for v in values))
 
 
 def pager(key: str, count: int | None = None, size: int = 10, has_next: bool = False) -> int:
@@ -94,3 +68,139 @@ def pager(key: str, count: int | None = None, size: int = 10, has_next: bool = F
             st.session_state[key] = page + 1
             st.rerun()
     return page
+
+
+STATUS_LABELS = {
+    "pending": "等待中",
+    "running": "进行中",
+    "success": "评测完成",
+    "error": "评测异常",
+    "completed": "已完成",
+    "failed": "失败",
+    "cancelled": "已取消",
+    "draft": "草稿",
+    "ready": "可发布",
+    "published": "已发布",
+    "archived": "已归档",
+    "generate": "生成整题",
+    "revise": "局部修改",
+    "review": "全面审查",
+    "tests": "设计测试",
+    "verify": "本地验证",
+    "user": "学习者",
+    "admin": "管理员",
+    "banned": "已禁用",
+    "generation": "生成题目",
+    "critique": "复核与改进",
+    "validation": "验证结果",
+    "queued": "等待执行",
+    "statement": "题面生成",
+    "oracle": "参考解验证",
+    "coverage": "覆盖检查",
+    "differential": "差分验证",
+    "passed": "通过",
+    "skipped": "未执行",
+    "blocked": "未满足条件",
+}
+
+
+def status_label(value: str) -> str:
+    return STATUS_LABELS.get(value, value or "—")
+
+
+def local_time(value: str | None) -> str:
+    if not value:
+        return "—"
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M")
+    except ValueError:
+        return value
+
+
+def verdict_label(data: dict[str, Any]) -> tuple[str, str]:
+    status = data.get("status")
+    if status == "pending":
+        return "正在评测", "wait"
+    if status == "error":
+        return "评测异常", "fail"
+    verdict = (data.get("evaluation") or {}).get("verdict")
+    labels = {
+        "CE": "编译失败",
+        "WA": "答案错误",
+        "TLE": "超出时间限制",
+        "MLE": "超出内存限制",
+        "RE": "运行时错误",
+        "empty": "没有测试点",
+        "unknown": "明细不完整",
+        "partial": "部分通过",
+        "failed": "测试未通过",
+    }
+    if verdict in labels:
+        return labels[verdict], "wait" if verdict in {"empty", "unknown"} else "fail"
+    score, total = data.get("score"), data.get("counts")
+    if total and score == total:
+        return "全部通过", "pass"
+    if total == 0:
+        return "没有测试点", "wait"
+    if score is None or total is None:
+        return "评测完成 · 得分待确认", "wait"
+    return "未全部通过", "fail"
+
+
+def result_summary(data: dict[str, Any]) -> None:
+    label, tone = verdict_label(data)
+    score, total = data.get("score"), data.get("counts")
+    evaluation = data.get("evaluation") or {}
+    detail = ""
+    if evaluation.get("total_cases") is not None:
+        detail = f" · 通过测试点 {evaluation.get('passed_cases', 0)} / {evaluation['total_cases']}"
+    st.html(
+        f'<div class="oj-result {tone}" role="status"><strong>{escape(label)}</strong>'
+        f"<p>得分 {score if score is not None else '—'} / "
+        f"{total if total is not None else '—'}{escape(detail)}</p></div>",
+    )
+
+
+def data_table(rows: list[dict[str, Any]]) -> None:
+    labels = {
+        "id": "编号",
+        "user_id": "用户 ID",
+        "username": "用户名",
+        "role": "角色",
+        "join_time": "加入时间",
+        "submit_count": "提交次数",
+        "resolve_count": "通过题目",
+        "result": "结果",
+        "time": "用时 / 秒",
+        "memory": "内存 / MB",
+        "name": "语言",
+        "file_ext": "扩展名",
+        "compile_cmd": "编译命令",
+        "run_cmd": "运行命令",
+        "time_limit": "时间 / 秒",
+        "memory_limit": "内存 / MB",
+        "created_at": "时间（北京时间）",
+        "problem_id": "题号",
+        "action": "操作",
+        "old_role": "原角色",
+        "new_role": "新角色",
+        "actor_id": "操作者 ID",
+        "status": "状态",
+        "label": "检查项",
+        "detail": "说明与建议",
+    }
+    display = [
+        {
+            k: local_time(v)
+            if k == "created_at"
+            else status_label(v)
+            if k in {"role", "old_role", "new_role", "status"} and isinstance(v, str)
+            else v
+            for k, v in row.items()
+        }
+        for row in rows
+    ]
+    st.dataframe(display, hide_index=True, width="stretch", column_config=labels)

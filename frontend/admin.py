@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from frontend.client import ApiClient
 from frontend.navigation import go, page_number, pagination
-from frontend.ui import call, heading
+from frontend.ui import call, data_table, heading, status_label
 from oj.schemas import Credentials
 
 
@@ -25,11 +25,17 @@ def admin_page(api: ApiClient) -> None:
     heading("管理中心", note="管理账户与评测配置。危险操作需要额外确认。")
     sections = ["用户", "角色审计", "全站提交", "题目管理", "语言", "访问审计", "系统设置"]
     selected = st.query_params.get("section", "用户")
-    section = st.segmented_control(
-        "管理模块",
-        sections,
-        default=selected if selected in sections else "用户",
-        label_visibility="collapsed",
+    section = (
+        st.selectbox(
+            "管理模块", sections, index=sections.index(selected) if selected in sections else 0
+        )
+        if st.session_state.get("mobile")
+        else st.segmented_control(
+            "管理模块",
+            sections,
+            default=selected if selected in sections else "用户",
+            label_visibility="collapsed",
+        )
     )
     if section:
         st.query_params["section"] = section
@@ -45,7 +51,7 @@ def admin_page(api: ApiClient) -> None:
             return
         pagination(result["data"]["total"], "users_page")
         users = result["data"]["users"]
-        st.dataframe(users, width="stretch", hide_index=True)
+        data_table(users)
         if users:
             with st.container(border=True):
                 st.subheader("修改用户角色")
@@ -55,10 +61,15 @@ def admin_page(api: ApiClient) -> None:
                 with st.expander("用户资料"):
                     detail = call(lambda: api.get(f"/api/users/{who['user_id']}"))
                     if detail:
-                        st.json(detail["data"])
+                        person = detail["data"]
+                        st.write(f"{person['username']} · {status_label(person['role'])}")
+                        st.caption(
+                            f"提交 {person['submit_count']} 次 · 通过 {person['resolve_count']} 题"
+                        )
                 role = st.selectbox(
                     "角色",
                     ["user", "admin", "banned"],
+                    format_func=status_label,
                     index=["user", "admin", "banned"].index(who["role"]),
                 )
                 changing = role != who["role"]
@@ -103,7 +114,7 @@ def admin_page(api: ApiClient) -> None:
         )
         if result:
             pagination(result["data"]["total"])
-            st.dataframe(result["data"]["logs"], hide_index=True, width="stretch")
+            data_table(result["data"]["logs"])
             if not result["data"]["logs"]:
                 st.info("还没有角色修改记录。")
     elif section == "语言":
@@ -128,7 +139,7 @@ def admin_page(api: ApiClient) -> None:
         result = call(lambda: api.get("/api/logs/access/", params=params))
         if result:
             pagination(result["data"]["total"], "audit_page")
-            st.dataframe(result["data"]["logs"], width="stretch", hide_index=True)
+            data_table(result["data"]["logs"])
             if not result["data"]["logs"]:
                 st.info("当前筛选条件下没有访问日志。")
     else:
@@ -143,8 +154,8 @@ def admin_page(api: ApiClient) -> None:
 def language_page(api: ApiClient) -> None:
     languages = call(lambda: api.get("/api/languages/", params={"include_metadata": True}))
     if languages:
-        st.dataframe(languages["data"]["languages"], width="stretch", hide_index=True)
-    with st.expander("注册评测语言", expanded=True), st.form("register-language"):
+        data_table(languages["data"]["languages"])
+    with st.expander("注册评测语言", expanded=False), st.form("register-language"):
         a, b = st.columns(2)
         name = a.text_input("语言标识", placeholder="python_alt")
         extension = b.text_input("文件扩展名", placeholder=".py")

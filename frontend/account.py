@@ -23,6 +23,11 @@ def activate_user(user: dict[str, object]) -> None:
 
 
 def auth_screen(api: ApiClient) -> None:
+    with st.container(key="auth-shell"):
+        _auth_form(api)
+
+
+def _auth_form(api: ApiClient) -> None:
     import time
     import uuid
 
@@ -100,14 +105,17 @@ def auth_screen(api: ApiClient) -> None:
             st.rerun()
 
 
-def logout_control(api: ApiClient) -> None:
+def logout_control(api: ApiClient, key: str = "account-logout") -> None:
     import uuid
 
     from frontend.components import control
 
-    if st.button("退出登录", width="stretch"):
+    if st.button("退出登录", width="stretch", key=key):
         st.session_state.logout_nonce = uuid.uuid4().hex
-    if nonce := st.session_state.get("logout_nonce"):
+        st.session_state.logout_owner = key
+    if (nonce := st.session_state.get("logout_nonce")) and st.session_state.get(
+        "logout_owner"
+    ) == key:
         result = control("auth", "logout-bridge", action="logout", nonce=nonce, api=api.base_url)
         if result.result:
             st.session_state.pop("logout_nonce", None)
@@ -117,19 +125,26 @@ def logout_control(api: ApiClient) -> None:
 
 
 def profile_page(api: ApiClient) -> None:
+    with st.container(key="profile-shell"):
+        _profile_content(api)
+
+
+def _profile_content(api: ApiClient) -> None:
     heading("个人账户", note="你的练习记录与账户信息。")
     result = call(lambda: api.get(f"/api/users/{st.session_state.user['user_id']}"))
     if not result:
         return
     user = result["data"]
-    a, b, c = st.columns(3)
-    a.metric("提交次数", user["submit_count"])
-    b.metric("通过题目", user["resolve_count"])
-    c.metric("账户角色", "管理员" if user["role"] == "admin" else "学习者")
     with st.container(border=True):
         st.subheader(user["username"])
-        st.write(f"用户 ID：{user['user_id']}")
-        st.caption(f"加入时间：{user['join_time']}")
+        st.caption(f"用户 ID：{user['user_id']} · 加入时间：{user['join_time']}")
+        from frontend.ui import pills, status_label
+
+        pills([status_label(user["role"])])
+    a, b = st.columns(2)
+    a.metric("提交次数", user["submit_count"])
+    b.metric("通过题目", user["resolve_count"])
+    logout_control(api)
     from frontend.ai import model_settings
 
     with st.expander("个人模型设置"):

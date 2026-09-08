@@ -46,8 +46,33 @@ def save_source(api: ApiClient, pid: str, language: str, source: dict[str, Any])
 
 
 @st.fragment
-def source_editor(api: ApiClient, pid: str, language: str) -> dict[str, Any] | None:
+def source_editor(
+    api: ApiClient, pid: str, language: str, names: list[str] | None = None
+) -> dict[str, Any] | None:
     key = source_key(pid, language)
+    with st.container(horizontal=True, vertical_alignment="center", key="editor-toolbar"):
+        chosen = st.selectbox(
+            "编程语言",
+            names or [language],
+            index=(names or [language]).index(language),
+            key=f"language-{pid}-{language}",
+            width=180,
+            label_visibility="collapsed",
+        )
+        if chosen != language:
+            st.query_params.language = chosen
+            st.rerun()
+        size = st.number_input(
+            "代码字号",
+            12,
+            24,
+            14,
+            key=f"{key}:size",
+            width=90,
+            label_visibility="collapsed",
+            help="代码字号（12–24px）",
+        )
+        imports = st.popover("导入与导出源码")
     if key not in st.session_state:
         result = call(lambda: api.get(f"/api/workspace-drafts/{pid}/{language}"))
         if result is None:
@@ -61,8 +86,7 @@ def source_editor(api: ApiClient, pid: str, language: str) -> dict[str, Any] | N
     if pending and pending["pid"] == pid and pending["language"] == language:
         replace_source(source, pending["code"])
         st.session_state.pop("workspace_import", None)
-    size = st.slider("代码字号", 12, 24, 14, key=f"{key}:size")
-    with st.expander("导入与导出源码"):
+    with imports:
         uploaded = st.file_uploader("导入 UTF-8 源码", key=f"{key}:upload")
         if uploaded:
             registered = call(lambda: api.get("/api/languages/", params={"include_metadata": True}))
@@ -160,16 +184,17 @@ def source_editor(api: ApiClient, pid: str, language: str) -> dict[str, Any] | N
         st.download_button(
             "下载源码", source["code"], file_name=f"{pid}.{language}", key=f"{key}:download"
         )
-    st.caption(
-        "已保存 · Ctrl / ⌘ + Enter 提交"
-        if not st.session_state.unsaved
-        else source.get("error") or "尚未同步，浏览器保留备份"
-    )
-    if source.get("error") and not source.get("conflict"):
-        if st.button("重新同步源码", key=f"{key}:retry-save"):
-            save_source(api, pid, language, source)
-            st.rerun()
-    clicked = st.button("提交评测", type="primary", key=f"{key}:submit")
+    with st.container(horizontal=True, vertical_alignment="center", key="editor-footer"):
+        st.caption(
+            "已保存 · Ctrl / ⌘ + Enter 提交"
+            if not st.session_state.unsaved
+            else source.get("error") or "尚未同步，浏览器保留备份"
+        )
+        clicked = st.button("提交评测", type="primary", key=f"{key}:submit")
+        if source.get("error") and not source.get("conflict"):
+            if st.button("重新同步源码", key=f"{key}:retry-save"):
+                save_source(api, pid, language, source)
+                st.rerun()
     if clicked or event.submit:
         if not source["code"].strip():
             st.warning("请先编写代码。")
@@ -199,7 +224,9 @@ def statement(problem: dict[str, Any]) -> None:
         with st.container(border=True):
             st.caption(f"样例 {n}")
             a, b = st.columns(2)
+            a.caption("输入")
             a.code(sample["input"], language=None)
+            b.caption("输出")
             b.code(sample["output"], language=None)
             if sample.get("files"):
                 st.json(sample["files"])
@@ -243,8 +270,10 @@ def workspace_page(api: ApiClient) -> None:
                 if inherited.get(field)
             )
         )
+    time_limit, memory_limit = p.get("time_limit"), p.get("memory_limit")
     st.caption(
-        f"时间 {p.get('time_limit')} 秒 · 内存 {p.get('memory_limit')} MB · "
+        f"时间 {str(time_limit) + ' 秒' if time_limit is not None else '继承语言配置'} · "
+        f"内存 {str(memory_limit) + ' MB' if memory_limit is not None else '继承语言配置'} · "
         f"来源 {p.get('source') or '—'} · 作者 {p.get('author') or '—'}"
     )
     if st.session_state.user["role"] == "admin":
@@ -271,8 +300,9 @@ def workspace_page(api: ApiClient) -> None:
             ("助手", "assistant"),
         ]:
             st.markdown(f"[{name}](#{anchor})")
-    st.header("题面", anchor="statement")
-    statement(p)
+    with st.container(key="statement-panel"):
+        st.header("题面", anchor="statement")
+        statement(p)
     st.header("代码", anchor="code")
     languages = call(lambda: api.get("/api/languages/"))
     if not languages or not languages["data"]["name"]:
@@ -283,18 +313,14 @@ def workspace_page(api: ApiClient) -> None:
     if pending := st.session_state.get("workspace_import"):
         if pending["pid"] == pid:
             selected = pending["language"]
-            st.session_state[f"language-{pid}"] = selected
-    language = st.selectbox(
-        "编程语言",
-        names,
-        index=names.index(selected) if selected in names else 0,
-        key=f"language-{pid}",
-    )
+    language = selected if selected in names else names[0]
     st.query_params["language"] = language
-    source = source_editor(api, pid, language)
+    with st.container(key="editor-panel"):
+        source = source_editor(api, pid, language, names)
     st.header("结果", anchor="results")
     if sid := st.query_params.get("submission_id") or st.session_state.get(f"last-{pid}"):
-        submission_result(api, str(sid))
+        with st.container(key="result-panel"):
+            submission_result(api, str(sid))
     else:
         st.info("提交代码后将在这里显示评测结果。")
     with st.expander("本题提交历史"):
@@ -319,5 +345,7 @@ def workspace_page(api: ApiClient) -> None:
                 ):
                     go("submission", id=row["submission_id"], title=f"提交 #{row['submission_id']}")
     st.header("做题助手", anchor="assistant")
-    if source:
-        assistant_panel(api, pid, language, source)
+    assistant = st.expander("AI 做题助手", key=f"assistant-expanded-{pid}", on_change="rerun")
+    if source and assistant.open:
+        with assistant:
+            assistant_panel(api, pid, language, source)
