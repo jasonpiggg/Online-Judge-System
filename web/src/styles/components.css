@@ -100,8 +100,9 @@ select:focus {
 .markdown img {
   max-width: 100%;
 }
-.markdown code:not(pre code) {
-  background: #f4f6f8;
+code:not(pre code) {
+  background: var(--inline-code-surface);
+  color: var(--inline-code-ink);
   padding: 2px 5px;
   border-radius: 4px;
   font-size: 0.9em;
@@ -1391,7 +1392,7 @@ p[role="alert"] {
   border: 1px solid #fecaca;
   border-radius: 8px;
 }
-.audit-filter-form {
+.filters.audit-filter-form {
   align-items: end;
 }
 .audit-filter-form label {
@@ -1695,6 +1696,13 @@ input[hidden] {
 /* The result container owns horizontal spacing across all evaluation views. */
 .result > .evaluation-content {
   padding: 0 var(--space-4) var(--space-4);
+}
+/* Standalone details share the same edges as the submitted-code disclosure. */
+.page > .result > .section-title {
+  padding-inline: 0;
+}
+.page > .result > .evaluation-content {
+  padding-inline: 0;
 }
 .evaluation-content {
   min-width: 0;

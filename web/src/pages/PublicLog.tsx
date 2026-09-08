@@ -7,7 +7,6 @@ import { ErrorNotice } from "../components/ErrorNotice";
 import { EvaluationView } from "../components/Evaluation";
 import { Icon } from "../components/Icon";
 import {
-  useRecoverUnavailableTask,
   useRegisterActivity,
 } from "../components/Activity";
 
@@ -24,7 +23,6 @@ export function PublicLog({ user: _user }: { user: User }) {
     queryKey: ["public-log", id],
     queryFn: () => api<PublicLogResult>(`/submissions/${id}/log`),
   });
-  useRecoverUnavailableTask(query.error);
   useRegisterActivity({
     id: `log:${id}`,
     kind: "submission",
@@ -98,6 +96,8 @@ export function PublicLog({ user: _user }: { user: User }) {
                 ? "这份日志当前不可见"
                 : unavailable === 404
                   ? "没有找到这份提交"
+                  : unavailable === 422
+                    ? "提交编号无效"
                   : "无法查看这份评测日志"
             }
             message={query.error.message}
@@ -105,11 +105,14 @@ export function PublicLog({ user: _user }: { user: User }) {
           <p className="permission-note">
             {unavailable === 403
               ? "你只能查看自己的提交；第三方提交需由管理员在题目设置中开启公开日志。"
-              : unavailable === 404
+              : unavailable === 404 || unavailable === 422
                 ? "请检查提交编号是否正确。"
                 : "评测尚未完成时请稍后重试。"}
           </p>
-          <Link to="/submissions">前往我的提交</Link>
+          <div className="action-group">
+            <Link to="/resources?tab=公开日志">返回公开日志查询</Link>
+            <Link to="/submissions">前往我的提交</Link>
+          </div>
         </>
       ) : data ? (
         <>

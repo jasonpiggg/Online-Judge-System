@@ -336,7 +336,7 @@ export function Admin({ user }: { user: User }) {
             )}
             <DisclosureCard summary="创建用户">
               <form
-                className="form-grid narrow"
+                className="form-grid"
                 onSubmit={(e) => {
                   e.preventDefault();
                   const f = new FormData(e.currentTarget);

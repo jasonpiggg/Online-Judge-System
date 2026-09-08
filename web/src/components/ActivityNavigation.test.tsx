@@ -155,3 +155,29 @@ it.each([
   slots.push({ id: "two", current: entry, backStack: [], touchedAt: 2 });
   expect(findTask(slots, `${path}?tab=code`)?.slot.id).toBe("two");
 });
+it.each(["/submissions?q=sum&page=2", "/resources?tab=公开日志", "/admin?tab=提交"]) (
+  "returns the last closed task to its exact hub: %s",
+  async (origin) => {
+    render(
+      <MemoryRouter initialEntries={[origin]}>
+        <ActivityProvider userId="7">
+          <ActivityBar />
+          <Routes>
+            <Route path="/submissions" element={<TaskLink to="/problems/p1">Open</TaskLink>} />
+            <Route path="/resources" element={<TaskLink to="/problems/p1">Open</TaskLink>} />
+            <Route path="/admin" element={<TaskLink to="/problems/p1">Open</TaskLink>} />
+            <Route path="/problems/p1" element={<Page />} />
+            <Route path="/authoring/drafts/d1" element={<Page draft />} />
+          </Routes>
+        </ActivityProvider>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByText("Open"));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    const stored = JSON.parse(localStorage.getItem("oj-activities-7")!);
+    expect(stored.slots[0].origin).toBe(origin);
+    fireEvent.click(await screen.findByRole("button", { name: "关闭 Draft" }));
+    expect(await screen.findByText("Open")).toBeInTheDocument();
+    expect(document.querySelectorAll(".activity-tab")).toHaveLength(0);
+  },
+);
