@@ -8,10 +8,12 @@ from fastapi.responses import JSONResponse
 
 from oj.auth import CurrentUser, create_session, get_current_user, require_admin
 from oj.errors import APIError, response
+from oj.pagination import page_window
+from oj.route_security import AuthorizedRoute
 from oj.schemas import Credentials, RoleUpdate
 from oj.security import hash_password, verify_password
 
-router = APIRouter(prefix="/api")
+router = APIRouter(route_class=AuthorizedRoute, prefix="/api")
 
 # Checking this public, fixed hash keeps nonexistent-user requests on the same bcrypt path.
 DUMMY_PASSWORD_HASH = b"$2b$12$lVL/0H9oeTbAg9YwHZHCC.EqkiF5Qc13S0/FxlRmH8C6qVWe0/aw2"
@@ -200,7 +202,7 @@ async def list_users(
     request: Request,
     q: str = Query(default="", max_length=80),
     page: int | None = Query(default=None, ge=1),
-    page_size: int | None = Query(default=None, ge=1, le=100),
+    page_size: int | None = Query(default=None, ge=1),
     _admin: CurrentUser = Depends(require_admin),
 ) -> JSONResponse:
     if page is not None and page_size is None:
@@ -219,7 +221,7 @@ async def list_users(
     if page_size is not None:
         page = page or 1
         sql += " LIMIT ? OFFSET ?"
-        params += (page_size, (page - 1) * page_size)
+        params += page_window(page, page_size, total_row["n"])
     rows = await request.app.state.db.fetchall(sql, params)
     users = [await _user_data(request.app.state.db, row["id"]) for row in rows]
     return response(data={"total": total_row["n"], "users": users})

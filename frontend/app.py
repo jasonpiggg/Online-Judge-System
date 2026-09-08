@@ -5,7 +5,7 @@ from functools import partial
 import streamlit as st
 
 from frontend.account import activate_user, auth_screen, profile_page
-from frontend.admin import admin_page
+from frontend.admin import admin_page, language_page
 from frontend.ai import ai_page
 from frontend.client import ApiClient
 from frontend.editor import editor_page
@@ -47,6 +47,7 @@ else:
     user = st.session_state.user
     definitions = [
         ("library", "题库", ":material/menu_book:", partial(library_page, api)),
+        ("languages", "评测语言", ":material/code:", partial(language_page, api)),
         ("records", "提交记录", ":material/history:", partial(records_page, api)),
         ("ai", "命题中心", ":material/experiment:", partial(ai_page, api)),
     ]

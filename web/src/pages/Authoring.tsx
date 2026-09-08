@@ -1,7 +1,7 @@
 import { ProblemJson } from "../components/ProblemJson";
 import { ProblemImport } from "../components/ProblemImport";
 import { Icon } from "../components/Icon";
-import { difficulties, difficultyLevel } from "../difficulty";
+import { difficulties } from "../difficulty";
 import { DifficultyGuide } from "../components/Difficulty";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -180,7 +180,7 @@ function clean(p: Problem): FormProblem {
   return {
     ...empty,
     ...p,
-    difficulty: difficultyLevel(p.difficulty).value,
+    difficulty: p.difficulty || "",
     time_limit: p.limit_inheritance?.time_limit ? null : (p.time_limit ?? null),
     memory_limit: p.limit_inheritance?.memory_limit
       ? null
@@ -878,6 +878,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
                 <label>
                   难度
                   <select aria-label="难度" {...form.register("difficulty")}>
+                    {!difficulties.some((d) => d.value === form.watch("difficulty")) && <option value={form.watch("difficulty")}>{form.watch("difficulty")}</option>}
                     {difficulties.map((level) => (
                       <option key={level.value} value={level.value}>
                         {level.label}

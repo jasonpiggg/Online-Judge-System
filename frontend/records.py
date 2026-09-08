@@ -110,6 +110,15 @@ def submission_result(api: ApiClient, submission_id: str) -> None:
 
 def records_page(api: ApiClient) -> None:
     heading("提交记录", note="每一次尝试都值得记录。选择记录可展开测试点详情。")
+    st.divider()
+    st.caption("已知其他提交 ID 时，可查询题目已公开的测试点日志。")
+    public_input, public_action = st.columns([3, 1], vertical_alignment="bottom")
+    public_id = public_input.text_input("公开提交 ID", key="public-log-id")
+    if public_action.button("查询公开日志", width="stretch") and public_id:
+        public = call(lambda: api.get(f"/api/submissions/{public_id}/log"))
+        if public:
+            _render_case_details(public["data"])
+
     problems = call(lambda: api.get("/api/problems/"))
     if not problems:
         return
@@ -178,11 +187,3 @@ def records_page(api: ApiClient) -> None:
     selected = records[rows[0]] if rows else records[0]
     st.subheader(f"提交 #{selected['submission_id']}")
     submission_result(api, str(selected["submission_id"]))
-    st.divider()
-    st.caption("已知其他提交 ID 时，可查询题目已公开的测试点日志。")
-    public_input, public_action = st.columns([3, 1], vertical_alignment="bottom")
-    public_id = public_input.text_input("公开提交 ID", key="public-log-id")
-    if public_action.button("查询公开日志", width="stretch") and public_id:
-        public = call(lambda: api.get(f"/api/submissions/{public_id}/log"))
-        if public:
-            _render_case_details(public["data"])

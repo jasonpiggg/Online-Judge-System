@@ -6,13 +6,17 @@ from fastapi.responses import JSONResponse
 from oj.auth import CurrentUser, get_current_user
 from oj.errors import response
 from oj.languages import add_language
+from oj.route_security import AuthorizedRoute
 from oj.schemas import Language
 
-router = APIRouter(prefix="/api/languages")
+router = APIRouter(route_class=AuthorizedRoute, prefix="/api/languages")
 
 
 @router.get("/")
-async def list_languages(request: Request, include_metadata: bool = False) -> JSONResponse:
+async def list_languages(
+    request: Request, include_metadata: bool = False,
+    _user: CurrentUser = Depends(get_current_user),
+) -> JSONResponse:
     rows = await request.app.state.db.fetchall("SELECT * FROM languages ORDER BY name")
     data: dict[str, object] = {"name": [row["name"] for row in rows]}
     if include_metadata:

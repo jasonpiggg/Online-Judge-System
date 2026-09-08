@@ -89,7 +89,7 @@ async def test_incomplete_draft_can_be_saved_but_not_published(client: AsyncClie
     assert saved.status_code == 200
     data = saved.json()["data"]
     assert data["problem"]["title"] == "只完成标题的草稿"
-    assert data["problem"]["difficulty"] == "简单"
+    assert data["problem"]["difficulty"] == "easy"
     assert data["problem"]["description"] == ""
     assert (await client.post(f"/api/problem-drafts/{draft['id']}/publish")).status_code == 409
 

@@ -6,8 +6,9 @@ from fastapi.responses import JSONResponse
 from oj.auth import CurrentUser, require_admin
 from oj.errors import response
 from oj.main_support import bootstrap_database
+from oj.route_security import AuthorizedRoute
 
-router = APIRouter(prefix="/api")
+router = APIRouter(route_class=AuthorizedRoute, prefix="/api")
 
 
 @router.post("/reset/")

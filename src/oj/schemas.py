@@ -7,12 +7,12 @@ from pydantic import (
     ConfigDict,
     Field,
     HttpUrl,
-    ValidationInfo,
     field_validator,
     model_validator,
 )
 
-from oj.difficulty import DIFFICULTIES, normalize_difficulty
+from oj.difficulty import DIFFICULTIES
+from oj.security import validate_password_bytes
 
 
 class StrictModel(BaseModel):
@@ -27,6 +27,8 @@ class Credentials(StrictModel):
         pattern=r"^[^\s\x00-\x1f\x7f]+$",
     )
     password: str = Field(min_length=6, max_length=200)
+
+    _password_bytes = field_validator("password")(validate_password_bytes)
 
 
 class RoleUpdate(StrictModel):
@@ -60,17 +62,8 @@ class Problem(StrictModel):
     time_limit: float | None = Field(default=None, gt=0, le=30)
     memory_limit: int | None = Field(default=None, ge=16, le=2048)
     author: str = Field(default="", max_length=100)
-    difficulty: str = Field(
-        default="",
-        max_length=40,
-        json_schema_extra={"enum": [level["value"] for level in DIFFICULTIES]},
-    )
+    difficulty: str = Field(default="", max_length=40)
     public_cases: bool = False
-
-    @field_validator("difficulty")
-    @classmethod
-    def canonical_difficulty(cls, value: str, info: ValidationInfo) -> str:
-        return normalize_difficulty(value, legacy=bool((info.context or {}).get("legacy")))
 
 
 class DraftProblem(StrictModel):
@@ -92,11 +85,6 @@ class DraftProblem(StrictModel):
     author: str = Field(default="", max_length=100)
     difficulty: str = Field(default="", max_length=40)
     public_cases: bool = False
-
-    @field_validator("difficulty")
-    @classmethod
-    def canonical_difficulty(cls, value: str, info: ValidationInfo) -> str:
-        return normalize_difficulty(value, legacy=bool((info.context or {}).get("legacy")))
 
 
 class Language(StrictModel):
@@ -201,6 +189,8 @@ class GeneratedProblem(StrictModel):
 
     @model_validator(mode="after")
     def check_test_quality(self) -> GeneratedProblem:
+        if self.problem.difficulty not in {level["value"] for level in DIFFICULTIES}:
+            raise ValueError("AI 生成须采用标准难度等级")
         inputs = [case.input for case in self.problem.testcases]
         if len(inputs) < 5 or len(set(inputs)) != len(inputs):
             raise ValueError("至少需要 5 个互不重复的测试输入")

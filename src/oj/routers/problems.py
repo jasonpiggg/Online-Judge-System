@@ -5,10 +5,11 @@ from fastapi.responses import JSONResponse
 
 from oj.auth import CurrentUser, get_current_user, require_admin
 from oj.errors import APIError, response
+from oj.route_security import AuthorizedRoute
 from oj.routers.authoring import _decode, insert_problem_draft
 from oj.schemas import DraftProblem, LogVisibility, Problem, ProblemDraftCreate
 
-router = APIRouter(prefix="/api/problems")
+router = APIRouter(route_class=AuthorizedRoute, prefix="/api/problems")
 
 
 @router.post("/{problem_id}/editing-draft")
