@@ -194,9 +194,9 @@ select:focus {
   border-radius: 8px;
 }
 .copy {
-  position: absolute;
-  right: 6px;
-  top: 4px;
+  position: relative;
+  display: block;
+  margin: 6px 6px 0 auto;
   background: var(--surface);
   border: 1px solid var(--border);
   font-size: 14px;
@@ -832,9 +832,34 @@ details {
 }
 .diff-side {
   min-width: 0;
+  overflow: hidden;
 }
 .diff-columns .diff-side + .diff-side {
   border-left: 1px solid #dfe5ec;
+}
+.diff-text {
+  margin: 0 var(--space-3) var(--space-3);
+  padding: var(--space-3) 0;
+  overflow: auto;
+  max-height: 560px;
+  white-space: pre;
+  font-size: var(--font-ui);
+  line-height: 1.75;
+  tab-size: 4;
+}
+.diff-text:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.review-actions {
+  margin-top: var(--space-4);
+}
+.diff-view + .action-group,
+.diff-view + .row {
+  margin-top: var(--space-4);
+}
+.diff-toolbar {
+  flex-wrap: wrap;
 }
 .diff-side > strong {
   display: block;

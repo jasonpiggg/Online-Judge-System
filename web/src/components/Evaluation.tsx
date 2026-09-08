@@ -25,10 +25,11 @@ const labels: Record<string, string> = {
   failed: "未通过",
   empty: "没有测试点",
   unknown: "结果信息不完整",
+  private: "仅显示得分",
 };
 const tone = (v: string) => (Object.hasOwn(labels, v) ? v : "unknown");
 const icon = (v: string) =>
-  v === "AC"
+  v === "private" ? "shield" : v === "AC"
     ? "check"
     : ["pending", "TLE", "MLE"].includes(v)
       ? "clock"
@@ -40,16 +41,11 @@ const advice: Record<string, string> = {
   RE: "程序运行时异常。检查数组下标、除零、空输入和递归深度；展开日志查看异常位置。",
   CE: "代码未能编译。根据下方诊断定位首个错误，修正语法、类型或缺失依赖后重新提交。",
   UNK: "评测器无法识别本次异常。保留代码并重试，持续出现时联系管理员查看服务状态。",
-  error: "评测服务没有完成本次任务。代码已保留，可以稍后重新提交或请管理员重新评测。",
+  error:
+    "评测服务没有完成本次任务。代码已保留，可以稍后重新提交或请管理员重新评测。",
 };
 export function VerdictBadge({ submission: s }: { submission: Submission }) {
-  const v =
-    s.evaluation?.verdict ||
-    (s.status === "pending"
-      ? "pending"
-      : s.status === "error"
-        ? "error"
-        : "unknown");
+  const v = s.status === "pending" ? "pending" : s.status === "error" ? "error" : s.evaluation?.verdict || "unknown";
   return (
     <span className={`badge tone-${tone(v)}`}>
       <Icon name={icon(v)} />
@@ -73,30 +69,47 @@ export function EvaluationView({
   const [selected, setSelected] = useState<number | null>(null);
   const detailReveal = useActionReveal<HTMLDivElement>();
   const e = s.evaluation;
-  const hasRawLogs = !!(s.compile_info || s.run_info || s.error_info);
+  const rawLogs = [
+    ["compile_info", "编译日志"],
+    ["run_info", "运行日志"],
+    ["error_info", "错误日志"],
+  ]
+    .map(([key, title]) => ({
+      key,
+      title,
+      text: logText(s[key as keyof Submission]),
+    }))
+    .filter((item) => item.text.trim());
+  const hidden = caseDetailsHidden || e?.verdict === "private";
   const compiled = e?.verdict === "CE";
   const available = compiled ? [] : cases?.filter((c) => c.result !== "CE");
   const filtered = available?.filter((c) => !onlyFailed || c.result !== "AC");
   const pages = Math.max(1, Math.ceil((filtered?.length || 0) / 50));
   const current = Math.min(page, pages);
-  const chosen = available?.find((c) => c.id === selected);
+  const chosen = !hidden && available?.find((c) => c.id === selected);
   const ratio =
-    e && e.total_cases && e.passed_cases !== null
+    !hidden && e && e.total_cases && e.passed_cases !== null
       ? Math.min(100, (100 * e.passed_cases) / e.total_cases)
       : null;
   return (
     <>
       <div className="evaluation-summary" aria-live="polite">
-        <VerdictBadge submission={s} />
+        {hidden && s.status === "success" ? (
+          <span className="badge">仅显示得分</span>
+        ) : (
+          <VerdictBadge submission={s} />
+        )}
         {s.status === "success" && (
           <div className="evaluation-numbers">
-            <div>
-              <strong>
-                {e?.passed_cases ?? "—"}
-                <small> / {e?.total_cases ?? "—"}</small>
-              </strong>
-              <span>测试点通过</span>
-            </div>
+            {!hidden && (
+              <div>
+                <strong>
+                  {e?.passed_cases ?? "—"}
+                  <small> / {e?.total_cases ?? "—"}</small>
+                </strong>
+                <span>测试点通过</span>
+              </div>
+            )}
             <div>
               <strong>
                 {e?.score ?? "—"}
@@ -133,7 +146,7 @@ export function EvaluationView({
         <div className="case-section">
           <div className="row">
             <h3>测试点</h3>
-            {!caseDetailsHidden && (
+            {!hidden && (
               <div className="segmented">
                 <Button
                   aria-pressed={!onlyFailed}
@@ -156,7 +169,7 @@ export function EvaluationView({
               </div>
             )}
           </div>
-          {caseDetailsHidden ? (
+          {hidden ? (
             <p className="permission-note">
               此题未公开测试点明细；提交者只能查看总得分和总分。
             </p>
@@ -207,7 +220,11 @@ export function EvaluationView({
             </>
           )}
           {chosen && (
-            <div ref={detailReveal.ref} className="case-detail reveal-target" aria-live="polite">
+            <div
+              ref={detailReveal.ref}
+              className="case-detail reveal-target"
+              aria-live="polite"
+            >
               <strong>
                 测试点 #{chosen.id} · {labels[chosen.result] || "未知结果"}
               </strong>
@@ -217,13 +234,14 @@ export function EvaluationView({
           )}
         </div>
       )}
-      {s.status !== "pending" && hasRawLogs && (
+      {s.status !== "pending" && rawLogs.length > 0 && (
         <DisclosureCard className="raw-logs" summary="原始运行日志">
-          {["compile_info", "run_info", "error_info"].map((k) =>
-            s[k as keyof Submission] ? (
-              <Code key={k} text={logText(s[k as keyof Submission])} />
-            ) : null,
-          )}
+          {rawLogs.map((item) => (
+            <section key={item.key}>
+              <h4>{item.title}</h4>
+              <Code text={item.text} />
+            </section>
+          ))}
         </DisclosureCard>
       )}
     </>

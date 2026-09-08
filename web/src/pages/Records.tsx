@@ -152,7 +152,6 @@ export function Records({
                     <tr key={s.submission_id}>
                       <td data-label="提交编号" className="record-id">
                         <TaskLink
-                          menuLabel={`提交 #${s.submission_id}`}
                           to={`/submissions/${s.submission_id}?${new URLSearchParams({ from: returnTo })}`}
                         >
                           #{s.submission_id}

@@ -146,10 +146,9 @@ test("filter, navigate, edit, refresh, submit and inspect result", async ({
   await expect(page.locator(".view-lines")).toContainText("print");
   await expect(page.locator(".submission-history-row.selected")).toBeVisible();
   await page.getByRole("link", { name: "查看提交详情", exact: true }).click();
-  await page.getByLabel("继续修改题目的打开方式").click();
-  await page.getByRole("button", { name: "在新标签页打开", exact: true }).click();
+  await page.getByRole("button", { name: "继续修改题目", exact: true }).click();
   await expect(page).toHaveURL(/\/problems\/sum_2\?submission=\d+&tab=/);
-  await expect(page.locator(".back-link")).toHaveCount(0);
+  await expect(page.locator(".activity-tab")).toHaveCount(1);
 });
 
 test("Chinese composition, URL restoration and vertical result controls", async ({
@@ -1013,12 +1012,14 @@ test("private owners see scores and public viewers see case logs", async ({
   await page.request.post("/api/auth/login", { data: { username: "public_log_author", password: "public-log-password" } });
   await page.goto(`/submissions/${sid}`);
   await expect(page.getByText(/未公开测试点明细/)).toBeVisible();
+  await expect(page.locator(".evaluation-numbers")).not.toContainText("测试点通过");
   await expect(page.locator(".evaluation-numbers")).toContainText(/\d+ \/ \d+得分/);
   await expect(page.locator(".case-tile")).toHaveCount(0);
   await page.goto("/resources?tab=公开日志");
   await page.getByLabel("提交编号").fill(String(sid));
   await page.getByRole("button", { name: "查看日志", exact: true }).click();
   await expect(page.getByText(/未公开测试点明细/)).toBeVisible();
+  await expect(page.locator(".evaluation-numbers")).not.toContainText("测试点通过");
   await expect(page.locator(".evaluation-numbers")).toContainText(/\d+ \/ \d+得分/);
   await expect(page.locator(".case-tile")).toHaveCount(0);
   await expect(page.getByText("原始运行日志", { exact: true })).toHaveCount(0);

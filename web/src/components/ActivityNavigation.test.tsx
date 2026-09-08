@@ -74,23 +74,6 @@ it("clears active state at hubs and reuses a task through its history", async ()
   );
   expect(document.querySelectorAll(".activity-tab")).toHaveLength(1);
 });
-it("explicit new-tab action preserves the source and reuses an existing destination", async () => {
-  render(<App />);
-  fireEvent.click(screen.getByText("Open problem"));
-  fireEvent.click(await screen.findByLabelText("Edit的打开方式"));
-  fireEvent.click(screen.getByRole("button", { name: "在新标签页打开" }));
-  expect(await screen.findByLabelText("path")).toHaveTextContent(
-    "/authoring/drafts/d1",
-  );
-  expect(document.querySelectorAll(".activity-tab")).toHaveLength(2);
-  fireEvent.click(screen.getByRole("button", { name: "Problem" }));
-  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-  expect(await screen.findByLabelText("path")).toHaveTextContent(
-    "/authoring/drafts/d1",
-  );
-  expect(document.querySelectorAll(".activity-tab")).toHaveLength(2);
-});
-
 it("closing a background tab leaves the hub visible", async () => {
   render(<App />);
   fireEvent.click(screen.getByText("Open problem"));
@@ -109,24 +92,11 @@ it("rejects persisted external routes", () => {
 });
 
 
-it("offers adjacent task navigation only where a tab can be preserved", async () => {
-  render(<MemoryRouter initialEntries={["/problems"]}><ActivityProvider userId="7">
-    <TaskLink to="/problems/p1" menuLabel="Problem">Open</TaskLink>
-    <TaskAction to="/problems" label="Hub" />
-  </ActivityProvider></MemoryRouter>);
-  expect(screen.queryByLabelText("Problem的打开方式")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Hub的打开方式")).not.toBeInTheDocument();
-});
-
-it("provides missing task menus but suppresses root and already-new destinations", () => {
-  render(<MemoryRouter initialEntries={["/problems/p1"]}><ActivityProvider userId="7">
-    <Page />
-    <TaskLink to="/submissions/1">Result</TaskLink>
-    <TaskLink to="/problems" menuLabel="Home">Home</TaskLink>
-    <TaskLink to="/problems/p2" newSlot menuLabel="New">New</TaskLink>
-    <TaskLink to="/problems/p3" target="_blank" menuLabel="Browser">Browser</TaskLink>
-  </ActivityProvider></MemoryRouter>);
-  expect(screen.getByLabelText("此页面的打开方式")).toBeInTheDocument();
-  for (const label of ["Home", "New", "Browser"])
-    expect(screen.queryByLabelText(`${label}的打开方式`)).not.toBeInTheDocument();
+it("uses current-page navigation without alternative opening controls", async () => {
+  render(<App />);
+  fireEvent.click(screen.getByText("Open problem"));
+  expect(document.querySelector(".task-action-menu")).toBeNull();
+  fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+  expect(await screen.findByLabelText("path")).toHaveTextContent("/authoring/drafts/d1");
+  expect(document.querySelectorAll(".activity-tab")).toHaveLength(1);
 });

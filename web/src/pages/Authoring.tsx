@@ -369,7 +369,6 @@ export function Authoring() {
         {drafts.data?.items.map((d) => (
           <div className="draft-row managed-row" key={d.id}>
             <TaskLink
-              menuLabel={d.problem?.title || "草稿"}
               to={"/authoring/drafts/" + d.id}
             >
               <strong>{d.problem?.title || "未命名题目"}</strong>
@@ -417,7 +416,7 @@ export function Authoring() {
       <h2>AI 任务</h2>
       {tasks.data?.items.map((t) => (
         <div className="draft-row managed-row" key={t.id}>
-          <TaskLink menuLabel="AI 任务" to={"/authoring/tasks/" + t.id}>
+          <TaskLink to={"/authoring/tasks/" + t.id}>
             <span>
               <span className={`badge task-state tone-${t.status}`}>
                 {(

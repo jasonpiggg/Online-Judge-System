@@ -124,7 +124,6 @@ export function Library() {
             {filtered?.slice((page - 1) * 20, page * 20).map((p) => (
               <TaskLink
                 className="problem-row"
-                menuLabel={p.title}
                 key={p.id}
                 to={`/problems/${p.id}`}
                 onClick={() =>
