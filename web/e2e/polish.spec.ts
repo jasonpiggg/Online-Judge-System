@@ -219,8 +219,9 @@ test("evaluation gutters and code toolbars stay aligned across viewports", async
     const boxes = await Promise.all([summary, cases, logs, page.locator(".result")].map((el) => el.boundingBox()));
     expect(Math.abs(boxes[0]!.x - boxes[1]!.x)).toBeLessThan(1);
     expect(Math.abs(boxes[0]!.x - boxes[2]!.x)).toBeLessThan(1);
-    expect(boxes[2]!.x - boxes[3]!.x).toBeGreaterThanOrEqual(16);
-    expect(boxes[3]!.x + boxes[3]!.width - boxes[2]!.x - boxes[2]!.width).toBeGreaterThanOrEqual(16);
+    // Standalone details share their outer edges with the submitted-code card.
+    expect(Math.abs(boxes[2]!.x - boxes[3]!.x)).toBeLessThan(1);
+    expect(Math.abs(boxes[3]!.width - boxes[2]!.width)).toBeLessThan(1);
     await logs.locator("summary").click();
     const styles = await logs.locator(".code-block").evaluate((el) => ({
       body: getComputedStyle(el).backgroundColor,
@@ -231,6 +232,14 @@ test("evaluation gutters and code toolbars stay aligned across viewports", async
     expect(styles.border).toBe("1px");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
     await page.screenshot({ path: info.outputPath(`evaluation-${width}.png`), fullPage: true });
+    await page.goto("/problems/sum_2?submission=99001&tab=结果");
+    await expect(page.locator(".evaluation-summary")).toBeVisible();
+    const embedded = await page.locator(".result > .evaluation-content").evaluate((el) => ({
+      left: parseFloat(getComputedStyle(el).paddingLeft),
+      right: parseFloat(getComputedStyle(el).paddingRight),
+    }));
+    expect(embedded.left).toBeGreaterThanOrEqual(16);
+    expect(embedded.right).toBeGreaterThanOrEqual(16);
   }
   hidden = true;
   await page.goto("/logs/submissions/99001");
