@@ -81,7 +81,7 @@ export function ScoreBadge({
       className={`badge tone-${state}`}
       title="仅根据得分显示；测试点明细未公开"
     >
-      <Icon name={state === "AC" ? "check" : "shield"} />
+      <Icon name={state === "AC" ? "check" : state === "failed" ? "cross" : "info"} />
       <span>{label}</span>
     </span>
   );

@@ -32,6 +32,7 @@ export type ActivityEntry = {
 };
 export type TaskSlot = {
   id: string;
+  origin?: string;
   current: ActivityEntry;
   backStack: ActivityEntry[];
   touchedAt: number;
@@ -193,7 +194,15 @@ function cleanState(state: unknown): Record<string, unknown> {
   delete copy.taskAction;
   return copy;
 }
+function validHub(path: unknown): path is string {
+  return (
+    typeof path === "string" &&
+    /^\/(problems|submissions|authoring|resources|admin|account)(\?[^#]*)?(#.*)?$/.test(path)
+  );
+}
 function safeHub(entry?: ActivityEntry) {
+  if (entry?.path.startsWith("/logs/submissions/")) return "/resources?tab=公开日志";
+  if (entry?.kind === "submission") return "/submissions";
   return entry?.kind === "draft" || entry?.kind === "ai"
     ? "/authoring"
     : "/problems";
@@ -386,7 +395,10 @@ export function ActivityProvider({
       const requestedId = routeState.taskSlotId;
       const existing = slotsRef.current.find((slot) => slot.id === requestedId);
       if (requestedId && !existing && closedIds().has(requestedId)) {
-        navigate(safeHub(entry), { replace: true, state: {} });
+        navigate(
+          validHub(routeState.taskOrigin) ? routeState.taskOrigin : safeHub(entry),
+          { replace: true, state: {} },
+        );
         return;
       }
       const firstVisit = !processedKeys.current.has(loc.key);
@@ -404,6 +416,9 @@ export function ActivityProvider({
         if (!firstVisit) return;
         const slot: TaskSlot = {
           id: crypto.randomUUID(),
+          origin: validHub(routeState.taskOrigin)
+            ? routeState.taskOrigin
+            : safeHub(entry),
           current: { ...entry, navigationState: cleanState(loc.state) },
           backStack: [],
           touchedAt: Date.now(),
@@ -470,6 +485,11 @@ export function ActivityProvider({
         replace: !!activeSlot,
         state: {
           ...extra,
+          taskOrigin: activeSlot?.origin || (
+            validHub(locationRef.current.pathname)
+              ? locationRef.current.pathname + locationRef.current.search + locationRef.current.hash
+              : undefined
+          ),
           taskSlotId: activeSlot?.id,
           taskAction: !activeSlot ? "new" : "push",
         },
@@ -561,7 +581,10 @@ export function ActivityProvider({
           .sort((a, b) => b.touchedAt - a.touchedAt)[0];
         if (target) visit(target);
         else
-          navigate(safeHub(removed[0].current), { replace: true, state: {} });
+          navigate(
+            validHub(removed[0].origin) ? removed[0].origin : safeHub(removed[0].current),
+            { replace: true, state: {} },
+          );
       }
     },
     [activeSlot, closedIds, commit, navigate, tombstoneKey, visit],

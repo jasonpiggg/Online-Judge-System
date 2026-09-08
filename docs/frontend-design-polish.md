@@ -47,3 +47,14 @@
 - 代码块统一采用白色正文（`--code-surface`）、灰色工具栏（`--code-toolbar`）和清晰分割线（`--code-border`）；空内容不显示复制工具栏。保留代码原始空白与横向滚动，在 AI 回答、样例、日志及提交代码中保持一致。
 - 标签页查重只匹配当前页面，历史记录仅供返回使用。题目进入编辑后，从题库重开题目会新建标签；再次编辑会切回已打开的编辑页。返回目标已在其他标签打开时复用该标签，避免覆盖编辑页或生成重复页面。题目、草稿、AI 任务、提交详情和日志使用统一规则；查询参数继续表示同一页面的状态。
 - 回归覆盖：70 项组件测试（含五类路由身份、返回复用、空代码与无效分数）、桌面和手机评测边界/工具栏测量、私有日志隐藏内容、AI 代码块与现有全站浏览器流程。截图仅用于本地验收，不提交测试产物。
+
+## September 8 interface corrections
+
+- Score-only zero results use a cross; partial/unknown totals use an information icon, without implying a hidden judge verdict.
+- Inline code uses shared blue surface and dark ink tokens across Markdown and other prose. Fenced code retains its own syntax theme.
+- Standalone evaluation summaries share horizontal edges with submitted-code disclosures; embedded workspace results retain their panel padding.
+- Filter rows align control bottoms. Language and user registration forms fill their disclosure; the intentionally narrow account page remains unchanged.
+- Task slots persist their originating hub, including filters, through navigation and reload. Closing the final slot restores that hub. Only known internal hub paths are accepted; older slots fall back by task type.
+- Public-log lookup keeps permission, missing-submission, and validation errors visible and provides query/submission links instead of automatically removing the task.
+
+Regression coverage: ActivityNavigation unit tests and interface-fixes Playwright scenarios cover hub persistence, public-log error/reload behavior, zero-score rendering, result alignment, desktop/mobile audit controls, and form width.

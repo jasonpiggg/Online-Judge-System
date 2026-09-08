@@ -56,7 +56,7 @@ export function LanguageSettings({ heading = true }: { heading?: boolean }) {
       </div>
       <DisclosureCard summary="注册语言 / 更新配置">
         <form
-          className="form-grid narrow"
+          className="form-grid"
           onSubmit={async (event) => {
             event.preventDefault();
             if (busy) return;
