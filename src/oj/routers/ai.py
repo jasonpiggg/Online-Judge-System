@@ -362,8 +362,8 @@ async def archive_problem_task(
     if row["status"] in {"pending", "running"}:
         await request.app.state.ai_authoring.cancel(task_id)
     await request.app.state.db.execute(
-        "UPDATE ai_tasks SET archived_at=COALESCE(archived_at,?),updated_at=? WHERE id=?",
-        (utcnow(), utcnow(), task_id),
+        "UPDATE ai_tasks SET archived_at=COALESCE(archived_at,?) WHERE id=?",
+        (utcnow(), task_id),
     )
     current = await request.app.state.db.fetchone(
         "SELECT status,archived_at FROM ai_tasks WHERE id=?", (task_id,)

@@ -31,6 +31,13 @@ class Credentials(StrictModel):
     _password_bytes = field_validator("password")(validate_password_bytes)
 
 
+class PasswordChange(StrictModel):
+    current_password: str = Field(min_length=6, max_length=200)
+    new_password: str = Field(min_length=6, max_length=200)
+
+    _password_bytes = field_validator("current_password", "new_password")(validate_password_bytes)
+
+
 class RoleUpdate(StrictModel):
     role: Literal["user", "admin", "banned"]
 

@@ -424,7 +424,18 @@ class AIAuthoringManager:
 
     async def _run(self, task_id: str) -> None:
         try:
-            await asyncio.wait_for(self._author(task_id), self.settings.ai_task_timeout_seconds)
+            # Count queue time; legacy environment overrides cannot lift the cap.
+            row = await self.db.fetchone("SELECT created_at FROM ai_tasks WHERE id=?", (task_id,))
+            age = 0.0
+            if row:
+                age = max(
+                    0.0,
+                    (datetime.now(UTC) - datetime.fromisoformat(row["created_at"])).total_seconds(),
+                )
+            remaining = min(240.0, self.settings.ai_task_timeout_seconds) - age
+            if remaining <= 0:
+                raise TimeoutError
+            await asyncio.wait_for(self._author(task_id), remaining)
         except asyncio.CancelledError:
             await self._update(task_id, "cancelled", "任务已中断，保留已观测用量", "cancelled")
             raise
@@ -435,7 +446,9 @@ class AIAuthoringManager:
                 locations = [".".join(map(str, e["loc"])) or "result" for e in exc.errors()]
                 message = "生成结果不符合质量结构，请调整需求：" + ", ".join(locations)[:500]
             elif isinstance(exc, TimeoutError | httpx.TimeoutException):
-                message = "AI 阶段或任务超时。已保留用量；请检查服务商或缩小命题范围。"
+                message = (
+                    "AI 阶段或任务超时（总时限 4 分钟）。已保留用量及可用成果，请缩小需求后重试。"
+                )
             elif isinstance(exc, httpx.HTTPStatusError):
                 message = f"模型服务返回 HTTP {exc.response.status_code}，请检查配置和服务额度。"
             elif isinstance(exc, httpx.TransportError):

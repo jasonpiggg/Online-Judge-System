@@ -71,5 +71,5 @@ class Settings(BaseSettings):
     )
     ai_stream_read_timeout_seconds: float = Field(default=90, gt=0, le=600)
     allow_private_ai_endpoints: bool = False
-    ai_task_timeout_seconds: float = Field(default=300, gt=0, le=7200)
+    ai_task_timeout_seconds: float = Field(default=240, gt=0, le=7200)
     ai_stage_timeout_seconds: float = Field(default=120, gt=0, le=1800)
