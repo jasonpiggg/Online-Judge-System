@@ -31,10 +31,10 @@ def assets_panel(
             st.warning("题目发布后已修改，以下资产来自旧版本，须重新审阅和验证。")
         if data["status"] == "ambiguous":
             st.warning("找到多个资产不同的历史发布版本，请选择来源并核对内容。")
-            sources = data["sources"]
+            sources = {source["source_draft_id"]: source for source in data["sources"]}
             selected = st.selectbox(
                 "资产来源",
-                range(len(sources)),
+                list(sources),
                 index=None,
                 format_func=lambda i: (
                     f"{local_time(sources[i]['published_at'])} · "
@@ -46,6 +46,9 @@ def assets_panel(
                 return
             data = sources[selected]
         assets = data["assets"]
+        preview_key = f"published-assets-preview-{draft_id or pid}"
+        previously_displayed = st.session_state.get(preview_key)
+        st.session_state[preview_key] = copy.deepcopy(assets)
         st.caption("已发布命题资产向所有登录用户开放。参考解供学习使用，有限测试不代表正确性证明。")
         if state is not None:
             before = {key: state["local"][key] for key in assets}
@@ -54,6 +57,9 @@ def assets_panel(
                 "采纳会替换上方列出的资产并保存当前草稿，题目内容保持当前编辑值；需要重新验证。"
             )
             if st.button("采纳并保存资产", key=f"apply-assets-{draft_id}"):
+                if previously_displayed != assets:
+                    st.warning("已发布资产发生变化，请重新核对当前差异后再采纳。")
+                    return
                 from frontend.authoring import save_draft
 
                 original = copy.deepcopy(state["local"])

@@ -507,7 +507,7 @@ test('published assets survive publication and restore without replacing the pro
   const problem = (await (await page.request.get(api+'/api/problems/sum_2')).json()).data;
   delete problem.limit_inheritance;
   problem.id=unique('published'); problem.title='发布资产恢复验收';
-  const reference='print(sum(map(int, input().split())))';
+  let reference='print(sum(map(int, input().split())))';
   const created = await page.request.post(api+'/api/problem-drafts/', {data:{problem, reference_solution:reference}});
   const draft=(await created.json()).data;
   const verify=await page.request.post(api+`/api/problem-drafts/${draft.id}/verify`,{data:{mode:'basic'}});
@@ -523,6 +523,14 @@ test('published assets survive publication and restore without replacing the pro
   await page.getByRole('button',{name:'保存草稿',exact:true}).click();
   await page.getByText('恢复已发布资产',{exact:true}).click();
   await expect(page.locator('.diff-view').filter({hasText:'参考解'}).first()).toContainText('print(0)');
+  reference += ' # republished';
+  const newer=(await (await page.request.post(api+'/api/problem-drafts/', {data:{problem,reference_solution:reference}})).json()).data;
+  const newerTask=(await (await page.request.post(api+`/api/problem-drafts/${newer.id}/verify`,{data:{mode:'basic'}})).json()).data.task_id;
+  await expect.poll(async()=> (await (await page.request.get(api+'/api/ai/problem-tasks/'+newerTask)).json()).data.status).toBe('completed');
+  expect((await page.request.post(api+`/api/problem-drafts/${newer.id}/publish`)).ok()).toBe(true);
+  await page.getByRole('button',{name:'采纳并保存资产',exact:true}).click();
+  await expect(page.getByText('已发布资产发生变化，请重新核对当前差异后再采纳。')).toBeVisible();
+  await expect(page.getByRole('textbox',{name:'参考解',exact:true})).toHaveValue('print(0)');
   await page.getByRole('button',{name:'采纳并保存资产',exact:true}).click();
   await expect(page.getByRole('textbox',{name:'参考解',exact:true})).toHaveValue(reference);
   await page.reload();
