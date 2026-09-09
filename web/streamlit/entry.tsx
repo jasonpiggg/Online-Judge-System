@@ -129,6 +129,7 @@ function Component({ bridge }: { bridge: Bridge }) {
     const navigate = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target.closest('a,button') : null;
       if (!target) return;
+      if (target.closest(".st-key-close-current-task, .st-key-clear-task-tabs")) return;
       const href = target.getAttribute('href');
       const changesPage = href && !href.startsWith('#') && !target.hasAttribute('download') || target.closest('.st-key-task-bar') || /^(返回来源|上一题|下一题|退出登录)$/.test(target.textContent?.trim() || '');
       if (changesPage && isDirty() && !window.confirm('存在尚未保存的修改。确认离开？源码和已同步到页面的草稿会保留本地备份。')) { event.preventDefault(); event.stopImmediatePropagation(); }

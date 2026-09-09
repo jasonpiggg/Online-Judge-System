@@ -15,25 +15,11 @@ from frontend.components import control, diff, rich_text
 from frontend.forms import draft_payload, problem_form
 from frontend.navigation import back, bounded_page, go, page_number, pagination
 from frontend.ui import call, data_table, heading, local_time, status_label
+from oj.draft_content import equivalent_draft
 
 
 def encoded(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2)
-
-
-def equivalent_draft(left: Any, right: Any) -> bool:
-    """Ignore widget-only empty defaults while preserving all meaningful edits."""
-
-    def clean(value: Any) -> Any:
-        if isinstance(value, bool):
-            return ("boolean", value)  # Python otherwise considers False == 0 and True == 1.
-        if isinstance(value, dict):
-            return {k: clean(v) for k, v in value.items() if v not in (None, "", [], {})}
-        if isinstance(value, list):
-            return [clean(v) for v in value]
-        return value
-
-    return clean(left) == clean(right)
 
 
 def list_data(value: Any, field: str) -> dict[str, Any]:
@@ -77,39 +63,45 @@ def authoring_page(api: ApiClient) -> None:
                 model_settings(api, config["data"])
     if tabs[2].open:
         with tabs[2]:
-            st.caption(
-                "个人配置优先于系统配置；系统分阶段模型策略以任务的实际计价记录为准。请求不会自动重试。"
-            )
-            with st.form("generate-problem"):
-                requirement = st.text_area(
-                    "命题需求", placeholder="知识点、难度、数据范围和预期覆盖的边界场景。"
+            with st.container(border=True, key="generation-module"):
+                st.subheader("生成基础题目")
+                st.caption(
+                    "个人配置优先于系统配置；系统分阶段模型策略以任务的实际计价记录为准。请求不会自动重试。"
                 )
-                problems = call(lambda: api.get("/api/problems/"))
-                choices = {
-                    p["id"]: f"{p['id']} · {p['title']}" for p in (problems or {}).get("data", [])
-                }
-                reference = st.selectbox(
-                    "参考题目（可选）",
-                    [None, *choices],
-                    format_func=lambda value: choices.get(value, "不参考已有题目"),
-                    help="展开选择，或输入题号、标题筛选。",
-                )
-                st.caption("生成题面与参考解，补充测试资产并独立审查、完整验证；总处理预算四分钟。")
-                if st.form_submit_button(
-                    "生成整题",
-                    type="primary",
-                    disabled=not config or not config["data"]["api_key_configured"],
-                ):
-                    start_task(
-                        api,
-                        {
-                            "requirement": requirement,
-                            "problem_id": reference or None,
-                            "action": "generate",
-                            "generation_mode": "balanced",
-                            "target_section": "all",
-                        },
+                with st.form("generate-problem"):
+                    requirement = st.text_area(
+                        "命题需求", placeholder="知识点、难度、数据范围和预期覆盖的边界场景。"
                     )
+                    problems = call(lambda: api.get("/api/problems/"))
+                    choices = {
+                        p["id"]: f"{p['id']} · {p['title']}"
+                        for p in (problems or {}).get("data", [])
+                    }
+                    reference = st.selectbox(
+                        "参考题目（可选）",
+                        [None, *choices],
+                        format_func=lambda value: choices.get(value, "不参考已有题目"),
+                        help="展开选择，或输入题号、标题筛选。",
+                    )
+                    st.caption("生成题面、参考解和基础测试，轻量复审后实际试跑；总处理预算四分钟。")
+                    if st.form_submit_button(
+                        "生成整题",
+                        type="primary",
+                        disabled=not config or not config["data"]["api_key_configured"],
+                    ):
+                        if not requirement.strip() and reference is None:
+                            st.warning("请输入命题需求，或选择参考题目。")
+                            return
+                        start_task(
+                            api,
+                            {
+                                "requirement": requirement,
+                                "problem_id": reference or None,
+                                "action": "generate",
+                                "generation_mode": "basic_draft",
+                                "target_section": "all",
+                            },
+                        )
     if tabs[0].open:
         with tabs[0]:
             archived = st.checkbox("包含归档草稿")
@@ -186,6 +178,7 @@ def save_draft(api: ApiClient, did: str, state: dict[str, Any]) -> bool:
             json={**state["local"], "revision": state["revision"], "change_summary": "编辑草稿"},
         )["data"]
         state.update(local=draft_payload(r), saved=draft_payload(r), revision=r["revision"])
+        state.pop("conflict", None)
         return True
     except ApiError as exc:
         if exc.status == 409:
@@ -221,6 +214,7 @@ def draft_page(api: ApiClient) -> None:
                 revision=d["revision"],
                 epoch=state["epoch"] + 1,
             )
+            state.pop("conflict", None)
         else:
             state["conflict"] = d
     heading(
@@ -272,41 +266,54 @@ def draft_page(api: ApiClient) -> None:
                 st.rerun()
             except (ValueError, UnicodeError) as exc:
                 st.error(str(exc))
-    local["requirement"] = st.text_area(
-        "命题需求 / 修改要求", value=local["requirement"], key=f"{prefix}-requirement"
-    )
-    local["problem"] = problem_form(local["problem"], prefix)
+    with st.container(border=True, key="draft-requirement-module"):
+        st.subheader("命题需求")
+        local["requirement"] = st.text_area(
+            "命题需求 / 修改要求", value=local["requirement"], key=f"{prefix}-requirement"
+        )
+    with st.container(border=True, key="draft-content-module"):
+        st.subheader("题目内容")
+        local["problem"] = problem_form(local["problem"], prefix)
     save_area = st.container(key="draft-save-bar")
     review_valid = True
-    st.subheader("验证资产", anchor="validation-assets")
-    with st.expander("验证资产与审查意见", expanded=st.query_params.get("section") == "assets"):
-        for field, title in [
-            ("reference_solution", "参考解"),
-            ("brute_solution", "独立解法"),
-            ("generator_code", "数据生成器"),
-        ]:
-            local[field] = st.text_area(
-                title, value=local[field], height=180, key=f"{prefix}-{field}"
-            )
-        review = st.text_area(
-            "审查资产 JSON（review、coverage、wrong_solutions）",
-            value=encoded(local["review"]),
-            height=150,
-            key=f"{prefix}-review",
+    with st.container(border=True, key="draft-reference-module"):
+        st.subheader("参考解与基础测试", anchor="validation-assets")
+        st.caption("样例与测试点在上方题目内容中编辑；基础检查会实际运行参考解。")
+        local["reference_solution"] = st.text_area(
+            "参考解",
+            value=local["reference_solution"],
+            height=180,
+            key=f"{prefix}-reference_solution",
         )
-        try:
-            decoded = json.loads(review)
-            if not isinstance(decoded, dict):
-                raise ValueError("审查资产必须为 JSON 对象。")
-            local["review"] = decoded
-        except ValueError as exc:
-            st.error(str(exc))
-            review_valid = False
+        with st.expander(
+            "高级验证资产与审查意见", expanded=st.query_params.get("section") == "assets"
+        ):
+            for field, title in [
+                ("brute_solution", "独立解法"),
+                ("generator_code", "数据生成器"),
+            ]:
+                local[field] = st.text_area(
+                    title, value=local[field], height=180, key=f"{prefix}-{field}"
+                )
+            review = st.text_area(
+                "审查资产 JSON（review、coverage、wrong_solutions）",
+                value=encoded(local["review"]),
+                height=150,
+                key=f"{prefix}-review",
+            )
+            try:
+                decoded = json.loads(review)
+                if not isinstance(decoded, dict):
+                    raise ValueError("审查资产必须为 JSON 对象。")
+                local["review"] = decoded
+            except ValueError as exc:
+                st.error(str(exc))
+                review_valid = False
     state["local"] = local
     if not review_valid:
         st.session_state.unsaved = True
         st.warning("请先修正审查资产 JSON。其他表单内容仍保留在当前会话。")
-        st.stop()
+        return
     with export_area:
         if st.button("准备导出当前内容"):
             state["export"] = copy.deepcopy(local)
@@ -385,11 +392,12 @@ def draft_page(api: ApiClient) -> None:
     with st.expander("AI 修改"):
         action = st.selectbox(
             "修改方式",
-            ["revise", "review", "tests", "generate"],
+            ["revise", "review", "tests", "regenerate", "generate"],
             format_func=lambda x: {
                 "revise": "局部修改",
                 "review": "全面审查",
                 "tests": "设计测试",
+                "regenerate": "重新生成整题（基础草稿）",
                 "generate": "补全验证资产并完整验证",
             }[x],
         )
@@ -408,6 +416,7 @@ def draft_page(api: ApiClient) -> None:
             "revise": "局部修改返回差异建议，审阅采纳后再检查；不会自动发布。",
             "review": "全面审查题面与验证资产，返回最小修正；采纳后仍需验证。",
             "tests": "设计覆盖边界与错误解法的测试点，返回供审阅的修改建议。",
+            "regenerate": "重新构思基础草稿，轻量复审并试跑；不生成高级资产。",
             "generate": (
                 "复用已保存题面与参考解，补全验证资产并完整验证；这是一次新的计时和收费任务。"
             ),
@@ -419,13 +428,10 @@ def draft_page(api: ApiClient) -> None:
             key=f"draft-ai-requirement-{did}",
             height=140,
             placeholder="例如：补充一个负数边界样例，并解释对应输出；保留其他题面内容。",
-            help="只用于本次 AI 请求，不会覆盖上方保存的原始命题需求。至少填写 10 个字符。",
+            help="短指令也可以；留空则检查并改进所选范围，保留原题意。",
         )
         paid = st.checkbox("确认发起新的模型调用，费用单独累计", key="draft-ai-paid")
         if st.button("保存并发起 AI 修改", disabled=not paid):
-            if len(ai_requirement.strip()) < 10:
-                st.error("请在本次 AI 修改需求中填写至少 10 个字符，说明希望修改的内容。")
-                return
             if len(ai_requirement) > 20_000:
                 st.error("本次 AI 修改需求不能超过 20,000 个字符，请精简后重试。")
                 return
@@ -435,47 +441,51 @@ def draft_page(api: ApiClient) -> None:
                     {
                         "draft_id": did,
                         "requirement": ai_requirement.strip(),
-                        "action": action,
-                        "target_section": "all" if action in {"review", "generate"} else section,
+                        "action": "generate" if action == "regenerate" else action,
+                        "generation_mode": "basic_draft" if action == "regenerate" else "full",
+                        "target_section": "all"
+                        if action in {"review", "generate", "regenerate"}
+                        else section,
                     },
                 )
-    st.subheader("检查与发布")
-    if st.button("前往补充验证资产"):
-        go("draft", id=did, section="assets")
-    st.caption(
-        "基础检查验证结构和可运行性；完整验证额外检查独立对拍与错误解法。两者均在本地执行，不调用模型。"
-    )
-    a, b = st.columns(2)
-    for column, label, mode in [(a, "保存并基础检查", "basic"), (b, "保存并完整验证", "full")]:
-        if column.button(label):
-            if save_draft(api, did, state):
-                r = call(
-                    lambda mode=mode: api.post(
-                        f"/api/problem-drafts/{did}/verify",
-                        json={"mode": mode},
-                        headers={"Idempotency-Key": uuid.uuid4().hex},
+    with st.container(border=True, key="draft-publish-module"):
+        st.subheader("检查与发布")
+        if st.button("前往补充验证资产"):
+            go("draft", id=did, section="assets")
+        st.caption(
+            "基础检查验证结构和可运行性；完整验证额外检查独立对拍与错误解法。两者均在本地执行，不调用模型。"
+        )
+        a, b = st.columns(2)
+        for column, label, mode in [(a, "保存并基础检查", "basic"), (b, "保存并完整验证", "full")]:
+            if column.button(label):
+                if save_draft(api, did, state):
+                    r = call(
+                        lambda mode=mode: api.post(
+                            f"/api/problem-drafts/{did}/verify",
+                            json={"mode": mode},
+                            headers={"Idempotency-Key": uuid.uuid4().hex},
+                        )
                     )
-                )
-                if r:
-                    go("ai_task", id=r["data"]["task_id"], title="本地验证")
-    if report := d.get("review", {}).get("verification"):
-        verification_report(report)
-    if d["status"] != "ready":
-        st.caption("发布前请先保存草稿并通过检查。")
-    elif dirty:
-        st.caption("当前有未保存修改；保存并重新检查后可发布。")
-    confirmed = st.checkbox("已审阅当前草稿，确认发布到题库")
-    if st.button(
-        "发布题目", disabled=d["status"] != "ready" or dirty or not confirmed, type="primary"
-    ):
-        r = call(lambda: api.post(f"/api/problem-drafts/{did}/publish"))
-        if r:
-            go("workspace", id=r["data"]["id"])
-    with st.expander("归档草稿"):
-        st.warning("归档会中断关联的进行中任务。")
-        if st.checkbox("确认归档") and st.button("归档"):
-            if call(lambda: api.delete(f"/api/problem-drafts/{did}")):
-                go("ai")
+                    if r:
+                        go("ai_task", id=r["data"]["task_id"], title="本地验证")
+        if report := d.get("review", {}).get("verification"):
+            verification_report(report)
+        if d["status"] != "ready":
+            st.caption("发布前请先保存草稿并通过检查。")
+        elif dirty:
+            st.caption("当前有未保存修改；保存并重新检查后可发布。")
+        confirmed = st.checkbox("已审阅当前草稿，确认发布到题库")
+        if st.button(
+            "发布题目", disabled=d["status"] != "ready" or dirty or not confirmed, type="primary"
+        ):
+            r = call(lambda: api.post(f"/api/problem-drafts/{did}/publish"))
+            if r:
+                go("workspace", id=r["data"]["id"])
+        with st.expander("归档草稿"):
+            st.warning("归档会中断关联的进行中任务。")
+            if st.checkbox("确认归档") and st.button("归档"):
+                if call(lambda: api.delete(f"/api/problem-drafts/{did}")):
+                    go("ai")
 
 
 def verification_report(report: dict[str, Any]) -> None:
@@ -514,35 +524,37 @@ def task_page(api: ApiClient) -> None:
         if done and not st.session_state.get(terminal):
             st.session_state[terminal] = True
             st.rerun()
-        st.write(t.get("requirement", ""))
-        notice = (
-            st.error
-            if t["status"] == "failed"
-            else (st.success if t["status"] == "completed" else st.info)
-        )
-        notice(
-            f"{status_label(t['status'])} · {status_label(t.get('stage', ''))} · "
-            f"{t.get('progress', '')}"
-        )
-        from frontend.ui import task_timer
-
-        task_timer(t)
-        usage = t.get("usage", {})
-        st.caption(
-            f"输入 Token {usage.get('input_tokens', 0)} · "
-            f"输出 Token {usage.get('output_tokens', 0)}"
-        )
-        st.write(f"累计费用：{money(usage.get('cost', 0), usage.get('currency', 'USD'))}")
-        st.caption(
-            "服务商 usage"
-            if usage.get("source") == "provider"
-            else "估算用量（部分阶段未返回服务商 usage）"
-        )
-        with st.expander("分阶段模型、Token 与计价依据"):
-            st.json(t.get("usage_details") or {})
-            st.caption(
-                "费用根据任务开始时的配置单价计算，不进行汇率换算，需与服务商账单核对。未报告缓存用量时按普通输入计价。"
+        with st.container(border=True, key=f"task-status-module-{tid}"):
+            st.subheader("任务进度与用量")
+            st.write(t.get("requirement", ""))
+            notice = (
+                st.error
+                if t["status"] == "failed"
+                else (st.success if t["status"] == "completed" else st.info)
             )
+            notice(
+                f"{status_label(t['status'])} · {status_label(t.get('stage', ''))} · "
+                f"{t.get('progress', '')}"
+            )
+            from frontend.ui import task_timer
+
+            task_timer(t)
+            usage = t.get("usage", {})
+            st.caption(
+                f"输入 Token {usage.get('input_tokens', 0)} · "
+                f"输出 Token {usage.get('output_tokens', 0)}"
+            )
+            st.write(f"累计费用：{money(usage.get('cost', 0), usage.get('currency', 'USD'))}")
+            st.caption(
+                "服务商 usage"
+                if usage.get("source") == "provider"
+                else "估算用量（部分阶段未返回服务商 usage）"
+            )
+            with st.expander("分阶段模型、Token 与计价依据"):
+                st.json(t.get("usage_details") or {})
+                st.caption(
+                    "费用根据任务开始时的配置单价计算，不进行汇率换算，需与服务商账单核对。未报告缓存用量时按普通输入计价。"
+                )
         source_id = t.get("source_draft_id") or t.get("draft_id")
         if source_id and st.button("打开来源草稿"):
             go("draft", id=source_id, title="命题草稿")
@@ -552,38 +564,40 @@ def task_page(api: ApiClient) -> None:
         if t.get("error"):
             st.error(t["error"])
         result = t.get("result") or {}
-        preview = result.get("problem") or t.get("preview") or {}
-        if isinstance(preview, dict):
+        with st.container(border=True, key=f"task-result-module-{tid}"):
+            st.subheader("成果与基础检查")
+            preview = result.get("problem") or t.get("preview") or {}
+            if isinstance(preview, dict):
+                for field, label in [
+                    ("title", "标题"),
+                    ("description", "题目描述"),
+                    ("input_description", "输入格式"),
+                    ("output_description", "输出格式"),
+                    ("constraints", "数据范围"),
+                ]:
+                    if preview.get(field):
+                        rich_text(f"### {label}\n{preview[field]}", f"task-{tid}-{field}")
             for field, label in [
-                ("title", "标题"),
-                ("description", "题目描述"),
-                ("input_description", "输入格式"),
-                ("output_description", "输出格式"),
-                ("constraints", "数据范围"),
+                ("reference_solution", "参考解"),
+                ("brute_solution", "独立解法"),
+                ("generator_code", "数据生成器"),
             ]:
-                if preview.get(field):
-                    rich_text(f"### {label}\n{preview[field]}", f"task-{tid}-{field}")
-        for field, label in [
-            ("reference_solution", "参考解"),
-            ("brute_solution", "独立解法"),
-            ("generator_code", "数据生成器"),
-        ]:
-            if result.get(field):
-                with st.expander(label):
-                    st.code(result[field], language="python")
-        if isinstance(preview, dict) and preview.get("samples"):
-            with st.expander("生成样例"):
-                for number, sample in enumerate(preview["samples"], 1):
-                    st.caption(f"样例 {number}")
-                    a, b = st.columns(2)
-                    a.caption("输入")
-                    a.code(sample.get("input", ""), language=None)
-                    b.caption("输出")
-                    b.code(sample.get("output", ""), language=None)
-        if result.get("review"):
-            rich_text(str(result["review"]), f"task-review-{tid}")
-        if report := result.get("verification"):
-            verification_report(report)
+                if result.get(field):
+                    with st.expander(label):
+                        st.code(result[field], language="python")
+            if isinstance(preview, dict) and preview.get("samples"):
+                with st.expander("生成样例"):
+                    for number, sample in enumerate(preview["samples"], 1):
+                        st.caption(f"样例 {number}")
+                        a, b = st.columns(2)
+                        a.caption("输入")
+                        a.code(sample.get("input", ""), language=None)
+                        b.caption("输出")
+                        b.code(sample.get("output", ""), language=None)
+            if result.get("review"):
+                rich_text(str(result["review"]), f"task-review-{tid}")
+            if report := result.get("verification"):
+                verification_report(report)
         if result.get("kind") in {"section_patch", "review_patch"}:
             proposal = result.get("proposal") or {"problem": result.get("problem", {})}
             diff(
@@ -597,13 +611,15 @@ def task_page(api: ApiClient) -> None:
             ):
                 current = call(lambda: api.get(f"/api/problem-drafts/{source_id}"))
                 local = st.session_state.get(f"draft-state-{source_id}")
-                if current and (
-                    current["data"]["revision"] != result.get("source_draft_revision")
-                    or local
-                    and local["local"] != local["saved"]
-                ):
-                    st.error(
-                        "草稿已有新版本或未保存修改。请比较后手动合并建议，或基于最新版本重新请求。"
+                if current and local and not equivalent_draft(local["local"], local["saved"]):
+                    st.error("本地有未保存修改，请先保存或处理差异后采纳。")
+                    diff(local["saved"], local["local"], f"apply-local-conflict-{tid}")
+                elif current and current["data"]["revision"] != result.get("source_draft_revision"):
+                    st.error("服务器草稿版本已变化，请比较最新内容后重新请求或手动合并。")
+                    diff(
+                        result.get("baseline", {}),
+                        draft_payload(current["data"]),
+                        f"apply-server-conflict-{tid}",
                     )
                 elif current:
                     body = draft_payload(current["data"])

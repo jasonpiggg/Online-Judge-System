@@ -228,44 +228,16 @@ def task_bar() -> None:
                     ):
                         switch_slot(slot)
         if st.button("关闭当前任务", key="close-current-task", disabled=not active_key):
-            st.session_state.confirm_close = True
-        if st.button("一键清空任务标签", key="clear-task-tabs"):
-            if st.session_state.get("unsaved"):
-                st.session_state.confirm_clear_tabs = True
-            else:
-                st.session_state.task_slots = []
-                st.session_state.pop("active_slot", None)
-                go("library")
-    if st.session_state.get("confirm_clear_tabs"):
-        st.warning("存在未保存内容，清空标签前请保存或备份。后台任务不会取消。")
-        if st.button("确认清空标签"):
-            st.session_state.task_slots = []
-            st.session_state.pop("active_slot", None)
-            st.session_state.pop("confirm_clear_tabs", None)
-            go("library")
-        if st.button("保留标签"):
-            st.session_state.pop("confirm_clear_tabs", None)
-            st.rerun()
-    if st.session_state.get("confirm_close"):
-        st.warning(
-            "关闭页面不会取消后台任务。请确认未保存内容已有备份；需要停止任务时请使用中断按钮。"
-        )
-        yes, no = st.columns(2)
-        if yes.button("确认关闭", key="close-task-yes"):
-            active = next(
-                (s for s in slots if s["key"] == st.session_state.get("active_slot")), None
-            )
+            active = next((s for s in slots if s["key"] == active_key), None)
+            target = active["origin"] if active else route("library")
             if active:
                 slots.remove(active)
-                target = active["origin"]
-            else:
-                target = route("library")
-            st.session_state.pop("confirm_close", None)
             st.session_state.pop("active_slot", None)
             st.switch_page(st.session_state.pages[target["page"]], query_params=target["params"])
-        if no.button("取消", key="close-task-no"):
-            st.session_state.pop("confirm_close", None)
-            st.rerun()
+        if st.button("一键清空任务标签", key="clear-task-tabs"):
+            st.session_state.task_slots = []
+            st.session_state.pop("active_slot", None)
+            go("library")
 
 
 def page_number(name: str = "page") -> int:

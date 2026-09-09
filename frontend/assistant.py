@@ -71,7 +71,8 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
             active = messages[-1] if messages else None
             if active:
                 st.session_state[f"assistant-active-{pid}"] = active["task_id"]
-    answer_area = st.container()
+    question_area = st.container(border=True, key=f"assistant-question-module-{pid}")
+    answer_area = st.container(border=True, key=f"assistant-answer-module-{pid}")
     history_panel = st.expander("历史问答", key=f"assistant-history-{pid}", on_change="rerun")
     if history_panel.open:
         with history_panel:
@@ -108,21 +109,27 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
                 pagination(history["data"]["total"], "message_page", 5, position="bottom")
     task_id = st.session_state.get(f"assistant-active-{pid}")
     busy = bool(task_id and not st.session_state.get(f"assistant-terminal-{task_id}"))
-    quick = None
-    with st.container(horizontal=True):
-        for prompt in ["给我一个渐进提示", "解释我当前的代码", "分析本次评测"]:
-            if st.button(prompt, key=f"quick-{pid}-{prompt}", disabled=busy):
-                quick = prompt
-    last_submission = st.query_params.get("submission_id") or st.session_state.get(f"last-{pid}")
-    st.caption(f"将附带当前题目、{language} 源码（{len(source['code'])} 字符）。")
-    if last_submission:
-        st.caption(f"评测依据：提交 #{last_submission}；当前编辑版本可能与提交版本不同。")
-    with st.form(f"assistant-form-{pid}"):
-        message = st.text_area("向助手提问", placeholder="描述困惑、错误现象，或请求检查当前解法。")
-        with st.expander("提问选项"):
-            full = st.checkbox("允许提供完整解法")
-            include = st.checkbox("附带最近一次提交", value=True)
-        send = st.form_submit_button("发送", type="primary", disabled=busy)
+    with question_area:
+        st.subheader("提问与上下文")
+        quick = None
+        with st.container(horizontal=True):
+            for prompt in ["给我一个渐进提示", "解释我当前的代码", "分析本次评测"]:
+                if st.button(prompt, key=f"quick-{pid}-{prompt}", disabled=busy):
+                    quick = prompt
+        last_submission = st.query_params.get("submission_id") or st.session_state.get(
+            f"last-{pid}"
+        )
+        st.caption(f"将附带当前题目、{language} 源码（{len(source['code'])} 字符）。")
+        if last_submission:
+            st.caption(f"评测依据：提交 #{last_submission}；当前编辑版本可能与提交版本不同。")
+        with st.form(f"assistant-form-{pid}"):
+            message = st.text_area(
+                "向助手提问", placeholder="描述困惑、错误现象，或请求检查当前解法。"
+            )
+            with st.expander("提问选项"):
+                full = st.checkbox("允许提供完整解法")
+                include = st.checkbox("附带最近一次提交", value=True)
+            send = st.form_submit_button("发送", type="primary", disabled=busy)
     if (send or quick) and not busy:
         message = quick or message
         if not message.strip():
@@ -156,7 +163,9 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
                 st.rerun()
     task_id = st.session_state.get(f"assistant-active-{pid}")
     if not task_id:
-        st.info("发送问题后，回答会逐步显示。刷新页面可恢复已有会话。")
+        with answer_area:
+            st.subheader("当前回答")
+            st.info("发送问题后，回答会逐步显示。刷新页面可恢复已有会话。")
         return
     terminal = f"assistant-terminal-{task_id}"
 
@@ -255,4 +264,5 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
                 st.rerun()
 
     with answer_area:
+        st.subheader("当前回答")
         answer()

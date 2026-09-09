@@ -51,7 +51,7 @@ async def completion(config: Any, prompt: str, usage: Any = None) -> tuple[str, 
             text = "这只是解释用的片段：\n```python\nprint(a + b)\n```"
     elif (
         "Stage 1:" in config["system_prompt"]
-        or "basic programming" in config["system_prompt"]
+        or "Repair the supplied basic programming" in config["system_prompt"]
         or "concise programming" in config["system_prompt"]
     ):
         text = json.dumps(
@@ -72,6 +72,15 @@ async def completion(config: Any, prompt: str, usage: Any = None) -> tuple[str, 
                     "tags": ["基础"],
                 },
                 "reference_solution": "a,b=map(int,input().split());print(a+b)",
+            },
+            ensure_ascii=False,
+        )
+    elif "Review a basic programming draft" in config["system_prompt"]:
+        text = json.dumps(
+            {
+                "candidate": data["candidate"],
+                "blocking_issues": [],
+                "suggestions": ["可另行补全高级验证资产。"],
             },
             ensure_ascii=False,
         )
@@ -123,6 +132,7 @@ async def completion(config: Any, prompt: str, usage: Any = None) -> tuple[str, 
         "验收失败恢复" in str(data.get("requirement", ""))
         and "schema" in data
         and "validation_error" not in data
+        and "local_feedback" not in data
     ):
         candidate = json.loads(text)
         candidate["reference_solution"] = "print(0)"

@@ -133,11 +133,12 @@ def library_page(api: ApiClient) -> None:
                 if mobile:
                     text = st.container()
                     with st.container(horizontal=True, vertical_alignment="center"):
+                        difficulty_col = st.container(width="stretch")
                         progress_col = st.container(width="stretch")
                         action = st.container(width="content")
                 else:
-                    text, progress_col, action = st.columns(
-                        [4, 1.2, 1], vertical_alignment="center"
+                    text, difficulty_col, progress_col, action = st.columns(
+                        [4, 1, 1.2, 1], vertical_alignment="center"
                     )
                 with text:
                     st.html(
@@ -145,7 +146,11 @@ def library_page(api: ApiClient) -> None:
                         f"<h3>{escape(item['title'])}</h3>"
                         f'<span class="oj-kicker">{escape(item["id"])}</span></div>',
                     )
-                    pills([item.get("difficulty") or "未分级", *item.get("tags", [])])
+                    pills(item.get("tags", []))
+                with difficulty_col:
+                    st.caption("难度")
+                    difficulty = escape(item.get("difficulty") or "未分级")
+                    st.html(f'<span class="oj-status">{difficulty}</span>')
                 progress = item.get("progress", {})
                 with progress_col:
                     label = progress_label(item)
