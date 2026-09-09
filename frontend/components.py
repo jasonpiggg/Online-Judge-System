@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +31,8 @@ def _control() -> Any:
 
 def control(mode: str, key: str, **data: Any) -> Any:
     return _control()(
-        key=key,
+        # API IDs may contain "__", which Streamlit reserves for component events.
+        key="oj-" + hashlib.sha256(key.encode()).hexdigest(),
         data={"mode": mode, **data},
         on_edit_change=lambda: None,
         on_submit_change=lambda: None,

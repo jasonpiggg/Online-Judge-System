@@ -51,9 +51,7 @@ def library_page(api: ApiClient) -> None:
     progress_options = ["全部状态", "未开始", "尝试中", "已通过"]
     progress_value = st.query_params.get("progress", "全部状态")
     progress_index = (
-        progress_options.index(progress_value)
-        if progress_value in progress_options
-        else 0
+        progress_options.index(progress_value) if progress_value in progress_options else 0
     )
     if st.session_state.get("mobile"):
         query = st.text_input(
@@ -95,7 +93,7 @@ def library_page(api: ApiClient) -> None:
             ),
         )
         progress_filter = c.selectbox("学习状态", progress_options, index=progress_index)
-        if d.button("新建题目", icon=":material/add:", type="primary", width="stretch"):
+        if d.button("新建题目", icon=":material/add:", type="secondary", width="stretch"):
             created = call(lambda: api.post("/api/problem-drafts/", json={}))
             if created:
                 go("draft", id=created["data"]["id"], title="新建题目")
@@ -106,7 +104,7 @@ def library_page(api: ApiClient) -> None:
     if previous != signature:
         st.query_params["page"] = "1"
     st.query_params.update(q=query, difficulty=level, progress=progress_filter)
-    with st.expander("难度说明"):
+    with st.popover("难度说明"):
         for item in DIFFICULTIES:
             st.write(f"**{item['label']}**：{item['description']}")
 
@@ -127,23 +125,32 @@ def library_page(api: ApiClient) -> None:
     page = pagination(len(items))
     if not items:
         st.info("没有找到匹配的题目。试试其他关键词，或创建第一道题。")
-    for item in items[(page - 1) * 10 : page * 10]:
-        with st.container(border=True):
-            text, progress_col, action = st.columns([4, 1.1, 1], vertical_alignment="center")
-            with text:
-                st.markdown(
-                    '<div class="oj-problem-row"><span class="oj-kicker">'
-                    f"{escape(item['id'])}</span>"
-                    f"<h3>{escape(item['title'])}</h3></div>",
-                    unsafe_allow_html=True,
-                )
-                pills([item.get("difficulty") or "未分级", *item.get("tags", [])])
-            progress = item.get("progress", {})
-            with progress_col:
-                label = progress_label(item)
-                css = "pass" if label == "已通过" else "wait" if label == "尝试中" else ""
-                st.markdown(f'<span class="oj-status {css}">{label}</span>', unsafe_allow_html=True)
-                if progress.get("attempts"):
-                    st.caption(f"{progress['attempts']} 次提交")
-            if action.button("开始做题", key=f"open-{item['id']}", width="stretch"):
-                navigate("workspace", current_problem=item["id"])
+    with st.container(key="library-list"):
+        for item in items[(page - 1) * 10 : page * 10]:
+            with st.container(key=f"list-row-problem-{item['id']}"):
+                mobile = st.session_state.get("mobile", False)
+                if mobile:
+                    text = st.container()
+                    with st.container(horizontal=True, vertical_alignment="center"):
+                        progress_col = st.container(width="stretch")
+                        action = st.container(width="content")
+                else:
+                    text, progress_col, action = st.columns(
+                        [4, 1.2, 1], vertical_alignment="center"
+                    )
+                with text:
+                    st.html(
+                        '<div class="oj-problem-row oj-row-title">'
+                        f"<h3>{escape(item['title'])}</h3>"
+                        f'<span class="oj-kicker">{escape(item["id"])}</span></div>',
+                    )
+                    pills([item.get("difficulty") or "未分级", *item.get("tags", [])])
+                progress = item.get("progress", {})
+                with progress_col:
+                    label = progress_label(item)
+                    css = "pass" if label == "已通过" else "wait" if label == "尝试中" else ""
+                    st.html(f'<span class="oj-status {css}">{label}</span>')
+                    if progress.get("attempts"):
+                        st.caption(f"{progress['attempts']} 次提交")
+                if action.button("开始做题", key=f"open-{item['id']}", width="stretch"):
+                    navigate("workspace", current_problem=item["id"])

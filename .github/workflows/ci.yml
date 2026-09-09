@@ -57,4 +57,10 @@ jobs:
         working-directory: web
       - run: npm run test:e2e
         working-directory: web
+      - name: Verify Streamlit controls and native workflows
+        run: |
+          npx vitest run --config streamlit/vitest.config.ts
+          ../.venv/bin/python ../scripts/pack_streamlit_components.py
+          npx playwright test --config playwright.streamlit.config.ts
+        working-directory: web
 

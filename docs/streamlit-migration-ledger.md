@@ -2,6 +2,8 @@
 
 This ledger is the acceptance checklist for the native Streamlit entry. React remains in `web/` and uses the same REST APIs.
 
+The final visual refinement, feature comparison, request safety and responsive acceptance are documented in [Streamlit final interface review](streamlit-design-review.md).
+
 | React surface / scenario | Streamlit entry and equivalent interaction | Evidence |
 | --- | --- | --- |
 | Login, registration, confirmation, rate limit, disabled account, deep links | `frontend/account.py` auth form plus local auth bridge; HttpOnly cookie and `/api/auth/me` restore | `tests/test_streamlit_auth.py`; `parity.spec.ts` registration/reload |

@@ -11,7 +11,7 @@ from frontend.client import ApiClient
 from frontend.editor import clean_problem
 from frontend.navigation import back, go, pagination
 from frontend.records import _render_case_details
-from frontend.ui import call, heading
+from frontend.ui import call, heading, result_summary
 from oj.schemas import DraftProblem
 
 
@@ -80,45 +80,60 @@ def resources_page(api: ApiClient) -> None:
         p for p in result["data"] if search.casefold() in f"{p['id']} {p['title']}".casefold()
     ]
     page = pagination(len(filtered))
-    for p in filtered[(page - 1) * 10 : page * 10]:
-        with st.container(border=True):
-            st.write(f"**{p['id']} · {p['title']}**")
-            a, b = st.columns(2)
-            if a.button("查看详情", key=f"resource-view-{p['id']}"):
-                st.query_params.id = p["id"]
-            if b.button("编辑题目", key=f"resource-edit-{p['id']}"):
-                draft = call(lambda p=p: api.post(f"/api/problems/{p['id']}/editing-draft"))
-                if draft:
-                    go("draft", id=draft["data"]["id"], title=p["title"])
-            if st.query_params.get("id") == p["id"]:
-                detail = call(lambda p=p: api.get(f"/api/problems/{p['id']}"))
-                if detail:
-                    st.json(detail["data"], expanded=False)
-                    st.download_button(
-                        "下载题目 JSON",
-                        json.dumps(clean_problem(detail["data"]), ensure_ascii=False, indent=2),
-                        file_name=f"{p['id']}.json",
-                        key=f"export-{p['id']}",
-                    )
-                    if st.session_state.user["role"] == "admin":
-                        from frontend.editor import delete_dialog
+    with st.container(key="resource-list"):
+        for p in filtered[(page - 1) * 10 : page * 10]:
+            with st.container(key=f"list-row-resource-{p['id']}"):
+                title, a, b = st.columns([4, 1, 1], vertical_alignment="center")
+                title.write(f"**{p['title']}**")
+                title.caption(p["id"])
+                if a.button("查看详情", key=f"resource-view-{p['id']}"):
+                    st.query_params.id = p["id"]
+                if b.button("编辑题目", key=f"resource-edit-{p['id']}"):
+                    draft = call(lambda p=p: api.post(f"/api/problems/{p['id']}/editing-draft"))
+                    if draft:
+                        go("draft", id=draft["data"]["id"], title=p["title"])
+                if st.query_params.get("id") == p["id"]:
+                    detail = call(lambda p=p: api.get(f"/api/problems/{p['id']}"))
+                    if detail:
+                        from frontend.ui import pills
 
-                        visible = st.toggle(
-                            "公开测试点日志",
-                            value=detail["data"].get("public_cases", False),
-                            key=f"visible-{p['id']}",
+                        pills(
+                            [
+                                detail["data"].get("difficulty") or "未分级",
+                                *detail["data"].get("tags", []),
+                            ]
                         )
-                        if st.button("保存日志可见性", key=f"visibility-save-{p['id']}"):
-                            if call(
-                                lambda p=p, visible=visible: api.put(
-                                    f"/api/problems/{p['id']}/log_visibility",
-                                    json={"public_cases": visible},
-                                )
-                            ):
-                                st.success("日志可见性已更新")
+                        st.caption(
+                            f"来源：{detail['data'].get('source') or '—'} "
+                            f"· 作者：{detail['data'].get('author') or '—'}"
+                        )
+                        with st.expander("题目 JSON"):
+                            st.json(detail["data"], expanded=False)
+                        st.download_button(
+                            "下载题目 JSON",
+                            json.dumps(clean_problem(detail["data"]), ensure_ascii=False, indent=2),
+                            file_name=f"{p['id']}.json",
+                            key=f"export-{p['id']}",
+                        )
+                        if st.session_state.user["role"] == "admin":
+                            from frontend.editor import delete_dialog
 
-                        if st.button("删除题目", key=f"delete-{p['id']}"):
-                            delete_dialog(api, detail["data"])
+                            visible = st.toggle(
+                                "公开测试点日志",
+                                value=detail["data"].get("public_cases", False),
+                                key=f"visible-{p['id']}",
+                            )
+                            if st.button("保存日志可见性", key=f"visibility-save-{p['id']}"):
+                                if call(
+                                    lambda p=p, visible=visible: api.put(
+                                        f"/api/problems/{p['id']}/log_visibility",
+                                        json={"public_cases": visible},
+                                    )
+                                ):
+                                    st.success("日志可见性已更新")
+
+                            if st.button("删除题目", key=f"delete-{p['id']}"):
+                                delete_dialog(api, detail["data"])
 
 
 def public_log_page(api: ApiClient) -> None:
@@ -135,5 +150,5 @@ def public_log_page(api: ApiClient) -> None:
     result = call(lambda: api.get(f"/api/submissions/{sid}/log"))
     if result:
         d = result["data"]
-        st.metric("得分", f"{d.get('score', '—')} / {d.get('counts', '—')}")
+        result_summary(d)
         _render_case_details(d, "public-log")

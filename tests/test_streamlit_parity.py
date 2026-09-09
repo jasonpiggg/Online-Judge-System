@@ -40,9 +40,9 @@ save_source(ApiClient(), 'sum_2', 'python', st.session_state.source)
 
 
 def test_partial_draft_form_preserves_empty_cases_and_custom_difficulty(monkeypatch: Any) -> None:
-    import frontend.forms as forms
+    import frontend.workspace as workspace
 
-    monkeypatch.setattr(forms, "rich_text", lambda *_a, **_kw: None)
+    monkeypatch.setattr(workspace, "statement", lambda *_a, **_kw: None)
     app = AppTest.from_string("""
 import streamlit as st
 from frontend.forms import problem_form

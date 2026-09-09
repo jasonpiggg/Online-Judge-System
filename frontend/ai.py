@@ -31,6 +31,7 @@ def model_settings(api: ApiClient, config: dict[str, Any]) -> None:
     st.subheader("个人模型配置（可选）")
     st.caption("密钥只加密保存在后端。费用按下方单价计算，需与服务商账单核对。")
     with st.form("ai-settings"):
+        st.markdown("**连接信息**")
         url = st.text_input(
             "兼容 API 基地址", value=config.get("provider_url", "https://api.openai.com/v1")
         )
@@ -40,6 +41,7 @@ def model_settings(api: ApiClient, config: dict[str, Any]) -> None:
             type="password",
             help="已有个人配置时可留空保留。首次覆盖系统默认必须提供自己的密钥。",
         )
+        st.markdown("**计价设置**")
         currency = st.selectbox(
             "计价币种（不进行汇率换算）",
             ["USD", "CNY"],

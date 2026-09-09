@@ -7,7 +7,15 @@ import streamlit as st
 from frontend.client import ApiClient
 from frontend.components import diff
 from frontend.navigation import back, go, page_number, pagination
-from frontend.ui import call, heading
+from frontend.ui import (
+    call,
+    data_table,
+    heading,
+    local_time,
+    result_summary,
+    status_label,
+    verdict_label,
+)
 
 
 def _render_case_details(data: dict[str, Any], key: str = "cases") -> list[dict[str, Any]] | None:
@@ -34,7 +42,7 @@ def _render_case_details(data: dict[str, Any], key: str = "cases") -> list[dict[
     shown = filtered[(page - 1) * 10 : page * 10]
     st.caption(f"共 {count} 个测试点 · 每页 10 个")
     if shown:
-        st.dataframe(shown, width="stretch", hide_index=True)
+        data_table(shown)
         chosen = st.selectbox(
             "测试点详情",
             shown,
@@ -66,38 +74,11 @@ def submission_result(api: ApiClient, submission_id: str) -> None:
         if status == "pending":
             st.info("正在评测……")
             return
-        score, total = d.get("score"), d.get("counts")
-        if status == "error":
-            st.error(d.get("error_info") or "评测服务异常")
-        elif total and score == total:
-            st.success("全部通过")
-        else:
-            st.warning("评测完成 · 未全部通过")
-        st.metric(
-            "得分", f"{score if score is not None else '—'} / {total if total is not None else '—'}"
-        )
-        if total and score is not None:
-            st.progress(min(1.0, max(0.0, score / total)))
+        result_summary(d)
         st.caption(
-            f"{d.get('problem_id', '')} · {d.get('language', '')} · {d.get('created_at', '')}"
+            f"{d.get('problem_id', '')} · {d.get('language', '')} "
+            f"· {local_time(d.get('created_at'))} 北京时间"
         )
-        evaluation = d.get("evaluation", {})
-        verdict = evaluation.get("verdict")
-        labels = {
-            "CE": "编译失败",
-            "WA": "答案错误",
-            "TLE": "超出时间限制",
-            "MLE": "超出内存限制",
-            "RE": "运行时错误",
-            "empty": "没有测试点",
-            "unknown": "评测明细不完整",
-            "partial": "部分通过",
-            "failed": "测试未通过",
-        }
-        if verdict in labels:
-            st.write(labels[verdict])
-        if evaluation.get("passed_cases") is not None and evaluation.get("total_cases"):
-            st.caption(f"通过测试点：{evaluation['passed_cases']} / {evaluation['total_cases']}")
         for field, title in [
             ("compile_info", "编译诊断"),
             ("run_info", "运行信息"),
@@ -106,13 +87,17 @@ def submission_result(api: ApiClient, submission_id: str) -> None:
             value = d.get(field)
             message = value.get("message", "") if isinstance(value, dict) else value
             if message:
-                with st.expander(title):
+                with st.expander(
+                    title,
+                    expanded=field in {"compile_info", "run_info"}
+                    and verdict_label(d)[1] == "fail",
+                ):
                     st.code(str(message), language=None, wrap_lines=False)
         logs = call(lambda: api.get(f"/api/submissions/{submission_id}/log"))
         if logs:
             _render_case_details(logs["data"], f"submission-{submission_id}")
         if d.get("code"):
-            with st.expander("本次提交代码", expanded=True):
+            with st.expander("本次提交代码", expanded=False):
                 st.code(d["code"], language=d.get("language", "python"), wrap_lines=False)
                 st.download_button(
                     "下载代码", d["code"], file_name=f"submission-{submission_id}.txt"
@@ -181,7 +166,11 @@ def records_page(api: ApiClient) -> None:
             go("public_log", id=public_id)
     admin = st.session_state.user["role"] == "admin"
     with st.form("record-filters"):
-        a, b, c = st.columns(3)
+        if admin:
+            a, b, c, extra = st.columns([2, 2, 1.5, 2])
+        else:
+            a, c, extra = st.columns([2, 1.5, 2])
+            b = a
         pid = a.text_input("题号", value=st.query_params.get("problem_id", ""))
         uid = (
             b.text_input("用户 ID（留空为全站）", value=st.query_params.get("user_id", ""))
@@ -193,11 +182,12 @@ def records_page(api: ApiClient) -> None:
         status = c.selectbox(
             "状态",
             statuses,
+            format_func=status_label,
             index=statuses.index(st.query_params.get("status"))
             if st.query_params.get("status") in statuses
             else 0,
         )
-        outcome = st.selectbox(
+        outcome = extra.selectbox(
             "完成结果",
             outcomes,
             index=outcomes.index(st.query_params.get("outcome"))
@@ -230,16 +220,19 @@ def records_page(api: ApiClient) -> None:
     rows = result["data"]["submissions"]
     if not rows:
         st.info("没有符合条件的提交记录。")
-    for row in rows:
-        with st.container(border=True):
-            a, b = st.columns([5, 1])
-            a.write(f"#{row['submission_id']} · {row.get('problem_id', '')} · {row['status']}")
-            a.caption(
-                f"{row.get('score', '—')} / {row.get('counts', '—')} · "
-                f"{row.get('language', '')} · {row.get('created_at', '')}"
-            )
-            if b.button("查看详情", key=f"record-{row['submission_id']}"):
-                go("submission", id=row["submission_id"], title=f"提交 #{row['submission_id']}")
+    with st.container(key="record-list"):
+        for row in rows:
+            with st.container(key=f"list-row-record-{row['submission_id']}"):
+                a, b = st.columns([5, 1], vertical_alignment="center")
+                label, tone = verdict_label(row)
+                a.write(f"**#{row['submission_id']} · {row.get('problem_id', '')}**")
+                a.html(f'<span class="oj-status {tone}">{label}</span>')
+                a.caption(
+                    f"{row.get('score', '—')} / {row.get('counts', '—')} · "
+                    f"{row.get('language', '')} · {local_time(row.get('created_at'))} 北京时间"
+                )
+                if b.button("查看详情", key=f"record-{row['submission_id']}"):
+                    go("submission", id=row["submission_id"], title=f"提交 #{row['submission_id']}")
 
 
 def submission_page(api: ApiClient) -> None:

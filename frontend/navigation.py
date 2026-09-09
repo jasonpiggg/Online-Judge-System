@@ -79,7 +79,11 @@ def back() -> None:
     active = next((s for s in slots if s["key"] == st.session_state.get("active_slot")), None)
     if active:
         target = active["history"].pop() if active["history"] else active["origin"]
-        active["current"] = target
+        if target["page"] in DETAILS:
+            active["current"] = target
+        else:
+            # Returning to the origin leaves the task available without selecting it.
+            st.session_state.pop("active_slot", None)
         st.switch_page(st.session_state.pages[target["page"]], query_params=target["params"])
     go("library")
 
@@ -118,21 +122,38 @@ def task_bar() -> None:
     slots = st.session_state.get("task_slots", [])
     if not slots:
         return
-    with st.container(key="task-bar", horizontal=True):
-        for slot in slots:
-            if st.button(
-                str(slot["title"]),
-                key=f"slot-{slot['key']}",
-                type="primary"
-                if slot["key"] == st.session_state.get("active_slot")
-                else "secondary",
-            ):
-                st.session_state.active_slot = slot["key"]
-                target = slot["current"]
-                st.switch_page(
-                    st.session_state.pages[target["page"]], query_params=target["params"]
-                )
-        if st.button("关闭当前任务", key="close-current-task"):
+    active_key = st.session_state.get("active_slot")
+
+    def switch_slot(slot: dict[str, Any]) -> None:
+        st.session_state.active_slot = slot["key"]
+        target = slot["current"]
+        st.switch_page(st.session_state.pages[target["page"]], query_params=target["params"])
+
+    with st.container(key="task-bar", horizontal=True, vertical_alignment="center"):
+        if st.session_state.get("mobile"):
+            options = [None, *[slot["key"] for slot in slots]]
+            chosen = st.selectbox(
+                "进行中的任务",
+                options,
+                index=options.index(active_key) if active_key in options else 0,
+                format_func=lambda value: next(
+                    (str(s["title"]) for s in slots if s["key"] == value), "选择任务"
+                ),
+                key=f"mobile-task-selector-{active_key}",
+            )
+            if chosen and chosen != active_key:
+                switch_slot(next(s for s in slots if s["key"] == chosen))
+        else:
+            with st.container(horizontal=True, key="task-strip"):
+                for slot in slots:
+                    if st.button(
+                        str(slot["title"]),
+                        key=f"slot-{slot['key']}",
+                        help=str(slot["title"]),
+                        type="primary" if slot["key"] == active_key else "secondary",
+                    ):
+                        switch_slot(slot)
+        if st.button("关闭当前任务", key="close-current-task", disabled=not active_key):
             st.session_state.confirm_close = True
     if st.session_state.get("confirm_close"):
         st.warning(

@@ -2,7 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 const api = 'http://127.0.0.1:18765';
 const unique = (prefix:string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
 async function login(page:Page, path='/') {
-  await page.request.post(api+'/api/auth/login',{data:{username:'admin',password:'admintestpassword'}});
+  const response = await page.request.post(api+'/api/auth/login',{data:{username:'admin',password:'admintestpassword'},maxRetries:2});
+  expect(response.ok()).toBe(true);
   await page.goto(path);
   await expect(page.getByRole('heading',{name:'题库',exact:true})).toBeVisible();
 }
@@ -110,6 +111,7 @@ test('assistant streams history, reviews code, blocks stale suggestions and star
   const baseline = '# assistant baseline '+unique('base');
   await code(page,baseline);
   await expect.poll(async()=> (await source(page))?.code).toBe(baseline);
+  await page.getByText('AI 做题助手',{exact:true}).click();
   await page.getByRole('textbox',{name:'向助手提问',exact:true}).fill('请给我完整代码用于代码审查验收');
   await page.getByRole('button',{name:'发送',exact:true}).click();
   await expect(page.getByRole('button',{name:'采纳代码',exact:true})).toBeVisible();
@@ -126,7 +128,9 @@ test('assistant streams history, reviews code, blocks stale suggestions and star
   await page.getByText('已检查 Diff，确认替换整份源码',{exact:true}).click();
   await expect(page.getByRole('button',{name:'采纳代码',exact:true})).toBeDisabled();
   await page.reload();
-  await page.locator('[data-testid="stExpander"] summary').filter({hasText:'请给我完整代码用于代码审查验收'}).first().click();
+  await page.getByText('AI 做题助手',{exact:true}).click();
+  await page.getByText('历史问答',{exact:true}).click();
+  await page.locator('summary').filter({hasText:'请给我完整代码'}).click();
   await page.getByRole('button',{name:'打开回答',exact:true}).first().click();
   await expect(page.getByText(/源码或语言已变化/)).toBeVisible();
   await page.getByRole('button',{name:'新话题',exact:true}).click();
@@ -202,6 +206,7 @@ test('JSON import, basic verification without a reference, publishing and public
   await page.getByRole('button',{name:'打开成果草稿',exact:true}).click();
   await page.getByText('已审阅当前草稿，确认发布到题库',{exact:true}).click();
   await page.getByRole('button',{name:'发布题目',exact:true}).click();
+  await expect(page).toHaveURL(/\/workspace\?/);
   await expect(page.getByRole('heading',{name:problem.title,exact:true})).toBeVisible();
   await page.getByRole('button',{name:'题目管理',exact:true}).click();
   await page.getByText('公开测试点日志',{exact:true}).click();
@@ -214,6 +219,7 @@ test('scoped AI changes and comprehensive review apply only to their source revi
   await login(page);
   const {did} = await importedDraft(page);
   await page.getByRole('textbox',{name:'命题需求 / 修改要求',exact:true}).fill('提供一个简单准确的新样例，保留其他内容。');
+  await page.locator('summary').filter({hasText:'AI 修改'}).click();
   await select(page,'修改范围','样例');
   await page.getByRole('button',{name:'保存并发起 AI 修改',exact:true}).click();
   await expect(page.getByRole('button',{name:'采纳到草稿',exact:true})).toBeVisible();
@@ -223,6 +229,7 @@ test('scoped AI changes and comprehensive review apply only to their source revi
   await expect(page.getByRole('button',{name:'保存草稿',exact:true})).toBeVisible();
   await expect.poll(async()=> (await (await page.request.get(api+'/api/problem-drafts/'+did)).json()).data.problem.samples[0].input).toBe('3 4');
   await page.getByRole('textbox',{name:'命题需求 / 修改要求',exact:true}).fill('重点检查约束表达和已有测试资产');
+  await page.locator('summary').filter({hasText:'AI 修改'}).click();
   await select(page,'修改方式','全面审查');
   await page.getByRole('button',{name:'保存并发起 AI 修改',exact:true}).click();
   await expect(page.getByRole('button',{name:'采纳到草稿',exact:true})).toBeVisible();
@@ -245,7 +252,7 @@ test('generation completes a draft, reports stage usage, and can archive a finis
   await page.getByRole('button',{name:'生成整题',exact:true}).click();
   await expect(page.getByRole('button',{name:'打开成果草稿',exact:true})).toBeVisible({timeout:45000});
   const taskId = new URL(page.url()).searchParams.get('id');
-  await expect(page.getByText('输入 Token',{exact:true})).toBeVisible();
+  await expect(page.getByText(/^输入 Token/)).toBeVisible();
   await page.getByText('分阶段模型、Token 与计价依据',{exact:true}).click();
   await expect(page.getByText(/费用根据任务开始时的配置单价/)).toBeVisible();
   await page.getByRole('button',{name:'打开成果草稿',exact:true}).click();
@@ -273,6 +280,7 @@ test('failed generation retains its candidate and recovers an editable draft',as
 
 test('slow assistant resumes after reload, cancels, and never creates a replacement paid task',async({page})=>{
   await openWorkspace(page);
+  await page.getByText('AI 做题助手',{exact:true}).click();
   await page.getByRole('button',{name:'新话题',exact:true}).click();
   const cid=(await (await page.request.post(api+'/api/ai/conversations/',{data:{problem_id:'sum_2'}})).json()).data.id;
   const messages=()=>page.request.get(api+`/api/ai/conversations/${cid}/messages?include_metadata=true`).then(r=>r.json());
@@ -281,6 +289,7 @@ test('slow assistant resumes after reload, cancels, and never creates a replacem
   await page.getByRole('button',{name:'发送',exact:true}).click();
   await expect(page.getByRole('button',{name:'取消回答',exact:true})).toBeVisible();
   await page.reload();
+  await page.getByText('AI 做题助手',{exact:true}).click();
   await expect(page.getByRole('button',{name:'取消回答',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'取消回答',exact:true}).click();
   await expect(page.getByRole('button',{name:'取消回答',exact:true})).toHaveCount(0);
@@ -308,6 +317,7 @@ test('ordinary resources expose language registration, JSON validation and empty
   await page.request.post(api+'/api/users/',{data:{username,password:'password1'}});
   await page.request.post(api+'/api/auth/login',{data:{username,password:'password1'}});
   await page.goto('/resources?section='+encodeURIComponent('语言'));
+  await page.getByText('注册评测语言',{exact:true}).click();
   const language=unique('python');
   await page.getByRole('textbox',{name:'语言标识',exact:true}).fill(language);
   await page.getByRole('textbox',{name:'文件扩展名',exact:true}).fill('.py');
@@ -394,7 +404,7 @@ test('administrator creates accounts, changes roles, queries audit and cancels r
   await expect(page.getByText('账户已创建',{exact:true})).toBeVisible();
   await page.getByRole('textbox',{name:'搜索用户名或用户 ID',exact:true}).fill(username);
   await page.getByRole('textbox',{name:'搜索用户名或用户 ID',exact:true}).press('Enter');
-  await select(page,'角色','banned');
+  await select(page,'角色','已禁用');
   await page.getByText(`确认将 ${username} 从 user 改为 banned`,{exact:true}).click();
   await page.getByRole('button',{name:'保存角色',exact:true}).click();
   await expect.poll(async()=> (await (await page.request.get(api+'/api/users/?q='+username)).json()).data.users[0].role).toBe('banned');
