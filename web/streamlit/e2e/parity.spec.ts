@@ -114,6 +114,7 @@ test('assistant streams history, reviews code, blocks stale suggestions and star
   await page.getByText('AI 做题助手',{exact:true}).click();
   await page.getByRole('textbox',{name:'向助手提问',exact:true}).fill('请给我完整代码用于代码审查验收');
   await page.getByRole('button',{name:'发送',exact:true}).click();
+  await expect(page.getByRole('textbox',{name:'向助手提问',exact:true})).toHaveValue('');
   await expect(page.getByRole('button',{name:'采纳代码',exact:true})).toBeVisible();
   await expect(page.locator('.diff-view')).toContainText('import sys');
   await page.getByText('已检查 Diff，确认替换整份源码',{exact:true}).click();
@@ -497,5 +498,41 @@ test('short AI instruction applies without empty-default conflict and displays n
   await page.getByRole('button',{name:'采纳到草稿',exact:true}).click();
   await expect(page.getByRole('button',{name:'保存草稿',exact:true})).toBeVisible();
   await expect.poll(async()=> (await (await page.request.get(api+'/api/problem-drafts/'+did)).json()).data.problem.samples[0].input).toBe('3 4');
+  await noException(page);
+});
+
+
+test('published assets survive publication and restore without replacing the problem', async ({page}, info) => {
+  await login(page);
+  const problem = (await (await page.request.get(api+'/api/problems/sum_2')).json()).data;
+  delete problem.limit_inheritance;
+  problem.id=unique('published'); problem.title='发布资产恢复验收';
+  const reference='print(sum(map(int, input().split())))';
+  const created = await page.request.post(api+'/api/problem-drafts/', {data:{problem, reference_solution:reference}});
+  const draft=(await created.json()).data;
+  const verify=await page.request.post(api+`/api/problem-drafts/${draft.id}/verify`,{data:{mode:'basic'}});
+  const tid=(await verify.json()).data.task_id;
+  await expect.poll(async()=> (await (await page.request.get(api+'/api/ai/problem-tasks/'+tid)).json()).data.status).toBe('completed');
+  expect((await page.request.post(api+`/api/problem-drafts/${draft.id}/publish`)).ok()).toBe(true);
+  await page.goto('/workspace?id='+problem.id);
+  await page.getByText('参考解与验证资产',{exact:true}).click();
+  await expect(page.getByTestId('stCode').filter({hasText:reference})).toBeVisible();
+  await page.getByRole('button',{name:'编辑题目',exact:true}).click();
+  await expect(page.getByRole('textbox',{name:'参考解',exact:true})).toHaveValue(reference);
+  await page.getByRole('textbox',{name:'参考解',exact:true}).fill('print(0)');
+  await page.getByRole('button',{name:'保存草稿',exact:true}).click();
+  await page.getByText('恢复已发布资产',{exact:true}).click();
+  await expect(page.locator('.diff-view').filter({hasText:'参考解'}).first()).toContainText('print(0)');
+  await page.getByRole('button',{name:'采纳并保存资产',exact:true}).click();
+  await expect(page.getByRole('textbox',{name:'参考解',exact:true})).toHaveValue(reference);
+  await page.reload();
+  await expect(page.getByRole('textbox',{name:'参考解',exact:true})).toHaveValue(reference);
+  await expect(page.getByRole('textbox',{name:'题目标题',exact:true})).toHaveValue(problem.title);
+  await page.setViewportSize({width:390,height:1000});
+  await page.getByText('恢复已发布资产',{exact:true}).click();
+  await expect(page.getByRole('button',{name:'采纳并保存资产',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'采纳并保存资产',exact:true}).scrollIntoViewIfNeeded();
+  await page.screenshot({path:info.outputPath('published-assets-mobile.png')});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth+1)).toBe(true);
   await noException(page);
 });

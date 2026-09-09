@@ -20,6 +20,7 @@ async def reset_system(
     await request.app.state.submissions.cancel_all()
     async with request.app.state.db.connect() as db:
         for table in (
+            "published_problem_assets",
             "sessions",
             "submission_cases",
             "access_logs",

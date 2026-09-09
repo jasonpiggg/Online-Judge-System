@@ -167,12 +167,12 @@ class Database:
             cursor = await db.execute("PRAGMA user_version")
             version = (await cursor.fetchone())[0]  # type: ignore[index]
             await cursor.close()
-            if version > 8:
+            if version > 9:
                 raise RuntimeError("Database schema is newer than this application")
             existing = await db.execute("SELECT name FROM sqlite_master WHERE type='table'")
             has_tables = bool(await existing.fetchone())
             await existing.close()
-            if version < 8 and has_tables:
+            if version < 9 and has_tables:
                 stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
                 backup_path = self.path.with_name(f"{self.path.stem}.pre-v{version}-{stamp}.db")
                 async with aiosqlite.connect(backup_path) as backup:
@@ -310,6 +310,21 @@ class Database:
                 )
                 await db.execute("PRAGMA user_version = 8")
                 await db.commit()
+            if version < 9:
+                await db.executescript("""
+                    BEGIN IMMEDIATE;
+                    CREATE TABLE IF NOT EXISTS published_problem_assets (
+                        problem_id TEXT PRIMARY KEY,
+                        problem_json TEXT,
+                        assets_json TEXT NOT NULL DEFAULT '{}',
+                        source_draft_id TEXT,
+                        source_revision INTEGER,
+                        deleted_at TEXT,
+                        published_at TEXT NOT NULL
+                    );
+                    PRAGMA user_version = 9;
+                    COMMIT;
+                """)
             await db.execute("PRAGMA journal_mode = WAL")
             await db.execute("PRAGMA optimize")
             await db.commit()

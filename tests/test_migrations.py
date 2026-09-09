@@ -6,6 +6,18 @@ import aiosqlite
 from oj.database import SCHEMA, Database
 
 
+async def test_v8_upgrade_adds_assets_with_one_backup(tmp_path: Path) -> None:
+    db = Database(tmp_path / "oj.db")
+    await db.initialize()
+    await db.execute("DROP TABLE published_problem_assets")
+    await db.execute("PRAGMA user_version=8")
+    await db.initialize()
+    await db.initialize()
+    assert (await db.fetchone("PRAGMA user_version"))[0] == 9
+    assert await db.fetchall("SELECT * FROM published_problem_assets") == []
+    assert len(await asyncio.to_thread(lambda: list(tmp_path.glob("oj.pre-v8-*.db")))) == 1
+
+
 async def test_legacy_database_backup_and_idempotent_migration(tmp_path: Path) -> None:
     path = tmp_path / "oj.db"
     async with aiosqlite.connect(path) as old:
@@ -17,7 +29,7 @@ async def test_legacy_database_backup_and_idempotent_migration(tmp_path: Path) -
     await db.initialize()
     row = await db.fetchone("SELECT username FROM users WHERE id=1")
     assert row["username"] == "preserved"
-    assert (await db.fetchone("PRAGMA user_version"))[0] == 8
+    assert (await db.fetchone("PRAGMA user_version"))[0] == 9
     columns = await db.fetchall("PRAGMA table_info(ai_tasks)")
     assert {"draft_id", "parent_task_id", "action", "target_section"} <= {
         row["name"] for row in columns
@@ -55,7 +67,7 @@ async def test_v3_upgrade_preserves_personal_config_and_backs_up(tmp_path: Path)
     )
     await db.initialize()
     await db.initialize()
-    assert (await db.fetchone("PRAGMA user_version"))[0] == 8
+    assert (await db.fetchone("PRAGMA user_version"))[0] == 9
     assert (await db.fetchone("SELECT encrypted_api_key FROM ai_configs"))[0] == b"\x01\x02"
     assert await db.fetchone("SELECT * FROM ai_system_config") is None
     backups = await asyncio.to_thread(lambda: list(tmp_path.glob("oj.pre-v3-*.db")))
@@ -74,7 +86,7 @@ async def test_v7_upgrade_adds_recovery_archive_and_deleted_problem_fields(
     await db.execute("PRAGMA user_version=7")
 
     await db.initialize()
-    assert (await db.fetchone("PRAGMA user_version"))[0] == 8
+    assert (await db.fetchone("PRAGMA user_version"))[0] == 9
     assert "problem_deleted" in {
         row["name"] for row in await db.fetchall("PRAGMA table_info(submissions)")
     }
