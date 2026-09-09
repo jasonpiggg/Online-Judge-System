@@ -167,12 +167,12 @@ class Database:
             cursor = await db.execute("PRAGMA user_version")
             version = (await cursor.fetchone())[0]  # type: ignore[index]
             await cursor.close()
-            if version > 9:
+            if version > 10:
                 raise RuntimeError("Database schema is newer than this application")
             existing = await db.execute("SELECT name FROM sqlite_master WHERE type='table'")
             has_tables = bool(await existing.fetchone())
             await existing.close()
-            if version < 9 and has_tables:
+            if version < 10 and has_tables:
                 stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
                 backup_path = self.path.with_name(f"{self.path.stem}.pre-v{version}-{stamp}.db")
                 async with aiosqlite.connect(backup_path) as backup:
@@ -325,6 +325,18 @@ class Database:
                     PRAGMA user_version = 9;
                     COMMIT;
                 """)
+            if version < 10:
+                # Early v9 databases predate the deletion tombstone column.
+                await db.execute("BEGIN IMMEDIATE")
+                cursor = await db.execute("PRAGMA table_info(published_problem_assets)")
+                columns = {row[1] for row in await cursor.fetchall()}
+                await cursor.close()
+                if "deleted_at" not in columns:
+                    await db.execute(
+                        "ALTER TABLE published_problem_assets ADD COLUMN deleted_at TEXT"
+                    )
+                await db.execute("PRAGMA user_version = 10")
+                await db.commit()
             await db.execute("PRAGMA journal_mode = WAL")
             await db.execute("PRAGMA optimize")
             await db.commit()
