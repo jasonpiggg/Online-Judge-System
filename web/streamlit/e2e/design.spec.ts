@@ -313,3 +313,55 @@ test('library unrated filter survives refresh', async ({page}) => {
     await page.request.delete(api+'/api/problems/'+id);
   }
 });
+
+for (const width of [1440, 390]) {
+  test(`tag filters, favicon and dates at ${width}px`, async ({page}, info) => {
+    await authenticate(page);
+    await page.setViewportSize({width, height:1000});
+    const original = (await (await page.request.get(api+'/api/problems/sum_2')).json()).data;
+    delete original.limit_inheritance;
+    const ids = ['tag-filter-a','tag-filter-b','tag-filter-c'];
+    for (let i=0; i<ids.length; i++) {
+      expect((await page.request.post(api+'/api/problems/', {data:{...original,id:ids[i],title:ids[i],
+        difficulty:'', tags:i===0?['独有栈','独有栈']:i===1?['独有图论']:['独有其他']}})).ok()).toBe(true);
+    }
+    try {
+      await page.goto('/');
+      await expect(page.locator('link[rel="shortcut icon"]')).toHaveAttribute('href', /data:image\/svg\+xml/);
+      if (width<760) await page.getByText('筛选与题目管理',{exact:true}).click();
+      const tags = page.getByRole('combobox',{name:'题目标签',exact:true});
+      await tags.click();
+      await tags.fill('独有栈');
+      await page.getByRole('option',{name:'独有栈（1）',exact:true}).click();
+      await tags.press('Escape');
+      await expect(page.locator('.st-key-list-row-problem-tag-filter-a')).toBeVisible();
+      await expect(page.locator('.st-key-list-row-problem-tag-filter-b')).toHaveCount(0);
+      await tags.click();
+      await tags.fill('独有图论');
+      await page.getByRole('option',{name:'独有图论（1）',exact:true}).click();
+      await tags.press('Escape');
+      await expect(page.locator('.st-key-list-row-problem-tag-filter-b')).toBeVisible();
+      await expect(page.locator('.st-key-list-row-problem-tag-filter-c')).toHaveCount(0);
+      await page.reload();
+      await expect(page.locator('.st-key-list-row-problem-tag-filter-a')).toBeVisible();
+      await expect(page.locator('.st-key-list-row-problem-tag-filter-b')).toBeVisible();
+      await healthy(page);
+      await page.screenshot({path:info.outputPath(`tags-${width}.png`)});
+      await page.locator('.st-key-list-row-problem-tag-filter-a').getByRole('button',{name:'开始做题',exact:true}).click();
+      await page.getByRole('button',{name:'返回来源',exact:true}).click();
+      await expect(page.locator('.st-key-list-row-problem-tag-filter-b')).toBeVisible();
+      const search = page.getByRole('textbox',{name:'搜索题目',exact:true});
+      await search.fill('tag-filter-a'); await search.press('Enter');
+      await expect(page.locator('.st-key-list-row-problem-tag-filter-b')).toHaveCount(0);
+      await search.fill(''); await search.press('Enter');
+      if(width<760) await page.getByText('筛选与题目管理',{exact:true}).click();
+      await page.locator('[data-testid="stMultiSelect"]').getByRole('button',{name:/Clear all/i}).click();
+      await search.fill('tag-filter-c'); await search.press('Enter');
+      await expect(page.locator('.st-key-list-row-problem-tag-filter-c')).toBeVisible();
+      await page.goto('/profile');
+      await expect(page.getByText(/加入时间：\d{4}-\d{2}-\d{2} \d{2}:\d{2} 北京时间/)).toBeVisible();
+    } finally {
+      for(const id of ids) await page.request.delete(api+'/api/problems/'+id);
+    }
+  });
+}

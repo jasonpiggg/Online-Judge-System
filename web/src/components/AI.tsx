@@ -1,3 +1,4 @@
+import { localTime } from "../datetime";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, json, errorText, queryClient } from "../api";
@@ -627,7 +628,7 @@ export function Assistant({
                           {item.submission_id
                             ? ` · 提交 #${item.submission_id}`
                             : ""}
-                          {` · ${new Date(item.created_at).toLocaleString()}`}
+                          {` · ${localTime(item.created_at)}`}
                         </small>
                         <i className={`history-status tone-${item.status}`}>
                           {item.status === "completed"

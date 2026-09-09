@@ -16,6 +16,7 @@ from frontend.ui import (
     status_label,
     verdict_label,
 )
+from oj.evaluation import VERDICT_LABELS
 
 
 def _render_case_details(data: dict[str, Any], key: str = "cases") -> list[dict[str, Any]] | None:
@@ -182,7 +183,11 @@ def records_content(api: ApiClient) -> None:
             else str(st.session_state.user["user_id"])
         )
         statuses = ["全部", "pending", "success", "error"]
-        outcomes = ["全部结果", "全部通过", "未全部通过"]
+        outcomes = [
+            "全部结果",
+            "未全部通过",
+            *[label for key, label in VERDICT_LABELS.items() if key not in {"pending", "error"}],
+        ]
         status = c.selectbox(
             "状态",
             statuses,
@@ -215,8 +220,10 @@ def records_content(api: ApiClient) -> None:
     if status != "全部":
         params["status"] = status
     outcome = panel_query.get("outcome", "全部结果")
-    if outcome != "全部结果":
-        params["outcome"] = "passed" if outcome == "全部通过" else "not_passed"
+    if outcome == "未全部通过":
+        params["outcome"] = "not_passed"
+    elif outcome != "全部结果":
+        params["verdict"] = next(k for k, v in VERDICT_LABELS.items() if v == outcome)
     result = call(lambda: api.get("/api/submissions/", params=params))
     if not result:
         return

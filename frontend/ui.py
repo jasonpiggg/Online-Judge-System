@@ -9,6 +9,7 @@ from typing import Any
 import streamlit as st
 
 from frontend.client import ApiError
+from oj.evaluation import VERDICT_LABELS
 
 CSS = "<style>" + Path(__file__).with_name("theme.css").read_text(encoding="utf-8") + "</style>"
 
@@ -149,6 +150,7 @@ def verdict_label(data: dict[str, Any]) -> tuple[str, str]:
         "unknown": "明细不完整",
         "partial": "部分通过",
         "failed": "测试未通过",
+        "UNK": VERDICT_LABELS["UNK"],
     }
     if verdict in labels:
         return labels[verdict], "wait" if verdict in {"empty", "unknown"} else "fail"
@@ -184,11 +186,13 @@ def data_table(rows: list[dict[str, Any]]) -> None:
         "user_id": "用户 ID",
         "username": "用户名",
         "role": "角色",
-        "join_time": "加入时间",
+        "join_time": "加入时间（北京时间）",
         "submit_count": "提交次数",
         "resolve_count": "通过题目",
         "result": "结果",
-        "time": "用时 / 秒",
+        "time": "时间（北京时间）"
+        if any(isinstance(r.get("time"), str) for r in rows)
+        else "用时 / 秒",
         "memory": "内存 / MB",
         "name": "语言",
         "file_ext": "扩展名",
@@ -197,6 +201,7 @@ def data_table(rows: list[dict[str, Any]]) -> None:
         "time_limit": "时间 / 秒",
         "memory_limit": "内存 / MB",
         "created_at": "时间（北京时间）",
+        "updated_at": "更新时间（北京时间）",
         "problem_id": "题号",
         "action": "操作",
         "old_role": "原角色",
@@ -209,7 +214,8 @@ def data_table(rows: list[dict[str, Any]]) -> None:
     display = [
         {
             k: local_time(v)
-            if k == "created_at"
+            if k in {"created_at", "updated_at", "published_at", "archived_at", "join_time"}
+            or (k == "time" and isinstance(v, str))
             else status_label(v)
             if k in {"role", "old_role", "new_role", "status"} and isinstance(v, str)
             else v

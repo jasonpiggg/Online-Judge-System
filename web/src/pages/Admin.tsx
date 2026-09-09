@@ -1,3 +1,4 @@
+import { localTime } from "../datetime";
 import { Icon } from "../components/Icon";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -184,7 +185,7 @@ export function Admin({ user }: { user: User }) {
                       </td>
                       <td>{roleLabel(l.old_role)}</td>
                       <td>{roleLabel(l.new_role)}</td>
-                      <td>{new Date(l.time).toLocaleString()}</td>
+                      <td>{localTime(l.time)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -246,7 +247,7 @@ export function Admin({ user }: { user: User }) {
                   </div>
                   <div>
                     <dt>加入时间</dt>
-                    <dd>{profile.data.join_time}</dd>
+                    <dd>{localTime(profile.data.join_time)} 北京时间</dd>
                   </div>
                   <div>
                     <dt>通过题目 / 提交次数</dt>
@@ -486,7 +487,7 @@ export function Admin({ user }: { user: User }) {
                             · {l.status}
                           </span>
                         </td>
-                        <td>{new Date(l.time).toLocaleString()}</td>
+                        <td>{localTime(l.time)}</td>
                       </tr>
                     ))}
                   </tbody>

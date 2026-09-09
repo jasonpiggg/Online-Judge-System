@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from oj.auth import CurrentUser, get_current_user, require_admin
 from oj.errors import APIError, response
-from oj.evaluation import evaluation_batch, private_evaluation
+from oj.evaluation import VERDICT_LABELS, evaluation_batch, private_evaluation
 from oj.languages import get_language
 from oj.pagination import page_window
 from oj.route_security import AuthorizedRoute
@@ -95,12 +95,15 @@ async def list_submissions(
     problem_id: str | None = None,
     status: str | None = Query(default=None, pattern="^(pending|success|error)$"),
     outcome: str | None = Query(default=None, pattern="^(passed|not_passed)$"),
+    verdict: str | None = None,
     page: int | None = Query(default=None, ge=1),
     page_size: int | None = Query(default=None, ge=1),
     all_users: bool = False,
     include_metadata: bool = False,
     user: CurrentUser = Depends(submission_reader),
 ) -> JSONResponse:
+    if verdict is not None and verdict not in VERDICT_LABELS:
+        raise APIError(422, "invalid verdict")
     if all_users and user.role != "admin":
         raise APIError(403, "permission denied")
     if user_id is None and problem_id is None and not all_users:
@@ -131,6 +134,45 @@ async def list_submissions(
             "(score IS NULL OR counts IS NULL OR counts=0 OR score<counts)))"
         )
     where = " AND ".join(clauses) or "1=1"
+    if verdict is not None:
+        # Classify only authorized, visible results before counting or paginating.
+        # Bounded batches avoid loading source code for the entire submission history.
+        matches: list[dict[str, Any]] = []
+        total_matches = 0
+        offset = 0
+        start = ((page or 1) - 1) * page_size if page_size else 0
+        while True:
+            batch = await request.app.state.db.fetchall(
+                "SELECT s.id,s.user_id,s.problem_id,s.language,s.status,s.score,s.counts,"  # noqa: S608
+                "s.compile_info,s.created_at,s.problem_deleted,u.username FROM submissions s "
+                f"LEFT JOIN users u ON u.id=s.user_id WHERE {where} "
+                "ORDER BY s.id DESC LIMIT 500 OFFSET ?",
+                [*params, offset],
+            )
+            if not batch:
+                break
+            visible = await visible_evaluations(request, user, batch)
+            for row in batch:
+                if visible[row["id"]]["verdict"] != verdict:
+                    continue
+                if total_matches >= start and (page_size is None or len(matches) < page_size):
+                    item: dict[str, Any] = {
+                        "submission_id": str(row["id"]),
+                        "status": row["status"],
+                    }
+                    if row["status"] == "success":
+                        item.update(score=row["score"], counts=row["counts"])
+                    if include_metadata:
+                        item.update(
+                            {k: row[k] for k in ("user_id", "problem_id", "language", "created_at")}
+                        )
+                        item["problem_deleted"] = bool(row["problem_deleted"])
+                        item["evaluation"] = visible[row["id"]]
+                        item["username"] = row["username"]
+                    matches.append(item)
+                total_matches += 1
+            offset += len(batch)
+        return response(data={"total": total_matches, "submissions": matches})
     total = await request.app.state.db.fetchone(
         f"SELECT COUNT(*) AS n FROM submissions WHERE {where}",  # noqa: S608
         params,

@@ -1,3 +1,4 @@
+import { localTime } from "../datetime";
 import { useLanguages } from "../languages";
 import { CodeImport } from "../components/CodeImport";
 import { editingDraftPath } from "../problem-actions";
@@ -700,7 +701,7 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
                             <strong>提交 #{item.submission_id}</strong>
                             <span className="muted">
                               {item.language} ·{" "}
-                              {new Date(item.created_at).toLocaleString()}
+                              {localTime(item.created_at)}
                             </span>
                           </div>
                           <VerdictBadge submission={item} />
