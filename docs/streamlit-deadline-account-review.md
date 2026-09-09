@@ -2,9 +2,9 @@
 
 ## Scope and design
 
-Streamlit only; the React application is unchanged. Preserve the programming workspace's blue/white visual language: accent #2563eb, ink #1d293d, muted #617087, surface #f5f8fe, border #e3eaf3, white canvas. Keep system Chinese typography and monospace code. Align statement content with the workspace edge, use the available 1440px container, and preserve readable paragraph spacing and semantic list markers.
+Streamlit only; the React application is unchanged. Preserve the programming workspace's blue/white visual language: accent #2563eb, ink #1d293d, muted #617087, surface #f5f8fe, border #e3eaf3, white canvas. Keep system Chinese typography and monospace code. Align statement content with the workspace edge, preserve the existing 1200px page container, and preserve readable paragraph spacing and semantic list markers.
 
-The navigation layout is: count → first/previous → nearby pages → next/last → page jump. Both ends of each paginated list expose the same URL-backed state. Native controls wrap on narrow screens and preserve keyboard focus. Existing components and tokens are reused; there is no Figma source in this repository.
+The navigation layout is: count → first/previous → nearby pages → next/last → page jump. Both ends of each nonempty paginated list expose the same URL-backed state; empty lists show one contextual message without pagination. Always show first/last numbered pages plus the current page and up to two neighbors in each direction, with ellipses for gaps; show every page when at most five exist. Three groups span the available content width and wrap when needed. Native controls wrap on narrow screens and preserve keyboard focus. Existing components and tokens are reused; there is no Figma source in this repository.
 
 ## Execution contract
 

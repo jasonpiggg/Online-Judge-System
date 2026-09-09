@@ -117,3 +117,55 @@ pagination(120, position="bottom")
     assert any(b.label == "7" for b in app.button)
     app.button(key="pager-page-bottom-0").click().run()
     assert app.query_params["page"] == ["1"]
+
+
+@pytest.mark.parametrize(
+    ("page", "last", "expected"),
+    [
+        (1, 1, [1]),
+        (3, 5, [1, 2, 3, 4, 5]),
+        (1, 15, [1, 2, 3, None, 15]),
+        (7, 15, [1, None, 5, 6, 7, 8, 9, None, 15]),
+        (15, 15, [1, None, 13, 14, 15]),
+        (4, 6, [1, 2, 3, 4, 5, 6]),
+    ],
+)
+def test_pager_endpoint_and_neighbor_rules(
+    page: int, last: int, expected: list[int | None]
+) -> None:
+    from frontend.navigation import page_links
+
+    assert page_links(page, last) == expected
+
+
+def test_empty_pagers_render_no_controls() -> None:
+    app = AppTest.from_string("""
+from frontend.navigation import pagination
+pagination(0)
+pagination(0, position="bottom")
+""").run()
+    assert not app.exception
+    assert not app.button
+    assert not app.number_input
+    assert not app.caption
+
+
+@pytest.mark.parametrize(
+    ("current", "new", "confirm", "message"),
+    [
+        ("", "", "", "请输入当前密码"),
+        ("secret1", "", "", "请输入新密码"),
+        ("secret1", "secret2", "", "请再次输入"),
+        ("short", "secret2", "secret2", "当前密码不正确"),
+        ("secret1", "short", "short", "至少需要 6"),
+        ("secret1", "密" * 25, "密" * 25, "最多 72"),
+        ("secret1", "secret2", "different", "不一致"),
+        ("secret1", "secret1", "secret1", "不能与当前密码相同"),
+        ("secret1", "secret2", "secret2", None),
+    ],
+)
+def test_password_input_feedback(current: str, new: str, confirm: str, message: str | None) -> None:
+    from frontend.account import password_change_error
+
+    error = password_change_error(current, new, confirm)
+    assert error is None if message is None else message in str(error)

@@ -87,6 +87,8 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
             )
             if history:
                 pagination(history["data"]["total"], "message_page", 5)
+                if not history["data"]["total"]:
+                    st.info("暂无历史问答。")
                 for msg in history["data"]["messages"]:
                     with st.expander(str(msg["message"])[:100], expanded=False):
                         st.write(msg["message"])

@@ -220,6 +220,7 @@ def records_page(api: ApiClient) -> None:
     rows = result["data"]["submissions"]
     if not rows:
         st.info("没有符合条件的提交记录。")
+        return
     with st.container(key="record-list"):
         for row in rows:
             with st.container(key=f"list-row-record-{row['submission_id']}"):

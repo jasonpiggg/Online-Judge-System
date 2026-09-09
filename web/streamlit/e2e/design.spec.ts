@@ -207,3 +207,37 @@ test('login chrome, paired pager and clear-all task navigation', async ({page}) 
   await expect(page.locator('.st-key-task-bar')).toHaveCount(0);
   await healthy(page);
 });
+
+
+test('empty histories have no pagers and password feedback is actionable', async ({page}) => {
+  const username = `password_${Date.now()}`;
+  expect((await page.request.post(api+'/api/users/',{data:{username,password:'original123'}})).ok()).toBe(true);
+  expect((await page.request.post(api+'/api/auth/login',{data:{username,password:'original123'}})).ok()).toBe(true);
+  await page.goto('/workspace?id=sum_2');
+  await page.getByText('本题提交历史',{exact:true}).click();
+  await expect(page.getByText('暂无本题提交记录，提交代码后可在这里查看。',{exact:true})).toBeVisible();
+  await expect(page.locator('.st-key-pager-page-top')).toHaveCount(0);
+  await expect(page.locator('.st-key-pager-page-bottom')).toHaveCount(0);
+  await page.goto('/profile');
+  await page.getByText('修改密码',{exact:true}).click();
+  const submit = page.getByRole('button',{name:'更新密码',exact:true});
+  const current = page.getByRole('textbox',{name:'当前密码',exact:true});
+  const password = page.getByRole('textbox',{name:'新密码',exact:true});
+  const confirm = page.getByRole('textbox',{name:'确认新密码',exact:true});
+  await submit.click();
+  await expect(page.getByText('请输入当前密码。',{exact:true})).toBeVisible();
+  await current.fill('original123'); await submit.click();
+  await expect(page.getByText('请输入新密码。',{exact:true})).toBeVisible();
+  for (const [old,next,confirmation,message] of [
+    ['original123','replacement123','','请再次输入新密码以确认。'],
+    ['original123','original123','original123','新密码不能与当前密码相同，请设置不同的新密码。'],
+    ['wrong123','replacement123','replacement123','当前密码不正确'],
+    ['original123','replacement123','replacement123','密码已更新，其他设备已退出登录。'],
+  ]) {
+    await current.fill(old); await password.fill(next); await confirm.fill(confirmation);
+    await submit.click();
+    await expect(page.getByText(message,{exact:true})).toBeVisible();
+  }
+  expect((await page.request.get(api+'/api/auth/me')).ok()).toBe(true);
+  await healthy(page);
+});

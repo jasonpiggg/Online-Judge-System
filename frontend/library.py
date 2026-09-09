@@ -125,6 +125,7 @@ def library_page(api: ApiClient) -> None:
     page = pagination(len(items))
     if not items:
         st.info("没有找到匹配的题目。试试其他关键词，或创建第一道题。")
+        return
     with st.container(key="library-list"):
         for item in items[(page - 1) * 10 : page * 10]:
             with st.container(key=f"list-row-problem-{item['id']}"):

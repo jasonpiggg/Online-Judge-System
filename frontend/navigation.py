@@ -201,12 +201,31 @@ def page_number(name: str = "page") -> int:
         return 1
 
 
+def page_links(page: int, last: int) -> list[int | None]:
+    """Always expose endpoints; ellipses represent only genuinely hidden pages."""
+    visible = (
+        set(range(1, last + 1))
+        if last <= 5
+        else {1, last, *range(max(1, page - 2), min(last, page + 2) + 1)}
+    )
+    result: list[int | None] = []
+    previous = 0
+    for value in sorted(visible):
+        if previous and value > previous + 1:
+            result.append(None)
+        result.append(value)
+        previous = value
+    return result
+
+
 def pagination(total: int, name: str = "page", size: int = 10, *, position: str = "top") -> int:
     page = page_number(name)
     last = max(1, (total + size - 1) // size)
     if page > last:
         st.query_params[name] = str(last)
         st.rerun()
+    if total == 0:
+        return 1
     prefix = f"pager-{name}-{position}"
 
     def move(value: int) -> None:
@@ -215,34 +234,44 @@ def pagination(total: int, name: str = "page", size: int = 10, *, position: str 
 
     with st.container(horizontal=True, vertical_alignment="center", key=prefix):
         st.caption(f"第 {page} / {last} 页 · {total} 条", width="content")
-        start = max(1, min(page - 2, last - 4))
-        end = min(last, start + 4)
-        entries = [("首页", 1), ("上一页", page - 1)]
-        if start > 1:
-            entries.append(("…", -1))
-        entries.extend((str(n), n) for n in range(start, end + 1))
-        if end < last:
-            entries.append(("…", -1))
-        entries.extend([("下一页", page + 1), ("尾页", last)])
-        for index, (label, value) in enumerate(entries):
-            if st.button(
-                label,
-                key=f"{prefix}-{index}",
-                type="primary" if label == str(page) else "secondary",
-                disabled=value < 1 or value > last or value == page,
-            ):
-                move(value)
-        st.caption("跳转至：", width="content")
-        target = st.number_input(
-            "跳转至",
-            min_value=1,
-            max_value=last,
-            value=page,
-            step=1,
-            key=f"{prefix}-jump-{page}-{last}",
-            width=90,
-            label_visibility="collapsed",
-        )
-        if st.button("跳转", key=f"{prefix}-go", disabled=last == 1):
-            move(int(target))
+        with st.container(
+            horizontal=True,
+            vertical_alignment="center",
+            width="content",
+            key=f"pager-nav-{name}-{position}",
+        ):
+            entries = [("首页", 1), ("上一页", page - 1)]
+            entries.extend(
+                (str(n), n) if n is not None else ("…", -1) for n in page_links(page, last)
+            )
+            entries.extend([("下一页", page + 1), ("尾页", last)])
+            for index, (label, value) in enumerate(entries):
+                if value == -1:
+                    st.caption("…", width="content")
+                elif st.button(
+                    label,
+                    key=f"{prefix}-{index}",
+                    type="primary" if label == str(page) else "secondary",
+                    disabled=value < 1 or value > last or value == page,
+                ):
+                    move(value)
+        with st.container(
+            horizontal=True,
+            vertical_alignment="center",
+            width="content",
+            key=f"pager-jump-{name}-{position}",
+        ):
+            st.caption("跳转至：", width="content")
+            target = st.number_input(
+                "跳转至",
+                min_value=1,
+                max_value=last,
+                value=page,
+                step=1,
+                key=f"{prefix}-jump-{page}-{last}",
+                width=90,
+                label_visibility="collapsed",
+            )
+            if st.button("跳转", key=f"{prefix}-go", disabled=last == 1):
+                move(int(target))
     return page

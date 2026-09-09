@@ -67,7 +67,9 @@ class ApiClient:
                 else:
                     messages = {
                         403: "没有执行此操作的权限。",
-                        429: "一分钟最多提交 3 次，请稍后重试。",
+                        429: "修改密码尝试过于频繁，请稍后重试。"
+                        if path == "/api/auth/password"
+                        else "一分钟最多提交 3 次，请稍后重试。",
                     }
                     message = messages.get(
                         result.status_code, server_message or f"HTTP {result.status_code}"

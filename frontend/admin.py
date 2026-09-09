@@ -50,6 +50,8 @@ def admin_page(api: ApiClient) -> None:
         if not result:
             return
         pagination(result["data"]["total"], "users_page")
+        if not result["data"]["total"]:
+            st.info("没有找到相关账户，请调整搜索条件。")
         users = result["data"]["users"]
         data_table(users)
         if users:

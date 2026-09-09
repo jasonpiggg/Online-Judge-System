@@ -338,6 +338,8 @@ def workspace_page(api: ApiClient) -> None:
         )
         if records:
             pagination(records["data"]["total"])
+            if not records["data"]["total"]:
+                st.info("暂无本题提交记录，提交代码后可在这里查看。")
             for row in records["data"]["submissions"]:
                 if st.button(
                     f"#{row['submission_id']} · {row['status']} · {row.get('created_at', '')}",

@@ -3,8 +3,8 @@
   --oj-soft:#f5f8fe; --oj-border:#e3eaf3;
   font-family:system-ui,'Microsoft YaHei',sans-serif;color:var(--oj-ink);background:#fff;
 }
-[data-testid="stMainBlockContainer"] {max-width:1440px;padding:3rem 24px 3rem}
-.stApp [data-testid="stToolbar"] {max-width:1440px;margin-inline:auto;padding-inline:8px}
+[data-testid="stMainBlockContainer"] {max-width:1200px;padding:3rem 24px 3rem}
+.stApp [data-testid="stToolbar"] {max-width:1200px;margin-inline:auto;padding-inline:8px}
 [data-testid="stAppDeployButton"] {display:none}
 [data-testid="stHeader"] {background:#fff}
 .stApp h1,.stApp h2,.stApp h3 {font-family:inherit;letter-spacing:-.015em}
@@ -71,3 +71,7 @@
 
 .stApp [class*="st-key-pager-"] [data-testid="stCaptionContainer"]{display:flex;align-items:center;min-height:40px;margin:0;padding:0}
 .stApp [class*="st-key-pager-"] p{margin-block:0!important}
+
+.stApp [class*="st-key-pager-"]{width:100%;justify-content:space-between;column-gap:20px;row-gap:12px}
+.stApp [class*="st-key-pager-nav-"]{flex-wrap:wrap;justify-content:center;gap:6px;padding:0}
+.stApp [class*="st-key-pager-jump-"]{justify-content:flex-end;gap:8px;padding:0}

@@ -148,8 +148,8 @@ def _profile_content(api: ApiClient) -> None:
             )
             confirm = st.text_input("确认新密码", type="password")
             if st.form_submit_button("更新密码", type="primary"):
-                if new != confirm:
-                    st.error("两次输入的新密码不一致。")
+                if error := password_change_error(current, new, confirm):
+                    st.error(error)
                 elif call(
                     lambda: api.post(
                         "/api/auth/password",
@@ -167,3 +167,25 @@ def _profile_content(api: ApiClient) -> None:
         config = call(lambda: api.get("/api/ai/model-config"))
         if config:
             model_settings(api, config["data"])
+
+
+def password_change_error(current: str, new: str, confirm: str) -> str | None:
+    if not current:
+        return "请输入当前密码。"
+    if not new:
+        return "请输入新密码。"
+    if not confirm:
+        return "请再次输入新密码以确认。"
+    if len(current.encode("utf-8")) > 72:
+        return "当前密码超过 72 个 UTF-8 字节，请检查输入或联系管理员。"
+    if len(current) < 6:
+        return "当前密码不正确，请重新输入。"
+    if len(new) < 6:
+        return "新密码至少需要 6 个字符。"
+    if len(new.encode("utf-8")) > 72:
+        return "新密码最多 72 个 UTF-8 字节，请缩短密码。"
+    if new != confirm:
+        return "两次输入的新密码不一致，请重新确认。"
+    if current == new:
+        return "新密码不能与当前密码相同，请设置不同的新密码。"
+    return None
