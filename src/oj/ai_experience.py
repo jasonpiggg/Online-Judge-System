@@ -807,8 +807,9 @@ class AIExperience(AIAuthoringManager):
                 max_tokens = 8192 if phase in {"statement", "assets"} else 4096
                 system += (
                     "\nBounded quality workflow: preserve the requested difficulty. "
-                    "Use explicit constraints, 8-12 distinct adversarial tests, "
-                    "exactly 20 small random inputs and two executable wrong solutions. "
+                    "Use explicit constraints. When this stage generates validation assets, target "
+                    "8-12 distinct adversarial tests, exactly 20 small random inputs and "
+                    "two executable wrong solutions; do not add assets in the statement stage. "
                     "Audit ambiguity, algorithm complexity, expected outputs and edge coverage. "
                     "Keep code and reviews concise; do not simplify the problem to save time."
                 )
