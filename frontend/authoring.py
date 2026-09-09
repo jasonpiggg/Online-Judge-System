@@ -29,7 +29,7 @@ def list_data(value: Any, field: str) -> dict[str, Any]:
     return value
 
 
-def start_task(api: ApiClient, body: dict[str, Any]) -> None:
+def start_task(api: ApiClient, body: dict[str, Any], *, clear_input: str | None = None) -> None:
     signature = json.dumps(body, sort_keys=True, ensure_ascii=False)
     pending = st.session_state.get("authoring-request")
     if not pending or pending["signature"] != signature:
@@ -44,10 +44,14 @@ def start_task(api: ApiClient, body: dict[str, Any]) -> None:
     )
     if response:
         st.session_state.pop("authoring-request", None)
+        if clear_input:
+            st.session_state[f"{clear_input}-clear"] = True
         go("ai_task", id=response["data"]["task_id"], title="AI 任务")
 
 
 def authoring_page(api: ApiClient) -> None:
+    if st.session_state.pop("generation-requirement-clear", False):
+        st.session_state["generation-requirement"] = ""
     heading("命题中心", note="从不完整的想法开始，保存草稿，再检查与发布。")
     if st.button("新建空白草稿", type="primary"):
         d = call(lambda: api.post("/api/problem-drafts/", json={}))
@@ -70,7 +74,9 @@ def authoring_page(api: ApiClient) -> None:
                 )
                 with st.form("generate-problem"):
                     requirement = st.text_area(
-                        "命题需求", placeholder="知识点、难度、数据范围和预期覆盖的边界场景。"
+                        "命题需求",
+                        key="generation-requirement",
+                        placeholder="知识点、难度、数据范围和预期覆盖的边界场景。",
                     )
                     problems = call(lambda: api.get("/api/problems/"))
                     choices = {
@@ -101,6 +107,7 @@ def authoring_page(api: ApiClient) -> None:
                                 "generation_mode": "basic_draft",
                                 "target_section": "all",
                             },
+                            clear_input="generation-requirement",
                         )
     if tabs[0].open:
         with tabs[0]:
@@ -395,6 +402,9 @@ def draft_page(api: ApiClient) -> None:
                 state["epoch"] += 1
                 st.rerun()
     with st.expander("AI 修改"):
+        ai_input_key = f"draft-ai-requirement-{did}"
+        if st.session_state.pop(f"{ai_input_key}-clear", False):
+            st.session_state[ai_input_key] = ""
         action = st.selectbox(
             "修改方式",
             ["revise", "review", "tests", "regenerate", "generate"],
@@ -429,8 +439,8 @@ def draft_page(api: ApiClient) -> None:
         st.caption(explanations[action])
         ai_requirement = st.text_area(
             "本次 AI 修改需求",
-            value=local["requirement"],
-            key=f"draft-ai-requirement-{did}",
+            value="",
+            key=ai_input_key,
             height=140,
             placeholder="例如：补充一个负数边界样例，并解释对应输出；保留其他题面内容。",
             help="短指令也可以；留空则检查并改进所选范围，保留原题意。",
@@ -452,6 +462,7 @@ def draft_page(api: ApiClient) -> None:
                         if action in {"review", "generate", "regenerate"}
                         else section,
                     },
+                    clear_input=ai_input_key,
                 )
     with st.container(border=True, key="draft-publish-module"):
         st.subheader("检查与发布")

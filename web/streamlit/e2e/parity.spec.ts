@@ -1,6 +1,34 @@
 import { test, expect, type Page } from '@playwright/test';
 const api = 'http://127.0.0.1:18765';
 const unique = (prefix:string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+
+for (const role of ['user','admin']) {
+  test(`clean submission navigation and passed filter for ${role}`, async ({page}) => {
+    if(role==='admin') await login(page);
+    else {
+      const username=unique('parity');
+      expect((await page.request.post(api+'/api/users/',{data:{username,password:'password1'}})).ok()).toBe(true);
+      expect((await page.request.post(api+'/api/auth/login',{data:{username,password:'password1'}})).ok()).toBe(true);
+    }
+    const submitted=await page.request.post(api+'/api/submissions/',{data:{problem_id:'sum_2',language:'python',code:'print(sum(map(int,input().split())))'}});
+    expect(submitted.ok()).toBe(true);
+    const sid=(await submitted.json()).data.submission_id;
+    await expect.poll(async()=> (await (await page.request.get(api+'/api/submissions/'+sid)).json()).data.status).toBe('success');
+    await page.goto('/records?outcome='+encodeURIComponent('全部通过'));
+    await expect(page.getByText('全部通过',{exact:true}).first()).toBeVisible();
+    let dialogs=0;
+    page.on('dialog', async d=>{dialogs++;await d.dismiss();});
+    await page.goto('/submission?id='+sid);
+    await expect(page.getByRole('heading',{name:/提交 #/})).toBeVisible();
+    await page.getByRole('link',{name:'题库',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'题库',exact:true})).toBeVisible();
+    await page.getByRole('textbox',{name:'搜索题目',exact:true}).fill('sum');
+    await page.getByRole('textbox',{name:'搜索题目',exact:true}).press('Enter');
+    await page.getByRole('link',{name:'提交记录',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'提交记录',exact:true})).toBeVisible();
+    expect(dialogs).toBe(0);
+  });
+}
 async function login(page:Page, path='/') {
   const response = await page.request.post(api+'/api/auth/login',{data:{username:'admin',password:'admintestpassword'},maxRetries:2});
   expect(response.ok()).toBe(true);
@@ -264,11 +292,16 @@ test('generation completes a draft, reports stage usage, and can archive a finis
   await expect(page.getByText(/费用根据任务开始时的配置单价/)).toBeVisible();
   await page.getByRole('button',{name:'打开成果草稿',exact:true}).click();
   await expect(page.getByRole('textbox',{name:'题目标题',exact:true})).toHaveValue('浏览器验收求和题');
+  await expect(page.getByRole('textbox',{name:'命题需求 / 修改要求',exact:true})).toHaveValue('创建一道简单的整数求和题目，覆盖正负数和边界');
+  await page.locator('summary').filter({hasText:'AI 修改'}).click();
+  await expect(page.getByRole('textbox',{name:'本次 AI 修改需求',exact:true})).toHaveValue('');
   await page.goto('/ai_task?id='+taskId);
   await page.locator('[data-testid="stExpander"] summary').filter({hasText:'归档任务'}).click();
   await page.getByText('确认归档并中断尚未完成的任务',{exact:true}).click();
   await page.getByRole('button',{name:'归档任务',exact:true}).click();
   await expect(page.getByRole('heading',{name:'命题中心',exact:true})).toBeVisible();
+  await page.getByRole('tab',{name:'生成整题',exact:true}).click();
+  await expect(page.getByRole('textbox',{name:'命题需求',exact:true})).toHaveValue('');
   await noException(page);
 });
 

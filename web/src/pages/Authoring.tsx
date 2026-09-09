@@ -298,6 +298,7 @@ export function Authoring() {
         headers: { "Idempotency-Key": pending.current.key },
       });
       pending.current = undefined;
+      setRequirement("");
       openRoot("/authoring/tasks/" + r.task_id);
     } catch (e) {
       setError(errorText(e));
@@ -695,6 +696,7 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
         headers: { "Idempotency-Key": pending.current.key },
       });
       pending.current = undefined;
+      setRequirement("");
       navigateInSlot("/authoring/tasks/" + t.task_id);
     } catch (e) {
       setError(errorText(e));
