@@ -28,7 +28,6 @@ def heading(kicker: str, title: str = "", note: str = "") -> None:
             if slot["title"] != label:
                 slot["title"] = label
                 slot["current"]["title"] = label
-                st.rerun()  # The task bar is rendered before the page header.
     st.html(
         f'<div class="oj-header"><h1>{escape(title or kicker)}</h1><p>{escape(note)}</p></div>',
     )

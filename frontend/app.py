@@ -47,8 +47,11 @@ def guarded(fn: Callable[[ApiClient], None], admin: bool = False) -> None:
     if admin and st.session_state.user["role"] != "admin":
         st.error("此页面仅管理员可访问。")
         return
-    task_bar()
+    bar = st.container()
     fn(api)
+    # Keep the bar above the page, but render after its heading resolves the current title.
+    with bar:
+        task_bar()
 
 
 definitions = [
