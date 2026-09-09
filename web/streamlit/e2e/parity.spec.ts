@@ -81,6 +81,7 @@ test('Monaco autosaves, refresh restores, source import and submission detail wo
   await expect(page.locator('.monaco-editor')).toContainText('streamlit autosave');
   await page.getByRole('button',{name:'提交评测',exact:true}).click();
   await expect(page.getByRole('heading',{name:'评测结果',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'结果',exact:true})).toBeInViewport();
   await page.getByText('本题提交历史',{exact:true}).click();
   await page.locator('[class*=st-key-history-card-]').getByRole('button',{name:'查看详情',exact:true}).first().click();
   await expect(page.getByRole('heading',{name:/提交 #/})).toBeVisible();
@@ -515,8 +516,7 @@ test('published assets survive publication and restore without replacing the pro
   await expect.poll(async()=> (await (await page.request.get(api+'/api/ai/problem-tasks/'+tid)).json()).data.status).toBe('completed');
   expect((await page.request.post(api+`/api/problem-drafts/${draft.id}/publish`)).ok()).toBe(true);
   await page.goto('/workspace?id='+problem.id);
-  await page.getByText('参考解与验证资产',{exact:true}).click();
-  await expect(page.getByTestId('stCode').filter({hasText:reference})).toBeVisible();
+  await expect(page.getByText('参考解与验证资产',{exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'编辑题目',exact:true}).click();
   await expect(page.getByRole('textbox',{name:'参考解',exact:true})).toHaveValue(reference);
   await page.getByRole('textbox',{name:'参考解',exact:true}).fill('print(0)');
