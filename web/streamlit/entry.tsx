@@ -6,7 +6,7 @@ import { DiffView } from "../src/components/DiffView";
 import "./style.css";
 import { equivalentDraft } from "./draft-state";
 
-type Data = { scrollTo?: string; mode: string; text?: string; code?: string; language?: string; size?: number; owner?: string; storageKey?: string; revision?: number; epoch?: number; before?: Record<string, unknown>; after?: Record<string, unknown>; api?: string; action?: string; username?: string; password?: string; nonce?: string; url?: string; dirty?: boolean; payload?: unknown; saved?: unknown; resolveBackup?: number };
+type Data = { scrollTo?: { id: string; target: string }; mode: string; text?: string; code?: string; language?: string; size?: number; owner?: string; storageKey?: string; revision?: number; epoch?: number; before?: Record<string, unknown>; after?: Record<string, unknown>; api?: string; action?: string; username?: string; password?: string; nonce?: string; url?: string; dirty?: boolean; payload?: unknown; saved?: unknown; resolveBackup?: number };
 type Bridge = { data: Data; parentElement: HTMLElement | ShadowRoot; setStateValue: (key: string, value: unknown) => void; setTriggerValue: (key: string, value: unknown) => void };
 const authPaths: Record<string,string> = { login: "/api/auth/login", register: "/api/users/", logout: "/api/auth/logout", me: "/api/auth/me" };
 let tabId = crypto.randomUUID();
@@ -114,12 +114,12 @@ function Component({ bridge }: { bridge: Bridge }) {
       const y = Number(sessionStorage.getItem(scrollKey) || 0);
       let attempts = 0;
       const jumpKey = `oj-submission-scroll:${d.owner}`;
-      if (d.scrollTo && sessionStorage.getItem(jumpKey) !== d.scrollTo) {
+      if (d.scrollTo && sessionStorage.getItem(jumpKey) !== d.scrollTo.id) {
         restoreTimer = setInterval(() => {
-          const target = document.getElementById('results');
+          const target = document.getElementById(d.scrollTo!.target);
           if (target) {
             target.scrollIntoView({block:'start'});
-            sessionStorage.setItem(jumpKey, d.scrollTo!);
+            sessionStorage.setItem(jumpKey, d.scrollTo!.id);
             clearInterval(restoreTimer);
           } else if (++attempts >= 30) clearInterval(restoreTimer);
         }, 100);

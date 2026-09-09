@@ -206,7 +206,10 @@ def source_editor(
                 )
             )
             if response:
-                st.session_state["scroll_to_results"] = str(response["data"]["submission_id"])
+                st.session_state["workspace_scroll"] = {
+                    "id": f"submission-{response['data']['submission_id']}",
+                    "target": "results",
+                }
                 st.session_state[f"last-{pid}"] = response["data"]["submission_id"]
                 st.query_params.submission_id = str(response["data"]["submission_id"])
                 st.rerun()

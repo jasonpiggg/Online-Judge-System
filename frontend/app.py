@@ -120,7 +120,7 @@ if st.session_state.get("user"):
         api=api.base_url,
         payload=st.session_state.get("task_slots"),
         url=current,
-        scrollTo=st.session_state.get("scroll_to_results") if current == "workspace" else None,
+        scrollTo=st.session_state.get("workspace_scroll") if current == "workspace" else None,
         dirty=bool(st.session_state.get("unsaved")),
     )
     if isinstance(bridge.restored, list) and not st.session_state.get("slots_restored"):
