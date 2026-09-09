@@ -7,7 +7,7 @@ import streamlit as st
 from frontend.client import ApiClient
 from frontend.editor import clean_problem, load_editor
 from frontend.library import statement
-from frontend.ui import call, heading
+from frontend.ui import call, heading, local_time
 
 
 def money(amount: float, currency: str = "USD") -> str:
@@ -453,7 +453,7 @@ def ai_page(api: ApiClient) -> None:
                     text.caption(
                         f"{item.get('problem_id') or '新题'} · "
                         f"{money(item['cost'], item.get('currency', 'USD'))} · "
-                        f"{item['updated_at']}"
+                        f"{local_time(item['updated_at'])} 北京时间"
                     )
                     if action.button("打开", key=f"open-ai-{item['id']}", width="stretch"):
                         st.session_state.ai_task_id = item["id"]
@@ -469,7 +469,7 @@ def ai_page(api: ApiClient) -> None:
                         "题目": item["problem"].get("title", "未命名"),
                         "状态": item["status"],
                         "版本": item["revision"],
-                        "更新时间": item["updated_at"],
+                        "更新时间（北京时间）": local_time(item["updated_at"]),
                     }
                     for item in drafts["data"]
                     if item["status"] != "archived"

@@ -132,7 +132,11 @@ def _profile_content(api: ApiClient) -> None:
     user = result["data"]
     with st.container(border=True):
         st.subheader(user["username"])
-        st.caption(f"用户 ID：{user['user_id']} · 加入时间：{user['join_time']}")
+        from frontend.ui import local_time
+
+        st.caption(
+            f"用户 ID：{user['user_id']} · 加入时间：{local_time(user['join_time'])} 北京时间"
+        )
         from frontend.ui import pills, status_label
 
         pills([status_label(user["role"])])

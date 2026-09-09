@@ -5,11 +5,15 @@ from __future__ import annotations
 import json
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 from oj.database import Database
 
 POINTS_PER_CASE = 10
+VERDICT_LABELS: dict[str, str] = json.loads(
+    Path(__file__).with_name("verdicts.json").read_text(encoding="utf-8")
+)
 
 
 def evaluation_summary(

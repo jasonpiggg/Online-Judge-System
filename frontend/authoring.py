@@ -385,7 +385,8 @@ def draft_page(api: ApiClient) -> None:
                 "历史版本",
                 versions["data"],
                 format_func=lambda x: (
-                    f"v{x['revision']} · {x['change_summary']} · {x['created_at']}"
+                    f"v{x['revision']} · {x['change_summary']} · "
+                    f"{local_time(x['created_at'])} 北京时间"
                 ),
             )
             diff(local, draft_payload(v["snapshot"]), f"draft-version-{did}")

@@ -1,3 +1,4 @@
+import { localTime } from "../datetime";
 import { Icon } from "../components/Icon";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -146,7 +147,7 @@ export function Account({ user }: { user: User }) {
           {user.username}
         </h1>
         <p className="muted">
-          加入于 {user.join_time} ·{" "}
+          加入于 {localTime(user.join_time)} 北京时间 ·{" "}
           {user.role === "admin" ? "管理员" : "学习者"}
         </p>
       </section>

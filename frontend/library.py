@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from collections import Counter
 from html import escape
 from typing import Any
 
@@ -46,6 +48,26 @@ def library_page(api: ApiClient) -> None:
     if not result:
         return
     problems = result["data"]
+    tag_counts = Counter(tag for p in problems for tag in set(p.get("tags", [])) if tag)
+    try:
+        selected_tags = json.loads(st.query_params.get("tags", "[]"))
+    except (ValueError, TypeError):
+        selected_tags = []
+    if not isinstance(selected_tags, list):
+        selected_tags = []
+    selected_tags = [tag for tag in selected_tags if isinstance(tag, str) and tag in tag_counts]
+
+    def tag_filter() -> list[str]:
+        return st.multiselect(
+            "题目标签",
+            sorted(tag_counts),
+            default=selected_tags,
+            format_func=lambda tag: f"{tag}（{tag_counts[tag]}）",
+            key="library-tags",
+            placeholder="全部标签",
+            help="多选时匹配任一标签；数量为题库总题数。",
+        )
+
     levels = [level["label"] for level in DIFFICULTIES]
     levels += sorted({p.get("difficulty", "") for p in problems} - set(levels) - {""})
     progress_options = ["全部状态", "未开始", "尝试中", "已通过"]
@@ -71,6 +93,7 @@ def library_page(api: ApiClient) -> None:
                 ),
             )
             progress_filter = st.selectbox("学习状态", progress_options, index=progress_index)
+            selected_tags = tag_filter()
             if st.button("新建题目", icon=":material/add:", width="stretch"):
                 created = call(lambda: api.post("/api/problem-drafts/", json={}))
                 if created:
@@ -93,17 +116,19 @@ def library_page(api: ApiClient) -> None:
             ),
         )
         progress_filter = c.selectbox("学习状态", progress_options, index=progress_index)
+        selected_tags = tag_filter()
         if d.button("新建题目", icon=":material/add:", type="secondary", width="stretch"):
             created = call(lambda: api.post("/api/problem-drafts/", json={}))
             if created:
                 go("draft", id=created["data"]["id"], title="新建题目")
 
-    signature = (query, level, progress_filter)
+    signature = (query, level, progress_filter, tuple(selected_tags))
     previous = st.session_state.get("library-filter", signature)
     st.session_state["library-filter"] = signature
     if previous != signature:
         st.query_params["page"] = "1"
     st.query_params.update(q=query, difficulty=level, progress=progress_filter)
+    st.query_params["tags"] = json.dumps(selected_tags, ensure_ascii=False)
     with st.popover("难度说明"):
         for item in DIFFICULTIES:
             st.write(f"**{item['label']}**：{item['description']}")
@@ -120,6 +145,7 @@ def library_page(api: ApiClient) -> None:
         if query.casefold() in (p["id"] + p["title"] + " ".join(p.get("tags", []))).casefold()
         and (level == "全部难度" or (p.get("difficulty") or "未分级") == level)
         and (progress_filter == "全部状态" or progress_label(p) == progress_filter)
+        and (not selected_tags or bool(set(selected_tags) & set(p.get("tags", []))))
     ]
     st.caption(f"共 {len(items)} 道题目")
     page = bounded_page(len(items))

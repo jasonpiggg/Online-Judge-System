@@ -1,3 +1,5 @@
+import { localTime } from "../datetime";
+import verdicts from "../../../src/oj/verdicts.json";
 import { useQuery } from "@tanstack/react-query";
 import {
   Link,
@@ -45,7 +47,7 @@ export function Records({
     query.set("all_users", "true");
     if (params.get("user_id")) query.set("user_id", params.get("user_id")!);
   } else query.set("user_id", String(user.user_id));
-  for (const key of ["outcome", "problem_id", "status"])
+  for (const key of ["outcome", "verdict", "problem_id", "status"])
     if (params.get(key)) query.set(key, params.get(key)!);
   const { data, error, isPending } = useQuery({
     queryKey: ["records", query.toString()],
@@ -113,6 +115,12 @@ export function Records({
           <option value="">全部结果</option>
           <option value="passed">已通过</option>
           <option value="not_passed">未通过</option>
+        </select>
+        <select aria-label="具体评测结果" value={params.get("verdict") || ""}
+          onChange={(e) => update("verdict", e.target.value)}>
+          <option value="">全部具体结果</option>
+          {Object.entries(verdicts).filter(([key]) => !["pending", "error"].includes(key))
+            .map(([key, label]) => <option key={key} value={key}>{label}</option>)}
         </select>
         <select
           aria-label="评测状态"
@@ -191,7 +199,7 @@ export function Records({
                         data-label="提交时间"
                         className="time-cell record-time"
                       >
-                        {new Date(s.created_at).toLocaleString()}
+                        {localTime(s.created_at)}
                       </td>
                       <td className="record-actions">
                         <Button
@@ -285,7 +293,7 @@ export function SubmissionPage({ user }: { user: User }) {
         <>
           <p className="muted">
             题号 {s.problem_id} · {s.username || `用户 ${s.user_id}`} ·{" "}
-            {s.language} · {new Date(s.created_at).toLocaleString()}
+            {s.language} · {localTime(s.created_at)}
             {s.problem_deleted ? " · 题目已删除（保留此提交供审计）" : ""}
           </p>
           <ResultPanel id={id!} detailLink={false} />

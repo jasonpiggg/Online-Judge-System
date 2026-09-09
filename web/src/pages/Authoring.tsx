@@ -1,3 +1,4 @@
+import { localTime } from "../datetime";
 import {
   PublishedAssets,
   type PublishedAssetData,
@@ -434,7 +435,7 @@ export function Authoring() {
               {t.progress}
             </span>
             <span className="muted">
-              {new Date(t.created_at).toLocaleString()}
+              {localTime(t.created_at)}
             </span>
           </TaskLink>
           <Button

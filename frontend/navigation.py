@@ -22,6 +22,8 @@ PARAMS = {
     "message_page",
     "status",
     "outcome",
+    "verdict",
+    "tags",
     "users_page",
     "audit_page",
     "submission_id",

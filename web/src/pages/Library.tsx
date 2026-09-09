@@ -30,6 +30,11 @@ export function Library() {
       : "",
     status = params.get("status") || "";
   const page = Math.max(1, Number(params.get("page")) || 1);
+  const tagCounts = new Map<string, number>();
+  problems?.forEach(p => new Set(p.tags || []).forEach(tag => {
+    if (tag) tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+  }));
+  const selectedTags = params.getAll("tag");
   const update = (key: string, value: string) => {
     const p = new URLSearchParams(params);
     if (value) p.set(key, value);
@@ -45,7 +50,8 @@ export function Library() {
         .toLowerCase()
         .includes(q.toLowerCase()) &&
       (!difficulty || difficultyLevel(p.difficulty).label === difficulty) &&
-      (!status || label(p) === status),
+      (!status || label(p) === status) &&
+      (!selectedTags.length || selectedTags.some(tag => p.tags?.includes(tag))),
   );
   useEffect(() => {
     if (!problems) return;
@@ -103,6 +109,24 @@ export function Library() {
           ))}
         </select>
       </div>
+      <details className="filter-panel">
+        <summary>题目标签 · {selectedTags.length ? `已选 ${selectedTags.length} 项` : "全部标签"}</summary>
+        <p className="muted">多选时匹配任一标签；数量为题库总题数。</p>
+        <div className="filters">
+          {[...tagCounts].sort(([a], [b]) => a.localeCompare(b, "zh-CN")).map(([tag, count]) => (
+            <label key={tag}><input type="checkbox" checked={selectedTags.includes(tag)}
+              onChange={e => {
+                const next = new URLSearchParams(params);
+                next.delete("tag"); next.delete("page");
+                const values = e.target.checked ? [...selectedTags, tag] : selectedTags.filter(t => t !== tag);
+                values.forEach(t => next.append("tag", t)); setParams(next);
+              }} /> {tag}（{count}）</label>
+          ))}
+          <Button variant="outline" onClick={() => {
+            const next = new URLSearchParams(params); next.delete("tag"); next.delete("page"); setParams(next);
+          }}>清空标签</Button>
+        </div>
+      </details>
       {error && <p role="alert">{error.message}</p>}
       {!problems && !error ? (
         <div className="skeleton">正在加载题目…</div>

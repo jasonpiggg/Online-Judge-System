@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
+from pathlib import Path
 
 import streamlit as st
 
@@ -20,7 +21,7 @@ from frontend.workspace import workspace_page
 
 st.set_page_config(
     page_title="Atelier OJ · 在线评测",
-    page_icon="◈",
+    page_icon=str(Path(__file__).resolve().parents[1] / "web/public/favicon.svg"),
     layout="wide",
     initial_sidebar_state="collapsed",
 )
