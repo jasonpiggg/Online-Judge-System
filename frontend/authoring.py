@@ -314,6 +314,10 @@ def draft_page(api: ApiClient) -> None:
         st.session_state.unsaved = True
         st.warning("请先修正审查资产 JSON。其他表单内容仍保留在当前会话。")
         return
+    if d.get("base_problem_id"):
+        from frontend.published_assets import assets_panel
+
+        assets_panel(api, d["base_problem_id"], state, did)
     with export_area:
         if st.button("准备导出当前内容"):
             state["export"] = copy.deepcopy(local)

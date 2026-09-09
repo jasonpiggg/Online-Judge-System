@@ -303,6 +303,9 @@ def workspace_page(api: ApiClient) -> None:
     with st.container(key="statement-panel"):
         st.header("题面", anchor="statement")
         statement(p)
+        from frontend.published_assets import assets_panel
+
+        assets_panel(api, pid)
     st.header("代码", anchor="code")
     languages = call(lambda: api.get("/api/languages/"))
     if not languages or not languages["data"]["name"]:

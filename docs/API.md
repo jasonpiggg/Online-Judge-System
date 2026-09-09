@@ -64,6 +64,19 @@
 
 ## AI 智能命题
 
+### 已发布题目的命题资产
+
+`GET /api/problems/{problem_id}/assets` 要求登录，对普通用户和管理员返回相同资产。
+`data.status` 为 `current`、`stale`、`missing` 或 `ambiguous`；前两者包含 `assets`、
+`source_draft_id`、`source_revision` 和 `published_at`，歧义状态包含可选择的 `sources`。
+资产包括 `reference_solution`、`brute_solution`、`generator_code` 和仅含
+`review/coverage/wrong_solutions` 的 `review` 对象；不包含原私人需求或验证通过报告。
+题目不存在返回 404，未登录返回 401。原课程题目响应不增加参考解字段。
+
+`POST /api/problems/{problem_id}/editing-draft` 新建时带入唯一且匹配的发布资产；已有草稿
+保持原状。前端恢复资产使用原草稿 PUT 接口和 revision CAS，不自动覆盖并发修改。
+历史恢复与生命周期说明见 [发布资产与 AI 稳定性修复](published-assets-ai-reliability.md)。
+
 | Method         | Path                                  | 权限          | 说明                                             |
 | -------------- | ------------------------------------- | ------------- | ------------------------------------------------ |
 | GET            | `/api/ai/model-config`                | 登录          | 有效配置来源与状态；只返回本人配置的可编辑元数据 |

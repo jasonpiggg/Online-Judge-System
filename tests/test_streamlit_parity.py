@@ -10,6 +10,44 @@ from frontend.assistant import code_candidates
 from frontend.client import ApiClient, ApiError
 
 
+def test_assistant_clears_only_successful_manual_input(monkeypatch: Any) -> None:
+    calls: list[Any] = []
+    fail = True
+
+    def request(_self: ApiClient, method: str, path: str, **kw: Any) -> Any:
+        if method == "POST" and path.endswith("/messages"):
+            calls.append(copy.deepcopy(kw))
+            if fail:
+                raise ApiError(503, "temporary failure")
+            return {"data": {"task_id": "done"}}
+        if "assistant-tasks" in path:
+            return {"data": {"status": "completed", "result": {"text": "answer"}}}
+        return {"data": {"messages": [], "total": 0}}
+
+    monkeypatch.setattr(ApiClient, "request", request)
+    app = AppTest.from_string("""
+import streamlit as st
+from frontend.assistant import assistant_panel
+from frontend.client import ApiClient
+st.session_state['conversation-p'] = 'conversation'
+assistant_panel(ApiClient(), 'p', 'python', {'code': ''})
+""").run()
+    app.text_area(key="assistant-input-p").set_value("my question")
+    next(b for b in app.button if b.label == "发送").click().run()
+    assert not app.exception
+    assert app.text_area(key="assistant-input-p").value == "my question"
+    fail = False
+    next(b for b in app.button if b.label == "发送").click().run()
+    assert not app.exception
+    assert app.text_area(key="assistant-input-p").value == ""
+    assert calls[0]["headers"] == calls[1]["headers"]
+    app.text_area(key="assistant-input-p").set_value("unsent draft").run()
+    next(b for b in app.button if b.label == "解释我当前的代码").click().run()
+    assert not app.exception
+    assert app.text_area(key="assistant-input-p").value == "unsent draft"
+    assert calls[-1]["json"]["message"] == "解释我当前的代码"
+
+
 def test_code_candidates_preserve_multiple_blocks_and_ignore_unclosed_output() -> None:
     assert code_candidates("```python\na = 1\n```\n\n```cpp\nint a;\n```") == [
         ("python", "a = 1\n"),

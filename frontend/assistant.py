@@ -44,6 +44,9 @@ def code_candidates(text: str) -> list[tuple[str, str]]:
 def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, Any]) -> None:
     from frontend.workspace import replace_source, save_source
 
+    input_key = f"assistant-input-{pid}"
+    if st.session_state.pop(f"{input_key}-clear", False):
+        st.session_state[input_key] = ""
     ck = f"conversation-{pid}"
     if ck not in st.session_state:
         r = call(lambda: api.post("/api/ai/conversations/", json={"problem_id": pid}))
@@ -124,7 +127,7 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
             st.caption(f"评测依据：提交 #{last_submission}；当前编辑版本可能与提交版本不同。")
         with st.form(f"assistant-form-{pid}"):
             message = st.text_area(
-                "向助手提问", placeholder="描述困惑、错误现象，或请求检查当前解法。"
+                "向助手提问", key=input_key, placeholder="描述困惑、错误现象，或请求检查当前解法。"
             )
             with st.expander("提问选项"):
                 full = st.checkbox("允许提供完整解法")
@@ -157,6 +160,8 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
                 )
             )
             if r:
+                if not quick:
+                    st.session_state[f"{input_key}-clear"] = True
                 st.session_state.pop(pending_key, None)
                 st.session_state[f"assistant-active-{pid}"] = r["data"]["task_id"]
                 st.query_params["message_page"] = "1"

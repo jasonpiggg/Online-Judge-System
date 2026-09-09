@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from oj.auth import CurrentUser, get_current_user
 from oj.draft_content import equivalent_draft
 from oj.errors import APIError, response
+from oj.published_assets import save_assets
 from oj.route_security import AuthorizedRoute
 from oj.schemas import Problem, ProblemDraftCreate, ProblemDraftUpdate, ProblemDraftVerify
 from oj.submissions import now_iso
@@ -296,27 +297,37 @@ async def publish_problem_draft(
     draft_id: str,
     user: CurrentUser = Depends(get_current_user),
 ) -> JSONResponse:
-    row = await _owned_draft(request, draft_id, user.id)
-    if row["status"] != "ready":
-        raise APIError(409, "draft must pass verification before publishing")
-    problem = Problem.model_validate_json(row["problem_json"], context={"legacy": True})
-    existing = await request.app.state.problems.get(problem.id)
-    # Publishing a draft must obey the same log-visibility policy as direct edits.
-    if user.role != "admin" and problem.public_cases != (
-        existing.public_cases if existing else False
-    ):
-        raise APIError(403, "only administrators may change log visibility")
-    succeeded = (
-        await request.app.state.problems.update(problem)
-        if existing
-        else await request.app.state.problems.create(problem)
-    )
-    if not succeeded:
-        raise APIError(409, "problem could not be published")
-    await request.app.state.db.execute(
-        "UPDATE problem_drafts SET status='published',updated_at=? WHERE id=?",
-        (now_iso(), draft_id),
-    )
+    # Hold the draft write transaction through publication: edits cannot race its snapshot.
+    async with request.app.state.db.connect() as db:
+        await db.execute("BEGIN IMMEDIATE")
+        cursor = await db.execute(
+            "SELECT * FROM problem_drafts WHERE id=? AND owner_id=?", (draft_id, user.id)
+        )
+        row = await cursor.fetchone()
+        await cursor.close()
+        if row is None:
+            raise APIError(404, "problem draft not found")
+        if row["status"] != "ready":
+            raise APIError(409, "draft must pass verification before publishing")
+        problem = Problem.model_validate_json(row["problem_json"], context={"legacy": True})
+        existing = await request.app.state.problems.get(problem.id)
+        if user.role != "admin" and problem.public_cases != (
+            existing.public_cases if existing else False
+        ):
+            raise APIError(403, "only administrators may change log visibility")
+        stamp = now_iso()
+        await save_assets(db, problem, row, stamp)
+        succeeded = (
+            await request.app.state.problems.update(problem)
+            if existing else await request.app.state.problems.create(problem)
+        )
+        if not succeeded:
+            raise APIError(409, "problem could not be published")
+        await db.execute(
+            "UPDATE problem_drafts SET status='published',updated_at=? WHERE id=?",
+            (stamp, draft_id),
+        )
+        await db.commit()
     return response(200, "problem draft published", {"id": problem.id})
 
 

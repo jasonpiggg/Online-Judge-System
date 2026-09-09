@@ -1,3 +1,7 @@
+import {
+  PublishedAssets,
+  type PublishedAssetData,
+} from "../components/PublishedAssets";
 import { ProblemJson } from "../components/ProblemJson";
 import { ProblemImport } from "../components/ProblemImport";
 import { Icon } from "../components/Icon";
@@ -368,9 +372,7 @@ export function Authoring() {
       <div className="draft-list">
         {drafts.data?.items.map((d) => (
           <div className="draft-row managed-row" key={d.id}>
-            <TaskLink
-              to={"/authoring/drafts/" + d.id}
-            >
+            <TaskLink to={"/authoring/drafts/" + d.id}>
               <strong>{d.problem?.title || "未命名题目"}</strong>
               <span className={`badge draft-state draft-state-${d.status}`}>
                 {
@@ -597,9 +599,9 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
       ? "草稿存在尚未解决的版本冲突，确认关闭任务入口？内容仍会保留。"
       : "本机备份失败，关闭前请先保存或复制内容。仍要关闭吗？",
   });
-  const save = async (p: FormProblem) => {
+  const save = async (p: FormProblem, restored?: PublishedAssetData) => {
     if (backupConflict) throw new Error("请先处理本机与云端草稿的版本冲突");
-    if (!dirty) return { ...draft, revision: version.current };
+    if (!dirty && !restored) return { ...draft, revision: version.current };
     const body = {
       base_problem_id: draft.base_problem_id,
       requirement: draft.requirement,
@@ -608,19 +610,26 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
       brute_solution: brute,
       generator_code: generator,
       review: reviewAssets,
+      ...restored,
       revision: version.current,
     };
     const d = await api<Draft>(
       "/problem-drafts/" + draft.id,
       json("PUT", body),
     );
+    if (restored) {
+      setReference(restored.reference_solution);
+      setBrute(restored.brute_solution);
+      setGenerator(restored.generator_code);
+      setReviewAssets(restored.review);
+    }
     version.current = d.revision;
     savedContent.current = JSON.stringify({
       problem: p,
-      reference,
-      brute,
-      generator,
-      review: reviewAssets,
+      reference: d.reference_solution,
+      brute: d.brute_solution,
+      generator: d.generator_code,
+      review: d.review,
     });
     form.reset(p);
     localStorage.removeItem(backup);
@@ -940,6 +949,20 @@ function DraftEditor({ draft, user }: { draft: Draft; user: User }) {
               ))}
               {array("samples")}
             </>
+          )}
+          {draft.base_problem_id && (
+            <PublishedAssets
+              problemId={draft.base_problem_id}
+              before={{
+                reference_solution: reference,
+                brute_solution: brute,
+                generator_code: generator,
+                review: reviewAssets,
+              }}
+              onRestore={async (assets) => {
+                await save(form.getValues(), assets);
+              }}
+            />
           )}
           {step === "测试与解法" && (
             <>

@@ -5,9 +5,11 @@ from fastapi.responses import JSONResponse
 
 from oj.auth import CurrentUser, get_current_user, require_admin
 from oj.errors import APIError, response
+from oj.published_assets import forget_assets, resolve_assets
 from oj.route_security import AuthorizedRoute
 from oj.routers.authoring import _decode, insert_problem_draft
 from oj.schemas import DraftProblem, LogVisibility, Problem, ProblemDraftCreate
+from oj.submissions import now_iso
 
 router = APIRouter(route_class=AuthorizedRoute, prefix="/api/problems")
 
@@ -26,17 +28,22 @@ async def editing_draft(
         await db.execute("BEGIN IMMEDIATE")
         cursor = await db.execute(
             "SELECT * FROM problem_drafts WHERE owner_id=? AND base_problem_id=? "
-            "AND status IN ('draft','ready') ORDER BY updated_at DESC,id DESC LIMIT 1",
-            (user.id, problem_id),
+            "AND status IN ('draft','ready') AND created_at > COALESCE("
+            "(SELECT deleted_at FROM published_problem_assets WHERE problem_id=?),'') "
+            "ORDER BY updated_at DESC,id DESC LIMIT 1",
+            (user.id, problem_id, problem_id),
         )
         row = await cursor.fetchone()
         await cursor.close()
+        published = await resolve_assets(db, problem)
+        assets = published.get("assets", {}) if published["status"] == "current" else {}
         data = (
             _decode(row)
             if row
             else await insert_problem_draft(
                 db,
                 ProblemDraftCreate(
+                    **assets,
                     base_problem_id=problem_id,
                     problem=DraftProblem.model_validate(problem.model_dump()),
                 ),
@@ -44,6 +51,18 @@ async def editing_draft(
             )
         )
         await db.commit()
+    return response(data=data)
+
+
+@router.get("/{problem_id}/assets")
+async def get_published_assets(
+    request: Request, problem_id: str, _user: CurrentUser = Depends(get_current_user)
+) -> JSONResponse:
+    problem = await request.app.state.problems.get(problem_id)
+    if problem is None:
+        raise APIError(404, "problem not found")
+    async with request.app.state.db.connect() as db:
+        data = await resolve_assets(db, problem)
     return response(data=data)
 
 
@@ -137,20 +156,24 @@ async def delete_problem(
     _admin: CurrentUser = Depends(require_admin),
 ) -> JSONResponse:
     async with request.app.state.submissions.intake_lock:
-        problem = await request.app.state.problems.get(problem_id)
-        if problem is None:
-            raise APIError(404, "problem not found")
-        if not await request.app.state.problems.delete(problem_id):
-            raise APIError(404, "problem not found")
-        try:
-            await request.app.state.db.execute(
-                "UPDATE submissions SET problem_deleted=1 WHERE problem_id=?",
-                (problem_id,),
-            )
-        except Exception:
-            # Keep the file store and statistics coherent if the SQLite update fails.
-            await request.app.state.problems.create(problem)
-            raise
+        async with request.app.state.db.connect() as db:
+            # Use the same database-before-file ordering as draft publication.
+            await db.execute("BEGIN IMMEDIATE")
+            problem = await request.app.state.problems.get(problem_id)
+            if problem is None:
+                raise APIError(404, "problem not found")
+            if not await request.app.state.problems.delete(problem_id):
+                raise APIError(404, "problem not found")
+            try:
+                await forget_assets(db, problem_id, now_iso())
+                await db.execute(
+                    "UPDATE submissions SET problem_deleted=1 WHERE problem_id=?", (problem_id,)
+                )
+                await db.commit()
+            except Exception:
+                # Keep the file store and statistics coherent if the SQLite update fails.
+                await request.app.state.problems.create(problem)
+                raise
     return response(200, "delete success", {"id": problem_id})
 
 

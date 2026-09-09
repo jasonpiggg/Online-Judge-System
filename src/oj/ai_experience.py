@@ -40,6 +40,7 @@ from oj.ai_prompts import (
 from oj.ai_sections import (
     SECTION_FIELDS,
     DraftReviewCandidate,
+    draft_review_schema,
     merge_draft_review,
     merge_section,
     section_prompt,
@@ -1116,7 +1117,7 @@ class AIExperience(AIAuthoringManager):
                 {
                     "requirement": requirement,
                     "draft": baseline.model_dump(),
-                    "draft_candidate_schema": DraftReviewCandidate.model_json_schema(),
+                    "response_schema": draft_review_schema(baseline),
                 },
             )
 
@@ -1151,7 +1152,7 @@ class AIExperience(AIAuthoringManager):
                         "draft": baseline.model_dump(),
                         "previous_response": text,
                         "local_feedback": str(exc)[:3000],
-                        "draft_candidate_schema": DraftReviewCandidate.model_json_schema(),
+                        "response_schema": draft_review_schema(baseline),
                     },
                 )
                 proposal, review_text_value = parse_review(fixed)
@@ -1453,6 +1454,14 @@ class AIExperience(AIAuthoringManager):
             )
             repair = review_patch(_extract_json(fixed))
             patch = repair["patch"]
+            # Repair an unambiguous serialization mistake, then enforce the original scope.
+            if isinstance(patch, dict):
+                for field in ("testcases", "samples"):
+                    if field in patch and f"problem.{field}" in allowed:
+                        nested = patch.get("problem", {})
+                        if isinstance(nested, dict) and field not in nested:
+                            patch = {**patch, "problem": {**nested, field: patch[field]}}
+                            del patch[field]
             if not isinstance(patch, dict):
                 raise AuthoringError("定向修复没有返回可用的修改对象") from exc
             allowed_top = {name.split(".", 1)[0] for name in allowed}

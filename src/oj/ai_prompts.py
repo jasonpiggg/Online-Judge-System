@@ -122,7 +122,8 @@ generator_code, coverage and wrong_solutions. Within problem, id, author, source
 public_cases are protected and MUST NOT appear. Other problem fields may be corrected.
 Existing solution and validation assets may be corrected, but an absent asset must remain
 absent. Nested objects are merged and arrays replace the complete array. Never add fields
-outside the supplied draft_candidate_schema. The review must explain each proposed change,
+outside the supplied response_schema. Its patch properties are the ONLY allowed fields;
+omit absent assets entirely, including coverage. The review must explain each proposed change,
 identify important issues that were not changed, and state that the proposal still requires
 local verification after acceptance."""
 )
@@ -134,6 +135,9 @@ Repair only the failed validation asset described by local_feedback. Return one 
 with exactly {"patch": object, "review": string}. The patch may contain only paths listed in
 allowed_patch. Omit unchanged fields and never repeat the complete candidate. A nested problem
 patch may contain only the explicitly allowed problem fields. Preserve literal sample/test IO.
+Paths use nested JSON: problem.testcases means {"problem":{"testcases":[...]}};
+never emit top-level testcases, samples, or dotted keys. Expected outputs may be corrected
+only when independently derived from the unchanged problem specification.
 Do not wrap the outer JSON in a code fence. Escape every backslash inside JSON strings."""
 )
 
