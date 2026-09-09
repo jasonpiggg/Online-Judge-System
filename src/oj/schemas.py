@@ -133,7 +133,7 @@ class AIProblemTaskCreate(StrictModel):
     workflow_version: Literal[1, 2] = 1
     generation_mode: Literal["basic_draft", "balanced", "full"] = "full"
     resume_task_id: str | None = Field(default=None, pattern=r"^ai-[A-Za-z0-9_-]{8,64}$")
-    requirement: str = Field(min_length=10, max_length=20_000)
+    requirement: str = Field(default="", max_length=20_000)
     problem_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
     draft_id: str | None = Field(default=None, pattern=r"^draft-[A-Za-z0-9_-]{8,64}$")
     action: Literal["generate", "revise", "review", "tests"] = "generate"
@@ -143,6 +143,11 @@ class AIProblemTaskCreate(StrictModel):
 
     @model_validator(mode="after")
     def basic_mode_scope(self) -> AIProblemTaskCreate:
+        if not self.requirement.strip():
+            if self.draft_id or self.problem_id:
+                self.requirement = "检查并改进所选范围，保留原题意"
+            else:
+                raise ValueError("请输入命题需求")
         if self.generation_mode in {"basic_draft", "balanced"} and (
             self.action != "generate" or self.target_section != "all"
         ):
@@ -208,6 +213,12 @@ class BasicGeneratedDraft(StrictModel):
         if self.problem.difficulty not in {level["value"] for level in DIFFICULTIES}:
             raise ValueError("AI 生成须采用标准难度等级")
         return self
+
+
+class BasicDraftReview(StrictModel):
+    candidate: BasicGeneratedDraft
+    blocking_issues: list[str] = Field(max_length=20)
+    suggestions: list[str] = Field(max_length=30)
 
 
 class GeneratedProblem(StrictModel):

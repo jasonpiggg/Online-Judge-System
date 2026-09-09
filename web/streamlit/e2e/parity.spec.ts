@@ -243,7 +243,7 @@ test('scoped AI changes and comprehensive review apply only to their source revi
   const {base_problem_id,requirement,problem,reference_solution,brute_solution,generator_code,review,revision}=current;
   await page.request.put(api+'/api/problem-drafts/'+did,{data:{base_problem_id,requirement,problem:{...problem,title:'并发修改保留'},reference_solution,brute_solution,generator_code,review,revision}});
   await page.getByRole('button',{name:'采纳到草稿',exact:true}).click();
-  await expect(page.getByText(/草稿已有新版本或未保存修改/)).toBeVisible();
+  await expect(page.getByText(/服务器草稿版本已变化/)).toBeVisible();
   expect((await (await page.request.get(api+'/api/problem-drafts/'+did)).json()).data.problem.title).toBe('并发修改保留');
   await noException(page);
 });
@@ -344,7 +344,6 @@ test('ordinary resources expose language registration, JSON validation and empty
   await expect(page.getByRole('heading',{name:'公开评测日志',exact:true})).toBeVisible();
   await expect(page.getByRole('textbox',{name:'公开提交 ID',exact:true})).toHaveValue('999999999');
   await page.getByRole('button',{name:'关闭当前任务',exact:true}).click();
-  await page.getByRole('button',{name:'确认关闭',exact:true}).click();
   await expect(page.getByRole('heading',{name:'提交记录',exact:true})).toBeVisible();
   await page.goto('/admin');
   await expect(page.getByText('此页面仅管理员可访问。')).toBeVisible();
@@ -436,7 +435,8 @@ test('AI revision validates its own requirement and submission history uses verd
   await requirement.fill('');
   await page.getByText('确认发起新的模型调用，费用单独累计',{exact:true}).click();
   await page.getByRole('button',{name:'保存并发起 AI 修改',exact:true}).click();
-  await expect(page.getByText('请在本次 AI 修改需求中填写至少 10 个字符，说明希望修改的内容。',{exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'AI 任务',exact:true})).toBeVisible();
+  await expect(page.getByText('检查并改进所选范围，保留原题意',{exact:true})).toBeVisible();
   const response = await page.request.post(api+'/api/submissions/',{data:{problem_id:'brackets',language:'python',code:'raise RuntimeError()'}});
   expect(response.ok()).toBe(true);
   const sid=(await response.json()).data.submission_id;
@@ -451,5 +451,51 @@ test('AI revision validates its own requirement and submission history uses verd
   await expect(page.locator('.st-key-task-strip')).toContainText('提交 #'+sid);
   await page.getByRole('button',{name:'返回来源',exact:true}).click();
   await expect(page.locator('.st-key-task-strip').getByRole('button',{name:'括号的秩序',exact:true})).toBeVisible();
+  await noException(page);
+});
+
+
+test('dirty task tabs close immediately without deleting drafts or cancelling AI',async({page})=>{
+  await login(page);
+  const {did}=await importedDraft(page);
+  let dialogs=0;
+  page.on('dialog',async dialog=>{dialogs++;await dialog.dismiss();});
+  const title=page.getByRole('textbox',{name:'题目标题',exact:true});
+  await title.fill('未保存但可以关闭'); await title.press('Tab');
+  await expect(page.getByText('有未保存修改',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'关闭当前任务',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'管理中心',exact:true})).toBeVisible();
+  expect(dialogs).toBe(0);
+  expect((await page.request.get(api+'/api/problem-drafts/'+did)).ok()).toBe(true);
+  await page.goto('/workspace?id=sum_2&language=python');
+  await page.getByText('AI 做题助手',{exact:true}).click();
+  await page.getByRole('textbox',{name:'向助手提问',exact:true}).fill('模拟慢速回答');
+  const cid=(await (await page.request.post(api+'/api/ai/conversations/',{data:{problem_id:'sum_2'}})).json()).data.id;
+  await page.getByRole('button',{name:'发送',exact:true}).click();
+  await expect(page.getByRole('button',{name:'取消回答',exact:true})).toBeVisible();
+  const messages=(await (await page.request.get(api+`/api/ai/conversations/${cid}/messages?include_metadata=true`)).json()).data.messages;
+  const tid=messages[messages.length-1].task_id;
+  await page.getByRole('button',{name:'一键清空任务标签',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'题库',exact:true})).toBeVisible();
+  expect(dialogs).toBe(0);
+  const task=(await (await page.request.get(api+'/api/ai/assistant-tasks/'+tid)).json()).data;
+  expect(['queued','pending','running','completed']).toContain(task.status);
+  await page.request.put(api+'/api/ai/assistant-tasks/'+tid+'/cancel');
+  await noException(page);
+});
+
+test('short AI instruction applies without empty-default conflict and displays new content',async({page})=>{
+  await login(page);
+  const {did}=await importedDraft(page);
+  await page.locator('summary').filter({hasText:'AI 修改'}).click();
+  await select(page,'修改范围','样例');
+  await page.getByRole('textbox',{name:'本次 AI 修改需求',exact:true}).fill('改');
+  await page.getByText('确认发起新的模型调用，费用单独累计',{exact:true}).click();
+  await page.getByRole('button',{name:'保存并发起 AI 修改',exact:true}).click();
+  await expect(page.getByRole('button',{name:'采纳到草稿',exact:true})).toBeVisible();
+  await page.getByText('已审阅修改，确认采纳到草稿',{exact:true}).click();
+  await page.getByRole('button',{name:'采纳到草稿',exact:true}).click();
+  await expect(page.getByRole('button',{name:'保存草稿',exact:true})).toBeVisible();
+  await expect.poll(async()=> (await (await page.request.get(api+'/api/problem-drafts/'+did)).json()).data.problem.samples[0].input).toBe('3 4');
   await noException(page);
 });

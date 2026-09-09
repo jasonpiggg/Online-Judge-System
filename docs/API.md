@@ -153,3 +153,12 @@ oracle 和 20–100 组随机对拍。省略请求体保持旧客户端的 `full
 `balanced` 是 Streamlit 当前整题默认选择，恢复生成、资产、独立复审与完整本地门禁。
 仅该模式使用系统 Flash high / GLM-5.3 low 的阶段配置，个人模型保持优先。
 阶段共享含排队的240秒 deadline；约三分钟是预算参考，不是强制等待或成功保证。
+
+
+### 基础出题与编辑需求
+
+`AIProblemTaskCreate.requirement` 保留20,000字符上限，不设10字符下限。对已有题目或草稿，空白内容被替换为“检查并改进所选范围，保留原题意”，任务记录保存实际需求；无参考内容的新题仍要求非空。
+
+`generation_mode=basic_draft` 使用基础生成、执行预检、轻量复审和最终基础验证。成果增加 `light_review: {blocking_issues: string[], suggestions: string[]}`，验证报告增加 `light_review_passed`；完整质量门禁仍为false。未解决正确性问题、缺少必需结构或执行失败不能完成；高级资产和排版风格建议不阻塞。默认full及显式balanced保持兼容。
+
+草稿PUT在版本匹配且实际内容不变时返回当前草稿，不新增版本、不清除原验证报告；实际修改仍增加版本并失效旧验证报告。版本不匹配继续返回409。

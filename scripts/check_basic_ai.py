@@ -48,8 +48,7 @@ async def check(report_path: Path, balanced: bool = False) -> None:
             async def limited(config: Any, prompt: str, on_usage: Any = None) -> Any:
                 nonlocal reserved
                 if (
-                    config["model"]
-                    not in ({"glm-5.3-flash", "glm-5.3"} if balanced else {"glm-5.3-flash"})
+                    config["model"] not in {"glm-5.3-flash", "glm-5.3"}
                     or config["currency"] != "CNY"
                 ):
                     raise AuthoringError("Benchmark rejected an unbudgeted model")
