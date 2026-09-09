@@ -220,6 +220,7 @@ def records_page(api: ApiClient) -> None:
     rows = result["data"]["submissions"]
     if not rows:
         st.info("没有符合条件的提交记录。")
+        return
     with st.container(key="record-list"):
         for row in rows:
             with st.container(key=f"list-row-record-{row['submission_id']}"):
@@ -233,6 +234,7 @@ def records_page(api: ApiClient) -> None:
                 )
                 if b.button("查看详情", key=f"record-{row['submission_id']}"):
                     go("submission", id=row["submission_id"], title=f"提交 #{row['submission_id']}")
+    pagination(result["data"]["total"], position="bottom")
 
 
 def submission_page(api: ApiClient) -> None:

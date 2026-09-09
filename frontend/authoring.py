@@ -129,6 +129,7 @@ def authoring_page(api: ApiClient) -> None:
                             )
                             if action.button("打开草稿", key=f"draft-list-{d['id']}"):
                                 go("draft", id=d["id"], title=d["problem"].get("title") or "草稿")
+                pagination(drafts["data"]["total"], "draft_page", position="bottom")
     if tabs[1].open:
         with tabs[1]:
             archived = st.checkbox("包含归档任务")
@@ -159,6 +160,7 @@ def authoring_page(api: ApiClient) -> None:
                             )
                             if action.button("打开任务", key=f"task-list-{t['id']}"):
                                 go("ai_task", id=t["id"], title="AI 任务")
+                pagination(tasks["data"]["total"], "task_page", position="bottom")
 
 
 def save_draft(api: ApiClient, did: str, state: dict[str, Any]) -> bool:
@@ -489,6 +491,9 @@ def task_page(api: ApiClient) -> None:
             f"{status_label(t['status'])} · {status_label(t.get('stage', ''))} · "
             f"{t.get('progress', '')}"
         )
+        from frontend.ui import task_timer
+
+        task_timer(t)
         usage = t.get("usage", {})
         st.caption(
             f"输入 Token {usage.get('input_tokens', 0)} · "

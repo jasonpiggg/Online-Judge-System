@@ -87,6 +87,8 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
             )
             if history:
                 pagination(history["data"]["total"], "message_page", 5)
+                if not history["data"]["total"]:
+                    st.info("暂无历史问答。")
                 for msg in history["data"]["messages"]:
                     with st.expander(str(msg["message"])[:100], expanded=False):
                         st.write(msg["message"])
@@ -103,6 +105,7 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
                         and f"assistant-active-{pid}" not in st.session_state
                     ):
                         st.session_state[f"assistant-active-{pid}"] = msg["task_id"]
+                pagination(history["data"]["total"], "message_page", 5, position="bottom")
     task_id = st.session_state.get(f"assistant-active-{pid}")
     busy = bool(task_id and not st.session_state.get(f"assistant-terminal-{task_id}"))
     quick = None
@@ -163,6 +166,9 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
         if not result:
             return
         task = result["data"]
+        from frontend.ui import task_timer
+
+        task_timer(task)
         done = task["status"] in {"completed", "failed", "cancelled"}
         if done and not st.session_state.get(terminal):
             st.session_state[terminal] = True

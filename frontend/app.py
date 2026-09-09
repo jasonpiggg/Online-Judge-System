@@ -82,7 +82,9 @@ pages = {
     for key, title, fn in definitions
 }
 st.session_state.pages = pages
-nav = st.navigation(list(pages.values()), position="top")
+nav = st.navigation(
+    list(pages.values()), position="top" if st.session_state.get("user") else "hidden"
+)
 responsive = breakpoint(
     data={"mobile": st.session_state.get("mobile")},
     key="viewport-state",

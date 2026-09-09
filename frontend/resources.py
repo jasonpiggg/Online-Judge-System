@@ -80,6 +80,9 @@ def resources_page(api: ApiClient) -> None:
         p for p in result["data"] if search.casefold() in f"{p['id']} {p['title']}".casefold()
     ]
     page = pagination(len(filtered))
+    if not filtered:
+        st.info("没有找到相关题目，请调整搜索条件。")
+        return
     with st.container(key="resource-list"):
         for p in filtered[(page - 1) * 10 : page * 10]:
             with st.container(key=f"list-row-resource-{p['id']}"):
@@ -134,6 +137,7 @@ def resources_page(api: ApiClient) -> None:
 
                             if st.button("删除题目", key=f"delete-{p['id']}"):
                                 delete_dialog(api, detail["data"])
+    pagination(len(filtered), position="bottom")
 
 
 def public_log_page(api: ApiClient) -> None:

@@ -332,8 +332,10 @@ async def test_assistant_context_isolation_history_and_duplicate(
 ) -> None:
     manager = await configured(client, app, problem_payload)
     seen = []
+    release = asyncio.Event()
 
     async def stream(config: Any, prompt: str, usage: Any = None) -> Any:
+        await release.wait()
         seen.append(json.loads(prompt))
         assert "testcases" not in prompt
         assert config["max_output_tokens"] == 16384
@@ -354,6 +356,7 @@ async def test_assistant_context_isolation_history_and_duplicate(
     reply = await client.post(path, json=body, headers={"Idempotency-Key": "message"})
     task_id = reply.json()["data"]["task_id"]
     assert (await client.post(f"/api/ai/conversations/{chat}/new")).status_code == 409
+    release.set()
     await finish(manager, task_id)
     assert (await client.post(path, json=body, headers={"Idempotency-Key": "message"})).json()[
         "data"

@@ -289,6 +289,9 @@ def task_panel(api: ApiClient, task_id: str) -> None:
             "cancelled": "已取消",
         }
         st.markdown(f"**{labels[data['status']]}** · {data['progress']}")
+        from frontend.ui import task_timer
+
+        task_timer(data)
         usage = data["usage"]
         a, b, c = st.columns(3)
         a.metric("输入 Token", f"{usage['input_tokens']:,}")

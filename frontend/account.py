@@ -55,16 +55,11 @@ def _auth_form(api: ApiClient) -> None:
     login, register = st.tabs(["登录", "注册"])
     for container, mode, label in [(login, "login", "进入工作台"), (register, "register", "注册")]:
         with container:
-            show = st.checkbox("显示密码", key=f"auth-show-{mode}")
             with st.form(f"auth-{mode}"):
                 name = st.text_input("用户名", key=f"auth-name-{mode}")
-                password = st.text_input(
-                    "密码", type="default" if show else "password", key=f"auth-password-{mode}"
-                )
+                password = st.text_input("密码", type="password", key=f"auth-password-{mode}")
                 confirmation = (
-                    st.text_input(
-                        "确认密码", type="default" if show else "password", key="auth-confirm"
-                    )
+                    st.text_input("确认密码", type="password", key="auth-confirm")
                     if mode == "register"
                     else password
                 )
@@ -144,6 +139,27 @@ def _profile_content(api: ApiClient) -> None:
     a, b = st.columns(2)
     a.metric("提交次数", user["submit_count"])
     b.metric("通过题目", user["resolve_count"])
+    with st.expander("修改密码"):
+        st.caption("修改后其他设备将退出登录，当前会话保留。")
+        with st.form("change-password", clear_on_submit=True):
+            current = st.text_input("当前密码", type="password")
+            new = st.text_input(
+                "新密码", type="password", help="至少 6 个字符，最多 72 个 UTF-8 字节"
+            )
+            confirm = st.text_input("确认新密码", type="password")
+            if st.form_submit_button("更新密码", type="primary"):
+                if error := password_change_error(current, new, confirm):
+                    st.error(error)
+                elif call(
+                    lambda: api.post(
+                        "/api/auth/password",
+                        json={
+                            "current_password": current,
+                            "new_password": new,
+                        },
+                    )
+                ):
+                    st.success("密码已更新，其他设备已退出登录。")
     logout_control(api)
     from frontend.ai import model_settings
 
@@ -151,3 +167,25 @@ def _profile_content(api: ApiClient) -> None:
         config = call(lambda: api.get("/api/ai/model-config"))
         if config:
             model_settings(api, config["data"])
+
+
+def password_change_error(current: str, new: str, confirm: str) -> str | None:
+    if not current:
+        return "请输入当前密码。"
+    if not new:
+        return "请输入新密码。"
+    if not confirm:
+        return "请再次输入新密码以确认。"
+    if len(current.encode("utf-8")) > 72:
+        return "当前密码超过 72 个 UTF-8 字节，请检查输入或联系管理员。"
+    if len(current) < 6:
+        return "当前密码不正确，请重新输入。"
+    if len(new) < 6:
+        return "新密码至少需要 6 个字符。"
+    if len(new.encode("utf-8")) > 72:
+        return "新密码最多 72 个 UTF-8 字节，请缩短密码。"
+    if new != confirm:
+        return "两次输入的新密码不一致，请重新确认。"
+    if current == new:
+        return "新密码不能与当前密码相同，请设置不同的新密码。"
+    return None

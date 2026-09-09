@@ -10,7 +10,7 @@ from oj.auth import CurrentUser, create_session, get_current_user, require_admin
 from oj.errors import APIError, response
 from oj.pagination import page_window
 from oj.route_security import AuthorizedRoute
-from oj.schemas import Credentials, RoleUpdate
+from oj.schemas import Credentials, PasswordChange, RoleUpdate
 from oj.security import hash_password, verify_password
 
 router = APIRouter(route_class=AuthorizedRoute, prefix="/api")
@@ -225,3 +225,41 @@ async def list_users(
     rows = await request.app.state.db.fetchall(sql, params)
     users = [await _user_data(request.app.state.db, row["id"]) for row in rows]
     return response(data={"total": total_row["n"], "users": users})
+
+
+@router.post("/auth/password")
+async def change_password(
+    request: Request, body: PasswordChange, user: CurrentUser = Depends(get_current_user)
+) -> JSONResponse:
+    limiter = request.app.state.login_rate_limiter
+    client = request.client.host if request.client else "unknown"
+    attempt = await limiter.begin(client, user.username)
+    try:
+        row = await request.app.state.db.fetchone(
+            "SELECT password_hash FROM users WHERE id=?", (user.id,)
+        )
+        valid = row is not None and await verify_password(
+            body.current_password, row["password_hash"]
+        )
+    except Exception:
+        await limiter.cancel(attempt)
+        raise
+    if not valid:
+        await limiter.record_failure(attempt)
+        raise APIError(400, "当前密码不正确")
+    await limiter.record_success(attempt)
+    if body.current_password == body.new_password:
+        raise APIError(400, "新密码不能与当前密码相同")
+    password_hash = await hash_password(body.new_password)
+    session_id = request.cookies.get(request.app.state.settings.session_cookie)
+    async with request.app.state.db.connect() as db:
+        await db.execute("BEGIN IMMEDIATE")
+        cursor = await db.execute(
+            "UPDATE users SET password_hash=? WHERE id=? AND password_hash=?",
+            (password_hash, user.id, row["password_hash"]),
+        )
+        if cursor.rowcount != 1:
+            raise APIError(409, "密码已发生变化，请重新登录后再试")
+        await db.execute("DELETE FROM sessions WHERE user_id=? AND id<>?", (user.id, session_id))
+        await db.commit()
+    return response(200, "password updated")

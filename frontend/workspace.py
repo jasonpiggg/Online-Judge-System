@@ -338,12 +338,15 @@ def workspace_page(api: ApiClient) -> None:
         )
         if records:
             pagination(records["data"]["total"])
+            if not records["data"]["total"]:
+                st.info("暂无本题提交记录，提交代码后可在这里查看。")
             for row in records["data"]["submissions"]:
                 if st.button(
                     f"#{row['submission_id']} · {row['status']} · {row.get('created_at', '')}",
                     key=f"history-{row['submission_id']}",
                 ):
                     go("submission", id=row["submission_id"], title=f"提交 #{row['submission_id']}")
+            pagination(records["data"]["total"], position="bottom")
     st.header("做题助手", anchor="assistant")
     assistant = st.expander("AI 做题助手", key=f"assistant-expanded-{pid}", on_change="rerun")
     if source and assistant.open:
