@@ -291,3 +291,25 @@ test('ordinary users retain the resource navigation and legacy resource content'
   await expect(page.getByRole('textbox',{name:'搜索题号或标题',exact:true})).toBeVisible();
   expect((await page.request.get(api+'/api/users/')).status()).toBe(403);
 });
+
+
+test('library unrated filter survives refresh', async ({page}) => {
+  await authenticate(page);
+  const original = (await (await page.request.get(api+'/api/problems/sum_2')).json()).data;
+  delete original.limit_inheritance;
+  const id = 'unrated-filter-check';
+  expect((await page.request.post(api+'/api/problems/', {data:{...original,id,title:'Unrated filter check',difficulty:''}})).ok()).toBe(true);
+  try {
+    await page.goto('/');
+    await page.getByRole('combobox',{name:'难度',exact:true}).click();
+    await page.getByRole('option',{name:'未分级',exact:true}).click();
+    await expect(page.locator('.st-key-list-row-problem-'+id)).toBeVisible();
+    await expect(page.getByRole('combobox',{name:'难度',exact:true})).toHaveValue('未分级');
+    await page.reload();
+    await expect(page.locator('.st-key-list-row-problem-'+id)).toBeVisible();
+    await expect(page.getByRole('combobox',{name:'难度',exact:true})).toHaveValue('未分级');
+    await healthy(page);
+  } finally {
+    await page.request.delete(api+'/api/problems/'+id);
+  }
+});
