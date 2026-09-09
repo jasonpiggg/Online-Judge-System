@@ -7,6 +7,9 @@ import hashlib
 import json
 import re
 import secrets
+import time
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import ValidationError
@@ -19,11 +22,13 @@ from oj.ai_authoring import (
     calculate_cost,
     utcnow,
 )
-from oj.ai_policy import select_phase_config
+from oj.ai_policy import balanced_phase_config, select_phase_config
 from oj.ai_presentation import check_presentation, presentation_issues
 from oj.ai_prompts import (
     ASSETS_PROMPT,
     ASSISTANT_PROMPT,
+    BASIC_DRAFT_PROMPT,
+    BASIC_REPAIR_PROMPT,
     DISPLAY_RULES,
     DRAFT_REVIEW_PROMPT,
     PROMPT_VERSION,
@@ -43,7 +48,7 @@ from oj.errors import APIError
 from oj.evaluation import evaluation_summary, private_evaluation
 from oj.judge import judge_code
 from oj.languages import get_language
-from oj.schemas import GeneratedProblem, Problem
+from oj.schemas import BasicGeneratedDraft, GeneratedProblem, Problem
 
 ASSISTANT_HISTORY_TURNS = 4
 ASSISTANT_HISTORY_BYTES = 20_000
@@ -234,8 +239,17 @@ class AIExperience(AIAuthoringManager):
                 if not prior_task:
                     raise APIError(404, "可恢复任务不存在")
                 previous = json.loads(prior_task["payload"])
-                for field in ("requirement", "problem_id", "draft_id", "action", "target_section"):
-                    if payload.get(field) != previous.get(field):
+                for field in (
+                    "requirement",
+                    "problem_id",
+                    "draft_id",
+                    "action",
+                    "target_section",
+                    "generation_mode",
+                ):
+                    if payload.get(
+                        field, "full" if field == "generation_mode" else None
+                    ) != previous.get(field, "full" if field == "generation_mode" else None):
                         raise APIError(409, "需求或目标已变更，不能复用旧阶段")
                 payload["resume_candidate"] = json.loads(prior_task["result"] or "{}")
             problem_id = payload.get("problem_id")
@@ -486,15 +500,13 @@ class AIExperience(AIAuthoringManager):
             (compact(data), task_id),
         )
 
-    async def _validate_basic(
+    async def _basic_report(
         self,
         task_id: str,
         problem: Problem,
         reference_solution: str,
-        task_row: Any,
         source_revision: int | None,
-    ) -> None:
-        """Validate a publishable manual draft without requiring AI quality assets."""
+    ) -> dict[str, Any]:
         await self._update(task_id, "running", "正在检查题目结构与排版", "basic_structure")
         prose_issues = presentation_issues(problem.model_dump())
         # A literal dollar in legacy prose is readable, but corrupted commands are not.
@@ -590,6 +602,18 @@ class AIExperience(AIAuthoringManager):
             "warnings": warnings,
             "note": "基础检查证明字段可用；未执行的完整质量门禁不影响手工题发布。",
         }
+        return report
+
+    async def _validate_basic(
+        self,
+        task_id: str,
+        problem: Problem,
+        reference_solution: str,
+        task_row: Any,
+        source_revision: int | None,
+    ) -> None:
+        """Validate a publishable manual draft without requiring AI quality assets."""
+        report = await self._basic_report(task_id, problem, reference_solution, source_revision)
         now = utcnow()
         result = {"kind": "verification", "problem": problem.model_dump(), "verification": report}
         verification_id = "verify-" + secrets.token_urlsafe(12)
@@ -624,6 +648,99 @@ class AIExperience(AIAuthoringManager):
             )
             await db.commit()
 
+    async def _generate_basic(
+        self,
+        task_row: Any,
+        payload: dict[str, Any],
+        invoke: Callable[..., Awaitable[str]],
+    ) -> None:
+        task_id = task_row["id"]
+        age = max(
+            0.0,
+            (datetime.now(UTC) - datetime.fromisoformat(task_row["created_at"])).total_seconds(),
+        )
+        # A monotonic work deadline reserves the last five seconds for durable completion.
+        deadline = time.monotonic() + min(240.0, self.settings.ai_task_timeout_seconds) - age - 5
+
+        def budget(cap: float) -> float:
+            seconds = min(cap, deadline - time.monotonic())
+            if seconds <= 0:
+                raise TimeoutError
+            return seconds
+
+        schema = BasicGeneratedDraft.model_json_schema()
+        text = await invoke(
+            "basic_draft",
+            BASIC_DRAFT_PROMPT,
+            {
+                "requirement": payload["requirement"],
+                "schema": schema,
+                "existing_problem": {
+                    k: v for k, v in payload.get("base_problem", {}).items() if k != "testcases"
+                },
+            },
+            stage_budget=budget(150 - age),
+            max_tokens=8192,
+        )
+        for attempt in range(2):
+            candidate = _extract_json(text)  # Truncated/malformed JSON is never a paid retry.
+            await self.db.execute(
+                "UPDATE ai_tasks SET result=? WHERE id=?",
+                (compact({**candidate, "kind": "candidate", "result_version": 2}), task_id),
+            )
+            try:
+                draft = BasicGeneratedDraft.model_validate(candidate)
+                check_presentation(draft.model_dump())
+                validation_budget = budget(30 if attempt == 0 else 20)
+                report = await asyncio.wait_for(
+                    self._basic_report(
+                        task_id,
+                        draft.problem,
+                        draft.reference_solution,
+                        payload.get("source_revision"),
+                    ),
+                    validation_budget,
+                )
+            except (ValueError, AuthoringError) as exc:
+                if attempt:
+                    raise
+                await self.db.execute(
+                    "UPDATE ai_task_context SET repair_used=1 WHERE task_id=?",
+                    (task_id,),
+                )
+                text = await invoke(
+                    "basic_repair",
+                    BASIC_REPAIR_PROMPT,
+                    {
+                        "requirement": payload["requirement"],
+                        "candidate": candidate,
+                        "validation_error": str(exc)[:3000],
+                        "schema": schema,
+                    },
+                    stage_budget=budget(35),
+                    max_tokens=4096,
+                )
+                continue
+            report.update(
+                note="基础验证通过，完整验证未执行。可编辑草稿或另行补全验证资产。",
+                quality_gate_passed=False,
+            )
+            result = {
+                **draft.model_dump(),
+                "kind": "generated",
+                "result_version": 2,
+                "generation_mode": "basic_draft",
+                "verification": report,
+                "review": report["note"],
+                "coverage": {},
+                "wrong_solutions": [],
+            }
+            await asyncio.wait_for(
+                self._save_ready_draft(task_row, task_id, result, payload.get("source_revision")),
+                5,
+            )
+            return
+
     async def _author(self, task_id: str) -> None:
         context = await self.db.fetchone(
             "SELECT * FROM ai_task_context WHERE task_id=?", (task_id,)
@@ -632,16 +749,46 @@ class AIExperience(AIAuthoringManager):
             await super()._author(task_id)
             return
         payload = json.loads(context["payload"])
-        if context["kind"] != "assistant" and payload.get("workflow_version", 1) == 1:
+        if (
+            context["kind"] != "assistant"
+            and payload.get("workflow_version", 1) == 1
+            and payload.get("generation_mode") not in {"basic_draft", "balanced"}
+        ):
             await super()._author(task_id)
             return
         config = json.loads(self.cipher.decrypt(context["config_snapshot"]))
         config["encrypted_api_key"] = config["encrypted_api_key"].encode()
         task_row = await self.db.fetchone("SELECT * FROM ai_tasks WHERE id=?", (task_id,))
+        if task_row is None:
+            raise AuthoringError("任务不存在")
+        balanced = payload.get("generation_mode") == "balanced"
+        created_age = max(
+            0.0,
+            (datetime.now(UTC) - datetime.fromisoformat(task_row["created_at"])).total_seconds(),
+        )
+        work_deadline = (
+            time.monotonic() + min(240, self.settings.ai_task_timeout_seconds) - created_age - 5
+        )
+
+        def remaining(cap: float) -> float:
+            value = min(cap, work_deadline - time.monotonic())
+            if value <= 0:
+                raise TimeoutError
+            return value
+
         phases: dict[str, Any] = {}
         preview: dict[str, Any] = {}
 
-        async def invoke(phase: str, system: str, data: Any, *, assistant: bool = False) -> str:
+        async def invoke(
+            phase: str,
+            system: str,
+            data: Any,
+            *,
+            assistant: bool = False,
+            stage_budget: float | None = None,
+            max_tokens: int | None = None,
+        ) -> str:
+            phase_started = time.monotonic()
             selected = select_phase_config(
                 config,
                 "generation" if phase in {"statement", "assistant"} else "critique",
@@ -650,6 +797,21 @@ class AIExperience(AIAuthoringManager):
                 payload.get("requirement", payload.get("message", "")),
                 compact(payload.get("base_problem", {}))[:2000],
             )
+            if balanced:
+                selected = balanced_phase_config(config, phase)
+                # One deadline covers queueing, model calls, local checks and persistence.
+                caps = {"statement": 50, "assets": 40, "critique": 60, "repair": 25}
+                stage_budget = remaining(caps.get(phase, 25))
+                if phase == "statement":
+                    stage_budget = min(stage_budget, remaining(50 - created_age))
+                max_tokens = 8192 if phase in {"statement", "assets"} else 4096
+                system += (
+                    "\nBounded quality workflow: preserve the requested difficulty. "
+                    "Use explicit constraints, 8-12 distinct adversarial tests, "
+                    "exactly 20 small random inputs and two executable wrong solutions. "
+                    "Audit ambiguity, algorithm complexity, expected outputs and edge coverage. "
+                    "Keep code and reviews concise; do not simplify the problem to save time."
+                )
             selected.update(
                 {
                     "system_prompt": system + DISPLAY_RULES + "\nProtocol: " + PROMPT_VERSION,
@@ -663,10 +825,14 @@ class AIExperience(AIAuthoringManager):
                 selected["max_output_tokens"] = self.settings.ai_section_max_output_tokens
             else:
                 selected["max_output_tokens"] = self.settings.ai_max_output_tokens
+            if max_tokens is not None:
+                selected["max_output_tokens"] = min(selected["max_output_tokens"], max_tokens)
             model_limit = config.get("_output_limits", {}).get(selected["model"])
             if model_limit:
                 selected["max_output_tokens"] = min(selected["max_output_tokens"], model_limit)
             labels = {
+                "basic_draft": "正在生成基础草稿",
+                "basic_repair": "正在修复基础草稿（最多一次）",
                 "statement": "正在生成题面与参考解",
                 "assets": "正在设计测试与独立解法",
                 "critique": "正在复审与修正",
@@ -700,6 +866,21 @@ class AIExperience(AIAuthoringManager):
                     selected.get("cached_input_price"),
                 )
                 phases[phase] = {
+                    "model": selected["model"],
+                    "tier": selected.get("tier"),
+                    "routing_reason": selected.get("routing_reason"),
+                    "reasoning_effort": selected.get("reasoning_effort"),
+                    "pricing": {
+                        k: selected.get(k)
+                        for k in (
+                            "input_price",
+                            "output_price",
+                            "cached_input_price",
+                            "price_unit",
+                            "currency",
+                        )
+                    },
+                    "elapsed_seconds": round(time.monotonic() - phase_started, 3),
                     "input_tokens": i,
                     "output_tokens": o,
                     "source": source,
@@ -732,7 +913,7 @@ class AIExperience(AIAuthoringManager):
             selected["_on_content"] = content
             text, i, o, source = await asyncio.wait_for(
                 self._stream_completion(selected, compact(data), usage),
-                self.settings.ai_stage_timeout_seconds,
+                self.settings.ai_stage_timeout_seconds if stage_budget is None else stage_budget,
             )
             await usage(i, o, source)
             await content(text)
@@ -757,6 +938,9 @@ class AIExperience(AIAuthoringManager):
         target = payload.get("target_section", "all")
         action = payload.get("action", "generate")
         requirement = payload["requirement"]
+        if action == "generate" and payload.get("generation_mode") == "basic_draft":
+            await self._generate_basic(task_row, payload, invoke)
+            return
         if action == "verify":
             if payload.get("verification_mode", "full") == "basic":
                 await self._validate_basic(
@@ -964,6 +1148,20 @@ class AIExperience(AIAuthoringManager):
             for k, v in payload.get("resume_candidate", {}).items()
             if k in GeneratedProblem.model_fields
         }
+        if (
+            not candidate
+            and payload.get("draft_id")
+            and base
+            and payload.get("assets", {}).get("reference_solution")
+        ):
+            candidate = {
+                "problem": base,
+                **{
+                    k: v
+                    for k, v in payload["assets"].items()
+                    if k in GeneratedProblem.model_fields and k != "problem"
+                },
+            }
         feedback = ""
         try:
             if not candidate.get("problem") or not candidate.get("reference_solution"):
@@ -1007,6 +1205,8 @@ class AIExperience(AIAuthoringManager):
                 (compact({"kind": "candidate", "result_version": 2, **candidate}), task_id),
             )
         except (ValueError, ValidationError) as exc:
+            if balanced and not candidate:
+                raise  # Unparseable/truncated model output does not buy another attempt.
             feedback = str(exc)[:1500]
             if not isinstance(candidate.get("problem"), dict):
                 candidate["problem"] = {}
@@ -1024,9 +1224,10 @@ class AIExperience(AIAuthoringManager):
                     "previous_stage_issues": feedback,
                 },
             )
+        parsed_assets = _extract_json(assets) if balanced and assets else None
         try:
             if assets:
-                values = _extract_json(assets)
+                values = parsed_assets if parsed_assets is not None else _extract_json(assets)
                 if set(values) - {
                     "testcases",
                     "brute_solution",
@@ -1061,14 +1262,20 @@ class AIExperience(AIAuthoringManager):
             },
         )
         initial_problem = json.loads(compact(candidate.get("problem", {})))
+        parsed_review = _extract_json(review_text) if balanced else None
         try:
-            review = _extract_json(review_text)
+            review = parsed_review if parsed_review is not None else _extract_json(review_text)
             candidate = merge_patch(candidate, review["patch"])
             candidate["review"] = review["review"]
             generated = GeneratedProblem.model_validate(candidate)
-            await self._validate_generated(
+            validation_budget = remaining(40) if balanced else None
+            validation = self._validate_generated(
                 task_id, generated, task_row, payload.get("source_revision"), initial_problem
             )
+            if balanced:
+                await asyncio.wait_for(validation, validation_budget)
+            else:
+                await validation
         except (ValueError, KeyError, AuthoringError) as exc:
             # Only deterministic structure/validation failures reach the single repair call.
             if isinstance(exc, AuthoringError) and "草稿已修改" in str(exc):
@@ -1113,6 +1320,11 @@ class AIExperience(AIAuthoringManager):
             candidate = merge_patch(candidate, patch)
             candidate["review"] = repair["review"]
             generated = GeneratedProblem.model_validate(candidate)
-            await self._validate_generated(
+            validation_budget = remaining(20) if balanced else None
+            validation = self._validate_generated(
                 task_id, generated, task_row, payload.get("source_revision"), initial_problem
             )
+            if balanced:
+                await asyncio.wait_for(validation, validation_budget)
+            else:
+                await validation

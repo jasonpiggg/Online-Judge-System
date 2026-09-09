@@ -915,7 +915,12 @@ class AIAuthoringManager:
             "wrong_solutions": result["wrong_solutions"],
             "verification": result["verification"],
         }
-        ready = bool(result["verification"].get("quality_gate_passed"))
+        ready = bool(result["verification"].get("quality_gate_passed")) or (
+            result.get("generation_mode") == "basic_draft"
+            and result["verification"].get("level") == "basic"
+            and result["verification"].get("reference_passed") is True
+            and result["verification"].get("publishable") is True
+        )
         draft_status = "ready" if ready else "draft"
         snapshot = {
             "id": draft_id,
@@ -1010,9 +1015,17 @@ class AIAuthoringManager:
             # Expose completion only once the matching draft and verification are committed.
             await db.execute(
                 """UPDATE ai_tasks SET draft_id=?,result=?,status='completed',
-                   progress='命题完成并通过参考解法验证',stage='completed',
+                   progress=?,stage='completed',
                    updated_at=? WHERE id=?""",
-                (draft_id, json.dumps(result, ensure_ascii=False), now, task_id),
+                (
+                    draft_id,
+                    json.dumps(result, ensure_ascii=False),
+                    "基础验证通过，完整验证未执行"
+                    if result.get("generation_mode") == "basic_draft"
+                    else "命题完成并通过参考解法验证",
+                    now,
+                    task_id,
+                ),
             )
             await db.commit()
 

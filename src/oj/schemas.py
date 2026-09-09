@@ -131,6 +131,7 @@ class AIModelConfig(StrictModel):
 
 class AIProblemTaskCreate(StrictModel):
     workflow_version: Literal[1, 2] = 1
+    generation_mode: Literal["basic_draft", "balanced", "full"] = "full"
     resume_task_id: str | None = Field(default=None, pattern=r"^ai-[A-Za-z0-9_-]{8,64}$")
     requirement: str = Field(min_length=10, max_length=20_000)
     problem_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
@@ -139,6 +140,14 @@ class AIProblemTaskCreate(StrictModel):
     target_section: Literal["all", "statement", "constraints", "samples", "testcases", "review"] = (
         "all"
     )
+
+    @model_validator(mode="after")
+    def basic_mode_scope(self) -> AIProblemTaskCreate:
+        if self.generation_mode in {"basic_draft", "balanced"} and (
+            self.action != "generate" or self.target_section != "all"
+        ):
+            raise ValueError("草稿生成模式仅适用于整题生成")
+        return self
 
 
 class AssistantConversationCreate(StrictModel):
@@ -183,6 +192,22 @@ class Coverage(StrictModel):
 class WrongSolution(StrictModel):
     code: str = Field(min_length=1, max_length=200_000)
     reason: str = Field(min_length=5, max_length=5000)
+
+
+class BasicGeneratedDraft(StrictModel):
+    problem: Problem
+    reference_solution: str = Field(min_length=1, max_length=200_000)
+
+    @model_validator(mode="after")
+    def check_basic_assets(self) -> BasicGeneratedDraft:
+        inputs = [case.input for case in self.problem.testcases]
+        if len(inputs) < 5 or len(set(inputs)) != len(inputs):
+            raise ValueError("基础草稿至少需要 5 个互不重复的测试输入")
+        if not self.reference_solution.strip():
+            raise ValueError("基础草稿必须包含可运行的 Python 参考解")
+        if self.problem.difficulty not in {level["value"] for level in DIFFICULTIES}:
+            raise ValueError("AI 生成须采用标准难度等级")
+        return self
 
 
 class GeneratedProblem(StrictModel):
