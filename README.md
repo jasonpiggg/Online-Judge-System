@@ -179,15 +179,14 @@ Git、截图或前端环境变量里。默认公网 HTTPS 校验仍生效。
 
 分流仅作用于系统配置，不覆盖用户自带模型，不新增付费分类请求，也不在失败后自动重试。
 对已有题目执行 `revise + samples/statement` 使用独立局部协议：只返回样例或题面字段，
-不重写测试点、参考解或错误算法。初稿可用 Flash，复审使用高质量模型；每阶段默认
+不重写测试点、参考解或错误算法。当前系统各阶段均使用 Flash + low；局部阶段默认
 8192 输出 Token（`OJ_AI_SECTION_MAX_OUTPUT_TOKENS`）。样例每条输入/输出最多 2000 字符。
 局部建议不宣称整题通过质量门禁，需在任务页确认后载入编辑器并手动保存；旧版草稿发生
 变更时阻止直接采纳，避免覆盖新内容。完整命题仍保留原来的参考解、卡错和独立对拍门禁。
 草稿页现显式区分“局部修改”“全面审查并修正”“补全整题并验证”：全面审查只对已有
 题面和验证资产生成最小 Patch，采纳后仍须重新验证；缺字段时不会静默升级为完整生成。
-入门题初稿、简单题面润色使用基础 Flash；复杂/难度不明的命题、算法修改、测试设计、
-审核及第二阶段完整复审使用高质量模型。原题/草稿的 difficulty 和 tags 参与判断；
-复杂信号优先于简单信号。规则是保守启发式，不保证理解任意自然语言中的难度。
+常规模块使用系统 Flash + low；整题 balanced 使用 Flash high 生成、GLM-5.3 low 复审。个人模型保持优先。
+全局双模型路由保持关闭，整题质量策略单独生效。
 本地参考解评测、错误解卡错、oracle 对拍仍由本地评测器完成，不交给模型判分。
 
 按本次提供的截图，可使用以下服务器设置（不包含密钥）：
@@ -199,13 +198,13 @@ OJ_AI_DEFAULT_PRICE_UNIT=1000000
 OJ_AI_DEFAULT_INPUT_PRICE=0.4
 OJ_AI_DEFAULT_OUTPUT_PRICE=1.4
 OJ_AI_DEFAULT_CACHED_INPUT_PRICE=0.115
-OJ_AI_ROUTING_ENABLED=true
+OJ_AI_ROUTING_ENABLED=false
 OJ_AI_QUALITY_MODEL=glm-5.3
 OJ_AI_QUALITY_INPUT_PRICE=8
 OJ_AI_QUALITY_OUTPUT_PRICE=28
 OJ_AI_QUALITY_CACHED_INPUT_PRICE=2
-OJ_AI_DEFAULT_REASONING_EFFORT=high
-OJ_AI_QUALITY_REASONING_EFFORT=high
+OJ_AI_DEFAULT_REASONING_EFFORT=low
+OJ_AI_QUALITY_REASONING_EFFORT=low
 OJ_AI_DEFAULT_JSON_MODE=false
 OJ_AI_QUALITY_JSON_MODE=false
 ```
@@ -222,14 +221,16 @@ Flash 是截图中的限时折扣价；原价为 0.8 / 2.8 / 0.23 元，截图�
 费用是按配置计算的账单估算，仍以服务商实际账单为准。
 个人配置可独立选择 USD/CNY；历史记录保持原币种，v5 迁移不改变旧 USD 金额。
 
-GLM 推理也占输出预算。两档显式使用 `high` 增强推理，避免服务商默认的 `max`
-深度推理给简单任务带来过长等待（[官方参数说明](https://docs.bigmodel.cn/cn/guide/start/concept-param)）。
-需要更多推理时可将质量档改为 `max` 后同步；不向其他兼容服务商默认发送该专用参数。
-当前本地 `.env` 已扩展为完整命题 65536 / 局部修改 16384 输出 Token（含推理），
-单阶段 900 秒、全任务 2400 秒、流式读取等待 180 秒。读取超时控制无数据到达的等待，
-阶段超时控制整次调用，二者不同；仍可能因服务商异常或不合格内容失败。
-上限不是目标消耗。按当前 GLM-5.3 输出价，两次调用都耗尽 65536 Token 时，
-仅输出费用约 CNY 3.67，另计输入；不要无界加大预算或连续重复提交。
+Streamlit 生成整题使用 `balanced`：题面与参考解、验证资产、独立复审、完整本地验证。
+题面/资产最多8192输出 Token，复审/修复4096；系统使用 Flash high 生成与 GLM-5.3 low 复审。
+阶段预算分别50/40/60/40秒，可用一次25秒定向修复和20秒复验，清理预留5秒。
+所有阶段共同受含排队的240秒总预算约束，成功必须实际通过参考解、卡错和独立对拍。
+旧 `basic_draft` 保留快速基础草稿流程，API 默认 `full` 保持兼容；不自动发布。
+草稿可发起独立的“补全验证资产并完整验证”，重用题面与参考解。
+系统策略同步使用 `python scripts/configure_system_ai.py --apply --fast-basic`，保留凭据及已确认的 Flash 费率。
+详见 [本轮实现与真实验收](docs/basic-draft-admin-review.md)。
+
+以下首稿修正规则适用于兼容的完整流程：
 首稿 JSON/Schema 错误及 Python 语法诊断会送入原定第二阶段修正，不增加第三次自动调用。
 第二阶段依然必须严格校验通过；首稿错误不会被静默当成合法结果。
 Token 达上限、超时或失败都保留已观测用量，不自动重试收费。

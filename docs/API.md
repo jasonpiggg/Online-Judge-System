@@ -138,3 +138,18 @@ oracle 和 20–100 组随机对拍。省略请求体保持旧客户端的 `full
 
 
 命题草稿和任务列表不带 `include_metadata` 时保持旧数组响应。新版网页使用独立分页和归档筛选。命题验证前及失败后始终保留版本化 `candidate` 信封；失败成果可零费用另存为未验证草稿，恢复草稿仍须通过发布检查。
+
+
+### 基础草稿生成
+
+`POST /api/ai/problem-tasks` 新增 `generation_mode: basic_draft | balanced | full`，默认 `full`。
+`basic_draft` 仅适用于 `generate/all`，必须有 Python 参考解与至少五个不同测试输入。
+成功报告 `level=basic`、`reference_passed=true`、`quality_gate_passed=false`，不自动发布。
+后续以 `draft_id`、`generation_mode=full` 发起新的任务可重用题面和参考解补全验证资产；
+仍通过来源版本 CAS 防止覆盖并发编辑。任务详情保留 generation_mode，重试不会改变模式。
+所有任务总预算至多 240 秒，含排队；快速草稿最多一次针对验证问题的收费修复。
+阶段用量增加 `elapsed_seconds`、`model`、`reasoning_effort`，保留费用快照。
+
+`balanced` 是 Streamlit 当前整题默认选择，恢复生成、资产、独立复审与完整本地门禁。
+仅该模式使用系统 Flash high / GLM-5.3 low 的阶段配置，个人模型保持优先。
+阶段共享含排队的240秒 deadline；约三分钟是预算参考，不是强制等待或成功保证。
