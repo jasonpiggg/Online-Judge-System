@@ -155,6 +155,23 @@ def task_bar() -> None:
                         switch_slot(slot)
         if st.button("关闭当前任务", key="close-current-task", disabled=not active_key):
             st.session_state.confirm_close = True
+        if st.button("一键清空任务标签", key="clear-task-tabs"):
+            if st.session_state.get("unsaved"):
+                st.session_state.confirm_clear_tabs = True
+            else:
+                st.session_state.task_slots = []
+                st.session_state.pop("active_slot", None)
+                go("library")
+    if st.session_state.get("confirm_clear_tabs"):
+        st.warning("存在未保存内容，清空标签前请保存或备份。后台任务不会取消。")
+        if st.button("确认清空标签"):
+            st.session_state.task_slots = []
+            st.session_state.pop("active_slot", None)
+            st.session_state.pop("confirm_clear_tabs", None)
+            go("library")
+        if st.button("保留标签"):
+            st.session_state.pop("confirm_clear_tabs", None)
+            st.rerun()
     if st.session_state.get("confirm_close"):
         st.warning(
             "关闭页面不会取消后台任务。请确认未保存内容已有备份；需要停止任务时请使用中断按钮。"
@@ -184,23 +201,48 @@ def page_number(name: str = "page") -> int:
         return 1
 
 
-def pagination(total: int, name: str = "page", size: int = 10) -> int:
+def pagination(total: int, name: str = "page", size: int = 10, *, position: str = "top") -> int:
     page = page_number(name)
     last = max(1, (total + size - 1) // size)
     if page > last:
         st.query_params[name] = str(last)
         st.rerun()
-    with st.container(horizontal=True):
-        for label, value in [
-            ("首页", 1),
-            ("上一页", page - 1),
-            ("下一页", page + 1),
-            ("尾页", last),
-        ]:
+    prefix = f"pager-{name}-{position}"
+
+    def move(value: int) -> None:
+        st.query_params[name] = str(value)
+        st.rerun()
+
+    with st.container(horizontal=True, vertical_alignment="center", key=prefix):
+        st.caption(f"第 {page} / {last} 页 · {total} 条", width="content")
+        start = max(1, min(page - 2, last - 4))
+        end = min(last, start + 4)
+        entries = [("首页", 1), ("上一页", page - 1)]
+        if start > 1:
+            entries.append(("…", -1))
+        entries.extend((str(n), n) for n in range(start, end + 1))
+        if end < last:
+            entries.append(("…", -1))
+        entries.extend([("下一页", page + 1), ("尾页", last)])
+        for index, (label, value) in enumerate(entries):
             if st.button(
-                label, key=f"{name}-{label}", disabled=value < 1 or value > last or value == page
+                label,
+                key=f"{prefix}-{index}",
+                type="primary" if label == str(page) else "secondary",
+                disabled=value < 1 or value > last or value == page,
             ):
-                st.query_params[name] = str(value)
-                st.rerun()
-        st.caption(f"第 {page} / {last} 页 · {total} 条")
+                move(value)
+        st.caption("跳转至：", width="content")
+        target = st.number_input(
+            "跳转至",
+            min_value=1,
+            max_value=last,
+            value=page,
+            step=1,
+            key=f"{prefix}-jump-{page}-{last}",
+            width=90,
+            label_visibility="collapsed",
+        )
+        if st.button("跳转", key=f"{prefix}-go", disabled=last == 1):
+            move(int(target))
     return page

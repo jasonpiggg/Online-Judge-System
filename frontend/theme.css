@@ -3,8 +3,8 @@
   --oj-soft:#f5f8fe; --oj-border:#e3eaf3;
   font-family:system-ui,'Microsoft YaHei',sans-serif;color:var(--oj-ink);background:#fff;
 }
-[data-testid="stMainBlockContainer"] {max-width:1200px;padding:3rem 24px 3rem}
-.stApp [data-testid="stToolbar"] {max-width:1200px;margin-inline:auto;padding-inline:8px}
+[data-testid="stMainBlockContainer"] {max-width:1440px;padding:3rem 24px 3rem}
+.stApp [data-testid="stToolbar"] {max-width:1440px;margin-inline:auto;padding-inline:8px}
 [data-testid="stAppDeployButton"] {display:none}
 [data-testid="stHeader"] {background:#fff}
 .stApp h1,.stApp h2,.stApp h3 {font-family:inherit;letter-spacing:-.015em}
@@ -36,7 +36,7 @@
 .st-key-section-nav a{display:block;text-align:center;text-decoration:none;font-size:14px;font-weight:600;color:#617087;padding:4px 12px;border-radius:6px}
 .st-key-section-nav a:hover,.st-key-section-nav a[aria-current="location"]{color:#2563eb;background:#eef4ff}
 .stApp [id="statement"],.stApp [id="code"],.stApp [id="results"],.stApp [id="assistant"]{scroll-margin-top:9rem}
-.st-key-statement-panel{max-width:880px;margin-inline:auto}
+.st-key-statement-panel{width:100%;min-width:0;margin:0}
 .st-key-editor-panel,.st-key-result-panel{border:1px solid #e3eaf3;border-radius:12px;padding:16px}
 .st-key-editor-toolbar,.st-key-editor-footer{background:#f5f8fe;border-radius:8px;padding:8px 12px}
 .st-key-editor-toolbar [data-testid="stNumberInput"] input{background:#fff;border:1px solid #b8c5d6;border-radius:6px}
@@ -59,3 +59,15 @@
  .st-key-library-list,.st-key-resource-list,.st-key-record-list{padding-inline:12px}
 }
 @media(prefers-reduced-motion:reduce){.stApp *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+/* Keep Streamlit's accessible reveal control; suppress Edge's duplicate. */
+.stApp input::-ms-reveal,.stApp input::-ms-clear{display:none}
+.stApp .oj-component .markdown ul,.stApp .oj-component .markdown ol{padding-inline-start:1.6em;margin-block:.65em;list-style-position:outside}
+.stApp .oj-component .markdown li{padding-inline-start:.2em;margin-block:.25em}
+.stApp .oj-component .markdown p{line-height:1.8;margin-block:.65em}
+.stApp .oj-component .markdown h3{margin-block:1.2em .5em}
+.stApp [class*="st-key-pager-"]{gap:8px;padding:12px 0;flex-wrap:wrap}
+.stApp [class*="st-key-pager-"] [data-testid="stCaptionContainer"] p{margin:0;white-space:nowrap}
+
+.stApp [class*="st-key-pager-"] [data-testid="stCaptionContainer"]{display:flex;align-items:center;min-height:40px;margin:0;padding:0}
+.stApp [class*="st-key-pager-"] p{margin-block:0!important}

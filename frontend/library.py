@@ -154,3 +154,5 @@ def library_page(api: ApiClient) -> None:
                         st.caption(f"{progress['attempts']} 次提交")
                 if action.button("开始做题", key=f"open-{item['id']}", width="stretch"):
                     navigate("workspace", current_problem=item["id"])
+
+    pagination(len(items), position="bottom")

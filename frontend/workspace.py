@@ -344,6 +344,7 @@ def workspace_page(api: ApiClient) -> None:
                     key=f"history-{row['submission_id']}",
                 ):
                     go("submission", id=row["submission_id"], title=f"提交 #{row['submission_id']}")
+            pagination(records["data"]["total"], position="bottom")
     st.header("做题助手", anchor="assistant")
     assistant = st.expander("AI 做题助手", key=f"assistant-expanded-{pid}", on_change="rerun")
     if source and assistant.open:

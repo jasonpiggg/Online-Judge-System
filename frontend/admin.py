@@ -101,6 +101,7 @@ def admin_page(api: ApiClient) -> None:
                         lambda: api.post(endpoint, json={"username": name, "password": password})
                     ):
                         st.success("账户已创建")
+        pagination(result["data"]["total"], "users_page", position="bottom")
     elif section == "全站提交":
         go("records")
     elif section == "题目管理":
@@ -117,6 +118,7 @@ def admin_page(api: ApiClient) -> None:
             data_table(result["data"]["logs"])
             if not result["data"]["logs"]:
                 st.info("还没有角色修改记录。")
+            pagination(result["data"]["total"], position="bottom")
     elif section == "语言":
         language_page(api)
     elif section == "访问审计":
@@ -142,6 +144,7 @@ def admin_page(api: ApiClient) -> None:
             data_table(result["data"]["logs"])
             if not result["data"]["logs"]:
                 st.info("当前筛选条件下没有访问日志。")
+            pagination(result["data"]["total"], "audit_page", position="bottom")
     else:
         st.subheader("实验环境")
         st.info("完整评测请使用 Linux/WSL，单 Uvicorn worker，仅绑定 localhost。")

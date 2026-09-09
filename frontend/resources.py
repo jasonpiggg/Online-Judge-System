@@ -134,6 +134,7 @@ def resources_page(api: ApiClient) -> None:
 
                             if st.button("删除题目", key=f"delete-{p['id']}"):
                                 delete_dialog(api, detail["data"])
+    pagination(len(filtered), position="bottom")
 
 
 def public_log_page(api: ApiClient) -> None:

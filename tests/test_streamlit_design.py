@@ -101,3 +101,19 @@ def test_component_keys_escape_reserved_event_delimiter(monkeypatch: Any) -> Non
     assert "__" not in captured[0]
     assert captured[0] == captured[1]
     assert captured[0] != captured[2]
+
+
+def test_pagination_jump_and_paired_controls() -> None:
+    app = AppTest.from_string("""
+from frontend.navigation import pagination
+pagination(120)
+pagination(120, position="bottom")
+""").run()
+    assert not app.exception
+    app.number_input[0].set_value(7)
+    app.button(key="pager-page-top-go").click().run()
+    assert not app.exception
+    assert app.query_params["page"] == ["7"]
+    assert any(b.label == "7" for b in app.button)
+    app.button(key="pager-page-bottom-0").click().run()
+    assert app.query_params["page"] == ["1"]

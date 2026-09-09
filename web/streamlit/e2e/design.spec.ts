@@ -180,3 +180,30 @@ test('long library titles and tags wrap and empty search remains actionable',asy
   await expect(page.getByText('没有找到匹配的题目。试试其他关键词，或创建第一道题。',{exact:true})).toBeVisible();
   await healthy(page);
 });
+
+
+test('login chrome, paired pager and clear-all task navigation', async ({page}) => {
+  await page.goto('/');
+  await expect(page.getByRole('button',{name:'进入工作台',exact:true})).toBeVisible();
+  await expect(page.getByTestId('stTopNavLink')).toHaveCount(0);
+  await expect(page.getByRole('checkbox',{name:'显示密码',exact:true})).toHaveCount(0);
+  await authenticate(page);
+  await page.goto('/resources');
+  const top = page.locator('.st-key-pager-page-top');
+  const bottom = page.locator('.st-key-pager-page-bottom');
+  await expect(top).toBeVisible();
+  await expect(bottom).toBeAttached();
+  await top.getByRole('spinbutton',{name:'跳转至',exact:true}).fill('2');
+  await top.getByRole('button',{name:'跳转',exact:true}).click();
+  await expect(page).toHaveURL(/page=2/);
+  await expect(top.getByText(/第 2 \/ /)).toBeVisible();
+  await bottom.getByRole('button',{name:'首页',exact:true}).click();
+  await expect(page).toHaveURL(/page=1/);
+  await page.goto('/workspace?id=sum_2');
+  await expect(page.getByRole('button',{name:'关闭当前任务',exact:true})).toBeEnabled();
+  await page.getByRole('button',{name:'一键清空任务标签',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'题库',exact:true})).toBeVisible();
+  await page.reload();
+  await expect(page.locator('.st-key-task-bar')).toHaveCount(0);
+  await healthy(page);
+});

@@ -233,6 +233,7 @@ def records_page(api: ApiClient) -> None:
                 )
                 if b.button("查看详情", key=f"record-{row['submission_id']}"):
                     go("submission", id=row["submission_id"], title=f"提交 #{row['submission_id']}")
+    pagination(result["data"]["total"], position="bottom")
 
 
 def submission_page(api: ApiClient) -> None:

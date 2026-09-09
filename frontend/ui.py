@@ -204,3 +204,20 @@ def data_table(rows: list[dict[str, Any]]) -> None:
         for row in rows
     ]
     st.dataframe(display, hide_index=True, width="stretch", column_config=labels)
+
+
+def task_timer(task: dict[str, Any]) -> None:
+    """Persisted timestamps keep elapsed time stable across refreshes."""
+    try:
+        started = datetime.fromisoformat(task["created_at"])
+        end = (
+            datetime.now(UTC)
+            if task["status"] in {"pending", "running"}
+            else datetime.fromisoformat(task["updated_at"])
+        )
+        seconds = max(0, int((end - started).total_seconds()))
+    except (KeyError, TypeError, ValueError):
+        return
+    st.caption(f"耗时 {seconds // 60:02d}:{seconds % 60:02d} · 总时限 04:00")
+    if task["status"] in {"pending", "running"}:
+        st.progress(min(seconds / 240, 1.0))
