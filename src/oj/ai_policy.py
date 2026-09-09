@@ -98,9 +98,9 @@ def balanced_phase_config(base: dict[str, Any], phase: str) -> dict[str, Any]:
     if base.get("model") == "glm-5.3-flash":
         config.update(
             model=base["model"],
-            reasoning_effort="high",
+            reasoning_effort="high" if phase == "statement" else "low",
             tier="flash",
-            routing_reason="整题生成：Flash high 生成紧凑但充分的题面与验证资产",
+            routing_reason="整题生成：题面 high 推理；验证资产和修复 low，保留独立复审时间",
         )
         quality = policy.get("quality", {})
         if phase == "critique" and quality.get("model") == "glm-5.3":

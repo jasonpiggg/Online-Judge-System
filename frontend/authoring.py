@@ -413,14 +413,28 @@ def draft_page(api: ApiClient) -> None:
             ),
         }
         st.caption(explanations[action])
+        ai_requirement = st.text_area(
+            "本次 AI 修改需求",
+            value=local["requirement"],
+            key=f"draft-ai-requirement-{did}",
+            height=140,
+            placeholder="例如：补充一个负数边界样例，并解释对应输出；保留其他题面内容。",
+            help="只用于本次 AI 请求，不会覆盖上方保存的原始命题需求。至少填写 10 个字符。",
+        )
         paid = st.checkbox("确认发起新的模型调用，费用单独累计", key="draft-ai-paid")
         if st.button("保存并发起 AI 修改", disabled=not paid):
+            if len(ai_requirement.strip()) < 10:
+                st.error("请在本次 AI 修改需求中填写至少 10 个字符，说明希望修改的内容。")
+                return
+            if len(ai_requirement) > 20_000:
+                st.error("本次 AI 修改需求不能超过 20,000 个字符，请精简后重试。")
+                return
             if save_draft(api, did, state):
                 start_task(
                     api,
                     {
                         "draft_id": did,
-                        "requirement": local["requirement"],
+                        "requirement": ai_requirement.strip(),
                         "action": action,
                         "target_section": "all" if action in {"review", "generate"} else section,
                     },
@@ -501,7 +515,12 @@ def task_page(api: ApiClient) -> None:
             st.session_state[terminal] = True
             st.rerun()
         st.write(t.get("requirement", ""))
-        st.info(
+        notice = (
+            st.error
+            if t["status"] == "failed"
+            else (st.success if t["status"] == "completed" else st.info)
+        )
+        notice(
             f"{status_label(t['status'])} · {status_label(t.get('stage', ''))} · "
             f"{t.get('progress', '')}"
         )

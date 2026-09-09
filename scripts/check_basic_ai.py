@@ -18,7 +18,7 @@ from oj.main import create_app
 from oj.schemas import Problem
 
 
-async def check(report_path: Path) -> None:
+async def check(report_path: Path, balanced: bool = False) -> None:
     original = Settings()
     if (
         original.ai_default_model != "glm-5.3-flash"
@@ -30,7 +30,7 @@ async def check(report_path: Path) -> None:
     ):
         raise RuntimeError("Known Flash CNY pricing and low/no-routing configuration required")
     reports: list[dict[str, Any]] = []
-    reserved = 0.0
+    reserved = 0.316822 if balanced else 0.0  # Include the entire first run reservation.
     with tempfile.TemporaryDirectory(prefix="oj-basic-benchmark-") as folder:
         root = Path(folder)
         settings = original.model_copy(
@@ -47,8 +47,14 @@ async def check(report_path: Path) -> None:
 
             async def limited(config: Any, prompt: str, on_usage: Any = None) -> Any:
                 nonlocal reserved
-                if config["model"] != "glm-5.3-flash" or config["currency"] != "CNY":
+                if (
+                    config["model"]
+                    not in ({"glm-5.3-flash", "glm-5.3"} if balanced else {"glm-5.3-flash"})
+                    or config["currency"] != "CNY"
+                ):
                     raise AuthoringError("Benchmark rejected an unbudgeted model")
+                if config["input_price"] <= 0 or config["output_price"] <= 0:
+                    raise AuthoringError("Benchmark requires known positive prices")
                 # UTF-8 bytes bound input tokens conservatively; include injected rules and framing.
                 input_bound = (
                     len(
@@ -95,7 +101,7 @@ async def check(report_path: Path) -> None:
                     json.dumps(
                         {
                             "model": original.ai_default_model,
-                            "reasoning_effort": "low",
+                            "generation_mode": "balanced" if balanced else "basic_draft",
                             "reserved_cny": round(reserved, 6),
                             "tasks": reports,
                         },
@@ -145,10 +151,12 @@ async def check(report_path: Path) -> None:
                             "action": "generate",
                             "target_section": "all",
                             "workflow_version": 2,
-                            "generation_mode": "basic_draft",
+                            "generation_mode": "balanced" if balanced else "basic_draft",
                         },
                     )
                 )
+            if balanced:
+                return  # Exactly four additional tasks; no dependent paid calls.
             first = next((b for b in basic if b["row"]["status"] == "completed"), None)
             if first:
                 problem = Problem.model_validate(first["result"]["problem"])
@@ -191,11 +199,12 @@ async def check(report_path: Path) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--paid", action="store_true", required=True)
+    parser.add_argument("--balanced", action="store_true")
     parser.add_argument("--report", type=Path, default=Path("tmp/basic-ai-report.json"))
     args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)
     try:
-        asyncio.run(check(args.report))
+        asyncio.run(check(args.report, args.balanced))
     except Exception as exc:
         print(f"Benchmark stopped ({type(exc).__name__}); no credentials printed.")
         raise SystemExit(1) from None

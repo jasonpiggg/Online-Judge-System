@@ -141,7 +141,20 @@ def _extract_json(text: str) -> dict[str, Any]:
     cleaned = text.strip()
     cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s*```$", "", cleaned)
-    return cast(dict[str, Any], json.loads(cleaned))
+    try:
+        value = json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Accept prose/fences around one complete JSON object, never invent missing fields.
+        start = cleaned.find("{")
+        if start < 0:
+            raise
+        value, end = json.JSONDecoder().raw_decode(cleaned, start)
+        suffix = cleaned[end:].strip()
+        if suffix.startswith(("{", "[")):
+            raise ValueError("模型返回了多个 JSON 成果，请只返回一个对象") from None
+    if not isinstance(value, dict):
+        raise ValueError("模型成果必须是 JSON 对象")
+    return cast(dict[str, Any], value)
 
 
 class AIAuthoringManager:
@@ -445,14 +458,19 @@ class AIAuthoringManager:
             elif isinstance(exc, ValidationError):
                 locations = [".".join(map(str, e["loc"])) or "result" for e in exc.errors()]
                 message = "生成结果不符合质量结构，请调整需求：" + ", ".join(locations)[:500]
-            elif isinstance(exc, TimeoutError | httpx.TimeoutException):
+            elif isinstance(exc, httpx.TimeoutException):
+                message = "模型服务连接或响应等待超时，并非四分钟总预算耗尽。已保留用量及可用成果。"
+            elif isinstance(exc, TimeoutError):
                 message = (
-                    "AI 阶段或任务超时（总时限 4 分钟）。已保留用量及可用成果，请缩小需求后重试。"
+                    "AI 处理或本地验证等待超时（总预算最多 4 分钟，含排队并预留保存清理时间）。"
+                    "已保留用量及可用成果。"
                 )
             elif isinstance(exc, httpx.HTTPStatusError):
                 message = f"模型服务返回 HTTP {exc.response.status_code}，请检查配置和服务额度。"
             elif isinstance(exc, httpx.TransportError):
                 message = "模型连接或流式传输中断；已保留已观测用量和可用初稿，不会自动重试收费。"
+            elif isinstance(exc, KeyError):
+                message = "模型返回缺少必需字段，未通过结构检查；已保留可恢复内容。"
             elif isinstance(exc, json.JSONDecodeError):
                 message = "模型返回的 JSON 不完整或格式错误；已保留可用输出，不会自动重试收费。"
             else:

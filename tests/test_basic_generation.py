@@ -154,8 +154,23 @@ async def test_basic_stage_cancellation(app: FastAPI, monkeypatch: Any) -> None:
 
 
 async def test_balanced_generation_retains_full_validation_with_bounded_outputs(
-    client: AsyncClient, app: FastAPI, problem_payload: dict[str, Any], generated: dict[str, Any]
+    client: AsyncClient,
+    app: FastAPI,
+    problem_payload: dict[str, Any],
+    generated: dict[str, Any],
+    monkeypatch: Any,
 ) -> None:
+    import asyncio
+
+    original_wait = asyncio.wait_for
+    phase_limits = []
+
+    async def observed_wait(future: Any, timeout: Any) -> Any:  # noqa: ASYNC109
+        if getattr(future, "__name__", "") == "complete":
+            phase_limits.append(timeout)
+        return await original_wait(future, timeout)
+
+    monkeypatch.setattr(asyncio, "wait_for", observed_wait)
     manager = await configured(client, app, problem_payload)
     calls = fake_phases(manager, generated)
     response = await client.post(
@@ -171,7 +186,9 @@ async def test_balanced_generation_retains_full_validation_with_bounded_outputs(
     assert task["status"] == "completed", task["error"]
     assert task["result"]["verification"]["quality_gate_passed"] is True
     assert task["result"]["verification"]["independent_oracle"]["status"] == "passed"
-    assert [c[0]["max_output_tokens"] for c in calls] == [8192, 8192, 4096]
+    assert [c[0]["max_output_tokens"] for c in calls] == [8192, 8192, 8192]
+    assert len(phase_limits) == 3
+    assert all(100 < value <= 235 for value in phase_limits)
 
 
 def test_balanced_routing_preserves_personal_config_and_matching_quality_prices() -> None:
@@ -197,6 +214,8 @@ def test_balanced_routing_preserves_personal_config_and_matching_quality_prices(
         ),
     }
     assert balanced_phase_config(base, "statement")["reasoning_effort"] == "high"
+    assert balanced_phase_config(base, "assets")["reasoning_effort"] == "low"
+    assert balanced_phase_config(base, "repair")["reasoning_effort"] == "low"
     review = balanced_phase_config(base, "critique")
     assert (review["model"], review["input_price"], review["reasoning_effort"]) == (
         "glm-5.3",
@@ -244,3 +263,53 @@ async def test_balanced_truncation_stops_without_paid_repair(
     assert task["status"] == "failed"
     assert count == bad_stage
     assert not task["draft_id"]
+
+
+def test_complete_json_survives_explanatory_wrapper_without_inventing_missing_content() -> None:
+    from oj.ai_authoring import _extract_json
+
+    assert _extract_json('说明：\n```json\n{"patch":{},"review":"ok"}\n```\n以上为成果。') == {
+        "patch": {},
+        "review": "ok",
+    }
+    with pytest.raises(ValueError):
+        _extract_json('说明：{"problem":{"title":"partial"}')
+    with pytest.raises(ValueError):
+        _extract_json('{"a":1} {"b":2}')
+
+
+def test_flat_review_patch_preserves_fields_for_scope_validation() -> None:
+    from oj.ai_experience import review_patch
+
+    assert review_patch({"reference_solution": "print(1)", "review": "fix"}) == {
+        "patch": {"reference_solution": "print(1)"},
+        "review": "fix",
+    }
+    from oj.ai_authoring import AuthoringError
+
+    with pytest.raises(AuthoringError):
+        review_patch({"patch": None, "review": "fix"})
+
+
+async def test_balanced_review_receives_all_local_execution_failures(
+    client: AsyncClient,
+    app: FastAPI,
+    problem_payload: dict[str, Any],
+    generated: dict[str, Any],
+) -> None:
+    manager = await configured(client, app, problem_payload)
+    broken = copy.deepcopy(generated)
+    broken["reference_solution"] = "raise RuntimeError()"
+    broken["wrong_solutions"][0]["code"] = "raise RuntimeError()"
+    calls = fake_phases(manager, broken)
+    response = await client.post(
+        "/api/ai/problem-tasks/",
+        json={
+            "requirement": "Generate a problem and detect multiple executable asset issues",
+            "generation_mode": "balanced",
+        },
+    )
+    await finish(manager, response.json()["data"]["task_id"])
+    feedback = calls[2][1]["local_feedback"]
+    assert "reference_solution" in feedback and "wrong_solutions[0]" in feedback
+    assert "RE" in feedback

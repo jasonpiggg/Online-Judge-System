@@ -131,6 +131,20 @@ def complete_fields(text: str) -> dict[str, Any]:
     return fields
 
 
+def review_patch(value: dict[str, Any]) -> dict[str, Any]:
+    """Accept an unambiguous flat patch; downstream scope/schema checks remain mandatory."""
+    if "patch" in value:
+        if not isinstance(value["patch"], dict):
+            raise AuthoringError("模型的 patch 必须是修改对象")
+        return value
+    if isinstance(value.get("review"), str):
+        return {
+            "patch": {k: v for k, v in value.items() if k != "review"},
+            "review": value["review"],
+        }
+    raise AuthoringError("模型审查成果缺少 patch 或 review 字段，已保留候选内容")
+
+
 def merge_patch(
     base: dict[str, Any],
     patch: dict[str, Any],
@@ -800,11 +814,9 @@ class AIExperience(AIAuthoringManager):
             if balanced:
                 selected = balanced_phase_config(config, phase)
                 # One deadline covers queueing, model calls, local checks and persistence.
-                caps = {"statement": 50, "assets": 40, "critique": 60, "repair": 25}
-                stage_budget = remaining(caps.get(phase, 25))
-                if phase == "statement":
-                    stage_budget = min(stage_budget, remaining(50 - created_age))
-                max_tokens = 8192 if phase in {"statement", "assets"} else 4096
+                stage_budget = remaining(235)
+                # Review/repair reasoning also consumes the provider output allowance.
+                max_tokens = 8192
                 system += (
                     "\nBounded quality workflow: preserve the requested difficulty. "
                     "Use explicit constraints. When this stage generates validation assets, target "
@@ -912,12 +924,18 @@ class AIExperience(AIAuthoringManager):
                 )
 
             selected["_on_content"] = content
+            request_budget = (
+                remaining(235) if stage_budget is None else min(stage_budget, remaining(235))
+            )
             text, i, o, source = await asyncio.wait_for(
                 self._stream_completion(selected, compact(data), usage),
-                self.settings.ai_stage_timeout_seconds if stage_budget is None else stage_budget,
+                request_budget,
             )
             await usage(i, o, source)
             await content(text)
+            if not assistant:
+                preview["last_model_output"] = {"stage": phase, "text": text[:1_000_000]}
+                await self._preview(task_id, preview)
             return text
 
         if context["kind"] == "assistant":
@@ -1251,6 +1269,47 @@ class AIExperience(AIAuthoringManager):
             GeneratedProblem.model_validate(candidate)
         except ValueError as exc:
             feedback += "\nCandidate schema errors: " + self._schema_issues(exc)
+        if balanced:
+            # Collect actual execution failures together before the paid review.
+            try:
+                probe = GeneratedProblem.model_validate(candidate)
+                python = await get_language(self.db, "python")
+                if python is None:
+                    raise AuthoringError("Python 评测语言未注册")
+                problems = [
+                    (
+                        "reference_solution",
+                        probe.reference_solution,
+                        probe.problem.model_copy(
+                            update={"testcases": [*probe.problem.samples, *probe.problem.testcases]}
+                        ),
+                    ),
+                    *[
+                        (f"wrong_solutions[{index}]", wrong.code, probe.problem)
+                        for index, wrong in enumerate(probe.wrong_solutions)
+                    ],
+                ]
+                await self._update(
+                    task_id, "running", "正在试跑参考解和错误解，为复审收集反馈", "validation"
+                )
+                for name, code, problem in problems:
+                    probe_budget = remaining(235)
+                    outcome = await asyncio.wait_for(
+                        judge_code(problem, python, code), probe_budget
+                    )
+                    verdicts = [case.result for case in outcome.cases]
+                    invalid = (
+                        outcome.score != outcome.counts
+                        if name == "reference_solution"
+                        else not any(v in {"WA", "TLE", "MLE"} for v in verdicts)
+                        or any(v in {"CE", "RE", "UNK"} for v in verdicts)
+                    )
+                    if invalid:
+                        feedback += f"\nLocal execution {name}: " + ", ".join(
+                            f"#{case.id}:{case.result}" for case in outcome.cases
+                        )
+            except ValidationError as exc:
+                feedback += "\nPreflight schema: " + self._schema_issues(exc)
         review_text = await invoke(
             "critique",
             REVIEW_PROMPT,
@@ -1265,11 +1324,13 @@ class AIExperience(AIAuthoringManager):
         initial_problem = json.loads(compact(candidate.get("problem", {})))
         parsed_review = _extract_json(review_text) if balanced else None
         try:
-            review = parsed_review if parsed_review is not None else _extract_json(review_text)
+            review = review_patch(
+                parsed_review if parsed_review is not None else _extract_json(review_text)
+            )
             candidate = merge_patch(candidate, review["patch"])
             candidate["review"] = review["review"]
             generated = GeneratedProblem.model_validate(candidate)
-            validation_budget = remaining(40) if balanced else None
+            validation_budget = remaining(235) if balanced else None
             validation = self._validate_generated(
                 task_id, generated, task_row, payload.get("source_revision"), initial_problem
             )
@@ -1297,7 +1358,7 @@ class AIExperience(AIAuthoringManager):
                     "local_feedback": str(exc)[:3000],
                 },
             )
-            repair = _extract_json(fixed)
+            repair = review_patch(_extract_json(fixed))
             patch = repair["patch"]
             if not isinstance(patch, dict):
                 raise AuthoringError("定向修复没有返回可用的修改对象") from exc
@@ -1321,7 +1382,7 @@ class AIExperience(AIAuthoringManager):
             candidate = merge_patch(candidate, patch)
             candidate["review"] = repair["review"]
             generated = GeneratedProblem.model_validate(candidate)
-            validation_budget = remaining(20) if balanced else None
+            validation_budget = remaining(235) if balanced else None
             validation = self._validate_generated(
                 task_id, generated, task_row, payload.get("source_revision"), initial_problem
             )

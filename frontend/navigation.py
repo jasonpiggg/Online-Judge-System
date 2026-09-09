@@ -100,16 +100,22 @@ def go(page: str, *, title: str = "", **params: Any) -> None:
             params.get("section", "题目"), params.get("section", "题目管理")
         )
     target = route(page, params)
+    target["title"] = title or params.get("id", page)
     current = route(
         st.session_state.get("current_route", route("library"))["page"],
         st.query_params.to_dict(),
     )
     slots = st.session_state.setdefault("task_slots", [])
+    active_title = next(
+        (s["title"] for s in slots if s["key"] == st.session_state.get("active_slot")), ""
+    )
+    current["title"] = active_title or st.session_state.get("page-title", current["page"])
     if page in DETAILS:
         existing = next((s for s in slots if identity(s["current"]) == identity(target)), None)
         active = next((s for s in slots if s["key"] == st.session_state.get("active_slot")), None)
         if existing:
             existing["current"] = target
+            existing["title"] = target["title"]
             st.session_state.active_slot = existing["key"]
         elif active and current["page"] in DETAILS:
             active["history"].append(current)
@@ -143,6 +149,9 @@ def back() -> None:
         target = active["history"].pop() if active["history"] else active["origin"]
         if target["page"] in DETAILS:
             active["current"] = target
+            active["title"] = target.get("title") or target.get("params", {}).get(
+                "id", target["page"]
+            )
         else:
             # Returning to the origin leaves the task available without selecting it.
             st.session_state.pop("active_slot", None)
@@ -174,7 +183,10 @@ def restore_slots(value: Any) -> list[dict[str, Any]]:
                 "title": str(slot.get("title", "任务"))[:100],
                 "current": route(entries[0]["page"], entries[0]["params"]),
                 "origin": route(entries[1]["page"], entries[1]["params"]),
-                "history": [route(e["page"], e["params"]) for e in entries[2:]],
+                "history": [
+                    {**route(e["page"], e["params"]), "title": str(e.get("title", ""))[:100]}
+                    for e in entries[2:]
+                ],
             }
         )
     return result

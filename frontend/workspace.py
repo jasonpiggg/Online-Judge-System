@@ -9,7 +9,7 @@ import streamlit as st
 from frontend.client import ApiClient, ApiError
 from frontend.components import control, diff, rich_text
 from frontend.navigation import back, bounded_page, go, page_number, pagination
-from frontend.ui import call, heading, pills
+from frontend.ui import call, heading, local_time, pills, verdict_label
 
 
 def source_key(pid: str, language: str) -> str:
@@ -341,11 +341,27 @@ def workspace_page(api: ApiClient) -> None:
             if not records["data"]["total"]:
                 st.info("暂无本题提交记录，提交代码后可在这里查看。")
             for row in records["data"]["submissions"]:
-                if st.button(
-                    f"#{row['submission_id']} · {row['status']} · {row.get('created_at', '')}",
-                    key=f"history-{row['submission_id']}",
-                ):
-                    go("submission", id=row["submission_id"], title=f"提交 #{row['submission_id']}")
+                with st.container(border=True, key=f"history-card-{row['submission_id']}"):
+                    details, action = st.columns([4, 1], vertical_alignment="center")
+                    label, tone = verdict_label(row)
+                    details.markdown(f"**提交 #{row['submission_id']}**")
+                    code = (row.get("evaluation") or {}).get("verdict", "")
+                    verdict = (
+                        f"{code} · {label}"
+                        if code in {"AC", "WA", "RE", "CE", "TLE", "MLE"}
+                        else label
+                    )
+                    details.html(f'<span class="oj-status {tone}">{verdict}</span>')
+                    details.caption(
+                        f"{row.get('language', '—')} · 得分 {row.get('score', '—')} / "
+                        f"{row.get('counts', '—')} · {local_time(row.get('created_at'))} 北京时间"
+                    )
+                    if action.button("查看详情", key=f"history-{row['submission_id']}"):
+                        go(
+                            "submission",
+                            id=row["submission_id"],
+                            title=f"提交 #{row['submission_id']}",
+                        )
             pagination(records["data"]["total"], position="bottom")
     st.header("做题助手", anchor="assistant")
     assistant = st.expander("AI 做题助手", key=f"assistant-expanded-{pid}", on_change="rerun")

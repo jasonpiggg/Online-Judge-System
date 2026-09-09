@@ -222,8 +222,8 @@ Flash 是截图中的限时折扣价；原价为 0.8 / 2.8 / 0.23 元，截图�
 个人配置可独立选择 USD/CNY；历史记录保持原币种，v5 迁移不改变旧 USD 金额。
 
 Streamlit 生成整题使用 `balanced`：题面与参考解、验证资产、独立复审、完整本地验证。
-题面/资产最多8192输出 Token，复审/修复4096；系统使用 Flash high 生成与 GLM-5.3 low 复审。
-阶段预算分别50/40/60/40秒，可用一次25秒定向修复和20秒复验，清理预留5秒。
+整题各阶段最多8192输出 Token（包含复审/修复推理）；系统使用 Flash high 生成题面、Flash low 生成资产与 GLM-5.3 low 复审。
+各阶段共享剩余总预算，不再设置40秒等固定阶段截断；最多一次定向修复，清理预留5秒。
 所有阶段共同受含排队的240秒总预算约束，成功必须实际通过参考解、卡错和独立对拍。
 旧 `basic_draft` 保留快速基础草稿流程，API 默认 `full` 保持兼容；不自动发布。
 草稿可发起独立的“补全验证资产并完整验证”，重用题面与参考解。
@@ -316,3 +316,5 @@ cgroup 与网络隔离**。默认只绑定 localhost，禁止将任意代码执�
 需要使用 React 时显式传入 `-React` / `--react`（Linux 使用 `scripts/run.sh --react`）；旧的 `-Legacy` / `--legacy` 参数继续作为 Streamlit 别名。不要同时传入两种模式。
 
 完整迁移清单见 [`docs/streamlit-migration-ledger.md`](docs/streamlit-migration-ledger.md)，安全及课程接口差异见 [`docs/experiment-compatibility.md`](docs/experiment-compatibility.md)。
+
+最新修正：balanced 和其他 V2 AI 模块共享剩余总预算，不再以40秒等固定阶段上限提前中断；总上限240秒含排队，预留5秒保存清理。网络连接/响应等待超时与总预算超时分别提示。AI修改提供独立需求输入及本地校验；提交历史显示判题结果、北京时间和详情卡片；任务标题随当前详情同步。

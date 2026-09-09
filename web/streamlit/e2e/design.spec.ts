@@ -100,13 +100,13 @@ test('untouched draft leaves without a false dirty warning, literal edits remain
 test('returning home or to origin deselects tasks and reopening selects the saved detail',async({page})=>{
   await authenticate(page);
   await page.goto('/workspace?id=sum_2&language=python');
-  const active = page.locator('.st-key-task-strip').getByRole('button',{name:'sum_2',exact:true}).and(page.locator('[kind="primary"]'));
+  const active = page.locator('.st-key-task-strip').getByRole('button',{name:'两数之和',exact:true}).and(page.locator('[kind="primary"]'));
   await expect(active).toHaveCount(1);
   await page.getByRole('button',{name:'返回来源',exact:true}).click();
   await expect(page.getByRole('heading',{name:'题库',exact:true})).toBeVisible();
   await expect(active).toHaveCount(0);
   await expect(page.getByRole('button',{name:'关闭当前任务',exact:true})).toBeDisabled();
-  await page.locator('.st-key-task-strip').getByRole('button',{name:'sum_2',exact:true}).click();
+  await page.locator('.st-key-task-strip').getByRole('button',{name:'两数之和',exact:true}).click();
   await expect(page.getByRole('button',{name:'提交评测',exact:true})).toBeVisible();
   await expect(active).toHaveCount(1);
   await page.getByTestId('stTopNavLink').filter({hasText:'题库'}).click();

@@ -18,6 +18,17 @@ def apply_theme() -> None:
 
 
 def heading(kicker: str, title: str = "", note: str = "") -> None:
+    label = title or kicker
+    st.session_state["page-title"] = label
+    current = st.session_state.get("current_route", {})
+    for slot in st.session_state.get("task_slots", []):
+        if slot["key"] == st.session_state.get("active_slot") and slot["current"].get(
+            "page"
+        ) == current.get("page"):
+            if slot["title"] != label:
+                slot["title"] = label
+                slot["current"]["title"] = label
+                st.rerun()  # The task bar is rendered before the page header.
     st.html(
         f'<div class="oj-header"><h1>{escape(title or kicker)}</h1><p>{escape(note)}</p></div>',
     )
@@ -91,10 +102,12 @@ STATUS_LABELS = {
     "admin": "管理员",
     "banned": "已禁用",
     "generation": "生成题目",
+    "statement": "生成题面",
+    "assets": "生成验证资产",
+    "repair": "定向修复",
+    "validation": "本地验证",
     "critique": "复核与改进",
-    "validation": "验证结果",
     "queued": "等待执行",
-    "statement": "题面生成",
     "oracle": "参考解验证",
     "coverage": "覆盖检查",
     "differential": "差分验证",
