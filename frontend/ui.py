@@ -165,6 +165,8 @@ def result_summary(data: dict[str, Any]) -> None:
 
 
 def data_table(rows: list[dict[str, Any]]) -> None:
+    if not rows:
+        return  # The owning panel renders its single contextual empty-state message.
     labels = {
         "id": "编号",
         "user_id": "用户 ID",

@@ -221,6 +221,7 @@ test('scoped AI changes and comprehensive review apply only to their source revi
   await page.getByRole('textbox',{name:'命题需求 / 修改要求',exact:true}).fill('提供一个简单准确的新样例，保留其他内容。');
   await page.locator('summary').filter({hasText:'AI 修改'}).click();
   await select(page,'修改范围','样例');
+  await page.getByText('确认发起新的模型调用，费用单独累计',{exact:true}).click();
   await page.getByRole('button',{name:'保存并发起 AI 修改',exact:true}).click();
   await expect(page.getByRole('button',{name:'采纳到草稿',exact:true})).toBeVisible();
   await expect(page.locator('.diff-view')).toContainText('3 4');
@@ -231,6 +232,7 @@ test('scoped AI changes and comprehensive review apply only to their source revi
   await page.getByRole('textbox',{name:'命题需求 / 修改要求',exact:true}).fill('重点检查约束表达和已有测试资产');
   await page.locator('summary').filter({hasText:'AI 修改'}).click();
   await select(page,'修改方式','全面审查');
+  await page.getByText('确认发起新的模型调用，费用单独累计',{exact:true}).click();
   await page.getByRole('button',{name:'保存并发起 AI 修改',exact:true}).click();
   await expect(page.getByRole('button',{name:'采纳到草稿',exact:true})).toBeVisible();
   await page.getByText('已审阅修改，确认采纳到草稿',{exact:true}).click();

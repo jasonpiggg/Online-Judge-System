@@ -4,7 +4,7 @@ import streamlit as st
 from pydantic import ValidationError
 
 from frontend.client import ApiClient
-from frontend.navigation import go, page_number, pagination
+from frontend.navigation import bounded_page, page_number, pagination, panel_query
 from frontend.ui import call, data_table, heading, status_label
 from oj.schemas import Credentials
 
@@ -23,137 +23,166 @@ def reset_dialog(api: ApiClient) -> None:
 
 def admin_page(api: ApiClient) -> None:
     heading("管理中心", note="管理账户与评测配置。危险操作需要额外确认。")
-    sections = ["用户", "角色审计", "全站提交", "题目管理", "语言", "访问审计", "系统设置"]
-    selected = st.query_params.get("section", "用户")
+    sections = [
+        "用户",
+        "角色审计",
+        "全站提交",
+        "题目管理",
+        "语言",
+        "公开日志",
+        "访问审计",
+        "系统设置",
+    ]
+    selected = panel_query.get("section", "用户")
+    selected = selected if selected in sections else "用户"
+    if st.session_state.get("admin-section-url") != selected:
+        st.session_state["admin-section"] = selected
     section = (
-        st.selectbox(
-            "管理模块", sections, index=sections.index(selected) if selected in sections else 0
-        )
+        st.selectbox("管理模块", sections, index=None, key="admin-section")
         if st.session_state.get("mobile")
         else st.segmented_control(
             "管理模块",
             sections,
-            default=selected if selected in sections else "用户",
+            key="admin-section",
             label_visibility="collapsed",
         )
     )
+    section = section or selected
     if section:
-        st.query_params["section"] = section
-    if section == "用户":
-        search = st.text_input("搜索用户名或用户 ID", value=st.query_params.get("q", ""))
-        if search != st.query_params.get("q", ""):
-            st.query_params.update(q=search, users_page="1")
-        page = page_number("users_page")
-        result = call(
-            lambda: api.get("/api/users/", params={"page": page, "page_size": 10, "q": search})
-        )
-        if not result:
-            return
-        pagination(result["data"]["total"], "users_page")
-        if not result["data"]["total"]:
-            st.info("没有找到相关账户，请调整搜索条件。")
-        users = result["data"]["users"]
-        data_table(users)
-        if users:
-            with st.container(border=True):
-                st.subheader("修改用户角色")
-                who = st.selectbox(
-                    "目标用户", users, format_func=lambda x: f"{x['user_id']} · {x['username']}"
-                )
-                with st.expander("用户资料"):
-                    detail = call(lambda: api.get(f"/api/users/{who['user_id']}"))
-                    if detail:
-                        person = detail["data"]
-                        st.write(f"{person['username']} · {status_label(person['role'])}")
-                        st.caption(
-                            f"提交 {person['submit_count']} 次 · 通过 {person['resolve_count']} 题"
-                        )
-                role = st.selectbox(
-                    "角色",
-                    ["user", "admin", "banned"],
-                    format_func=status_label,
-                    index=["user", "admin", "banned"].index(who["role"]),
-                )
-                changing = role != who["role"]
-                if changing and str(who["user_id"]) == str(st.session_state.user["user_id"]):
-                    st.warning("正在修改当前登录账户；降权或禁用后管理入口会立即消失。")
-                confirmed = st.checkbox(
-                    f"确认将 {who['username']} 从 {who['role']} 改为 {role}",
-                    disabled=not changing,
-                )
-                if st.button("保存角色", type="primary", disabled=not changing or not confirmed):
-                    if call(
-                        lambda: api.put(f"/api/users/{who['user_id']}/role", json={"role": role})
-                    ):
-                        st.toast("角色已更新")
-                        st.rerun()
-        with st.expander("创建新账户"):
-            with st.form("admin-create-user"):
-                name = st.text_input("用户名")
-                password = st.text_input("初始密码", type="password")
-                admin = st.checkbox("创建为管理员")
-                if st.form_submit_button("创建账户"):
-                    try:
-                        Credentials(username=name, password=password)
-                    except ValidationError as exc:
-                        st.error("；".join(e["msg"] for e in exc.errors(include_input=False)))
-                        return
-                    endpoint = "/api/users/admin" if admin else "/api/users/"
-                    if call(
-                        lambda: api.post(endpoint, json={"username": name, "password": password})
-                    ):
-                        st.success("账户已创建")
-        pagination(result["data"]["total"], "users_page", position="bottom")
-    elif section == "全站提交":
-        go("records")
-    elif section == "题目管理":
-        go("resources", section="题目")
-    elif section == "角色审计":
-        result = call(
-            lambda: api.get(
-                "/api/logs/roles/",
-                params={"page": page_number(), "page_size": 10, "include_metadata": True},
+        panel_query["section"] = section
+        st.session_state["admin-section-url"] = section
+    with st.container(border=True, key="admin-content-panel"):
+        st.subheader(section or "系统设置")
+        if section == "用户":
+            search = st.text_input("搜索用户名或用户 ID", value=panel_query.get("q", ""))
+            if search != panel_query.get("q", ""):
+                panel_query.update(q=search, users_page="1")
+            page = page_number("users_page")
+            result = call(
+                lambda: api.get("/api/users/", params={"page": page, "page_size": 10, "q": search})
             )
-        )
-        if result:
-            pagination(result["data"]["total"])
-            data_table(result["data"]["logs"])
-            if not result["data"]["logs"]:
-                st.info("还没有角色修改记录。")
-            pagination(result["data"]["total"], position="bottom")
-    elif section == "语言":
-        language_page(api)
-    elif section == "访问审计":
-        with st.form("audit-filters"):
-            a, b = st.columns(2)
-            uid = a.text_input("用户 ID（留空为全部）", value=st.query_params.get("user_id", ""))
-            pid = b.text_input("题号（留空为全部）", value=st.query_params.get("problem_id", ""))
-            if st.form_submit_button("查询访问审计"):
-                st.query_params.update(user_id=uid, problem_id=pid, audit_page="1")
-                st.rerun()
-        uid, pid = st.query_params.get("user_id", ""), st.query_params.get("problem_id", "")
-        params = {"page_size": 10, "page": page_number("audit_page"), "include_metadata": True}
-        if uid:
-            params["user_id"] = uid
-        if pid:
-            params["problem_id"] = pid
-        if not uid and not pid.strip():
-            st.info("请填写用户 ID 或题号后查询访问审计。")
-            return
-        result = call(lambda: api.get("/api/logs/access/", params=params))
-        if result:
-            pagination(result["data"]["total"], "audit_page")
-            data_table(result["data"]["logs"])
-            if not result["data"]["logs"]:
-                st.info("当前筛选条件下没有访问日志。")
-            pagination(result["data"]["total"], "audit_page", position="bottom")
-    else:
-        st.subheader("实验环境")
-        st.info("完整评测请使用 Linux/WSL，单 Uvicorn worker，仅绑定 localhost。")
-        st.subheader("恢复初始状态")
-        st.caption("保留数据升级不需要重置。此操作仅用于重新开始课程演示。")
-        if st.button("重置实验系统", type="secondary"):
-            reset_dialog(api)
+            if not result:
+                return
+            bounded_page(result["data"]["total"], "users_page")
+            if not result["data"]["total"]:
+                st.info("没有找到相关账户，请调整搜索条件。")
+            users = result["data"]["users"]
+            data_table(users)
+            pagination(result["data"]["total"], "users_page")
+            if users:
+                with st.container(border=True):
+                    st.subheader("修改用户角色")
+                    who = st.selectbox(
+                        "目标用户", users, format_func=lambda x: f"{x['user_id']} · {x['username']}"
+                    )
+                    with st.expander("用户资料"):
+                        detail = call(lambda: api.get(f"/api/users/{who['user_id']}"))
+                        if detail:
+                            person = detail["data"]
+                            st.write(f"{person['username']} · {status_label(person['role'])}")
+                            st.caption(
+                                f"提交 {person['submit_count']} 次 · "
+                                f"通过 {person['resolve_count']} 题"
+                            )
+                    role = st.selectbox(
+                        "角色",
+                        ["user", "admin", "banned"],
+                        format_func=status_label,
+                        index=["user", "admin", "banned"].index(who["role"]),
+                    )
+                    changing = role != who["role"]
+                    if changing and str(who["user_id"]) == str(st.session_state.user["user_id"]):
+                        st.warning("正在修改当前登录账户；降权或禁用后管理入口会立即消失。")
+                    confirmed = st.checkbox(
+                        f"确认将 {who['username']} 从 {who['role']} 改为 {role}",
+                        disabled=not changing,
+                    )
+                    if st.button(
+                        "保存角色", type="primary", disabled=not changing or not confirmed
+                    ):
+                        if call(
+                            lambda: api.put(
+                                f"/api/users/{who['user_id']}/role", json={"role": role}
+                            )
+                        ):
+                            st.toast("角色已更新")
+                            st.rerun()
+            with st.expander("创建新账户"):
+                with st.form("admin-create-user"):
+                    name = st.text_input("用户名")
+                    password = st.text_input("初始密码", type="password")
+                    admin = st.checkbox("创建为管理员")
+                    if st.form_submit_button("创建账户"):
+                        try:
+                            Credentials(username=name, password=password)
+                        except ValidationError as exc:
+                            st.error("；".join(e["msg"] for e in exc.errors(include_input=False)))
+                            return
+                        endpoint = "/api/users/admin" if admin else "/api/users/"
+                        if call(
+                            lambda: api.post(
+                                endpoint, json={"username": name, "password": password}
+                            )
+                        ):
+                            st.success("账户已创建")
+        elif section == "全站提交":
+            from frontend.records import records_content
+
+            records_content(api)
+        elif section == "题目管理":
+            from frontend.resources import problem_list_content
+
+            problem_list_content(api)
+        elif section == "公开日志":
+            from frontend.resources import public_log_content
+
+            public_log_content(api, parameter="public_log_id")
+        elif section == "角色审计":
+            result = call(
+                lambda: api.get(
+                    "/api/logs/roles/",
+                    params={"page": page_number(), "page_size": 10, "include_metadata": True},
+                )
+            )
+            if result:
+                bounded_page(result["data"]["total"])
+                data_table(result["data"]["logs"])
+                if not result["data"]["logs"]:
+                    st.info("还没有角色修改记录。")
+                pagination(result["data"]["total"], position="bottom")
+        elif section == "语言":
+            language_page(api)
+        elif section == "访问审计":
+            with st.form("audit-filters"):
+                a, b = st.columns(2)
+                uid = a.text_input("用户 ID（留空为全部）", value=panel_query.get("user_id", ""))
+                pid = b.text_input("题号（留空为全部）", value=panel_query.get("problem_id", ""))
+                if st.form_submit_button("查询访问审计"):
+                    panel_query.update(user_id=uid, problem_id=pid, audit_page="1")
+                    st.rerun()
+            uid, pid = panel_query.get("user_id", ""), panel_query.get("problem_id", "")
+            params = {"page_size": 10, "page": page_number("audit_page"), "include_metadata": True}
+            if uid:
+                params["user_id"] = uid
+            if pid:
+                params["problem_id"] = pid
+            if not uid and not pid.strip():
+                st.info("请填写用户 ID 或题号后查询访问审计。")
+                return
+            result = call(lambda: api.get("/api/logs/access/", params=params))
+            if result:
+                bounded_page(result["data"]["total"], "audit_page")
+                data_table(result["data"]["logs"])
+                if not result["data"]["logs"]:
+                    st.info("当前筛选条件下没有访问日志。")
+                pagination(result["data"]["total"], "audit_page", position="bottom")
+        else:
+            st.subheader("实验环境")
+            st.info("完整评测请使用 Linux/WSL，单 Uvicorn worker，仅绑定 localhost。")
+            st.subheader("恢复初始状态")
+            st.caption("保留数据升级不需要重置。此操作仅用于重新开始课程演示。")
+            if st.button("重置实验系统", type="secondary"):
+                reset_dialog(api)
 
 
 def language_page(api: ApiClient) -> None:

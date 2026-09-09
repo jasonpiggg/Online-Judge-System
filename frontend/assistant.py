@@ -11,7 +11,7 @@ import streamlit as st
 
 from frontend.client import ApiClient
 from frontend.components import diff, rich_text
-from frontend.navigation import page_number, pagination
+from frontend.navigation import bounded_page, page_number, pagination
 from frontend.ui import call, local_time, status_label
 
 
@@ -86,7 +86,7 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
                 )
             )
             if history:
-                pagination(history["data"]["total"], "message_page", 5)
+                bounded_page(history["data"]["total"], "message_page", 5)
                 if not history["data"]["total"]:
                     st.info("暂无历史问答。")
                 for msg in history["data"]["messages"]:

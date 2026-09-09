@@ -8,7 +8,7 @@ import streamlit as st
 
 from frontend.client import ApiClient, ApiError
 from frontend.components import control, diff, rich_text
-from frontend.navigation import back, go, page_number, pagination
+from frontend.navigation import back, bounded_page, go, page_number, pagination
 from frontend.ui import call, heading, pills
 
 
@@ -337,7 +337,7 @@ def workspace_page(api: ApiClient) -> None:
             )
         )
         if records:
-            pagination(records["data"]["total"])
+            bounded_page(records["data"]["total"])
             if not records["data"]["total"]:
                 st.info("暂无本题提交记录，提交代码后可在这里查看。")
             for row in records["data"]["submissions"]:

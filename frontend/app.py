@@ -75,6 +75,7 @@ pages = {
         default=key == "library",
         visibility="hidden"
         if key in DETAILS
+        or key == "resources" and st.session_state.get("user", {}).get("role") == "admin"
         or key == "admin"
         and st.session_state.get("user", {}).get("role") != "admin"
         else "visible",
