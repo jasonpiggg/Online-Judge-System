@@ -116,6 +116,7 @@ test('assistant streams history, reviews code, blocks stale suggestions and star
   await page.getByRole('textbox',{name:'向助手提问',exact:true}).fill('请给我完整代码用于代码审查验收');
   await page.getByRole('button',{name:'发送',exact:true}).click();
   await expect(page.getByRole('textbox',{name:'向助手提问',exact:true})).toHaveValue('');
+  await expect(page.getByRole('heading',{name:'当前回答',exact:true})).toBeInViewport();
   await expect(page.getByRole('button',{name:'采纳代码',exact:true})).toBeVisible();
   await expect(page.locator('.diff-view')).toContainText('import sys');
   await page.getByText('已检查 Diff，确认替换整份源码',{exact:true}).click();

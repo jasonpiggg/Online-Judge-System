@@ -164,12 +164,16 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
                     st.session_state[f"{input_key}-clear"] = True
                 st.session_state.pop(pending_key, None)
                 st.session_state[f"assistant-active-{pid}"] = r["data"]["task_id"]
+                st.session_state["workspace_scroll"] = {
+                    "id": f"assistant-{r['data']['task_id']}",
+                    "target": "assistant-answer",
+                }
                 st.query_params["message_page"] = "1"
                 st.rerun()
     task_id = st.session_state.get(f"assistant-active-{pid}")
     if not task_id:
         with answer_area:
-            st.subheader("当前回答")
+            st.subheader("当前回答", anchor="assistant-answer")
             st.info("发送问题后，回答会逐步显示。刷新页面可恢复已有会话。")
         return
     terminal = f"assistant-terminal-{task_id}"
@@ -269,5 +273,5 @@ def assistant_panel(api: ApiClient, pid: str, language: str, source: dict[str, A
                 st.rerun()
 
     with answer_area:
-        st.subheader("当前回答")
+        st.subheader("当前回答", anchor="assistant-answer")
         answer()
