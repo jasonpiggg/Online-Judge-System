@@ -29,6 +29,7 @@ from oj.ai_prompts import (
     ASSISTANT_PROMPT,
     BASIC_DRAFT_PROMPT,
     BASIC_REPAIR_PROMPT,
+    BASIC_REVIEW_PROMPT,
     DISPLAY_RULES,
     DRAFT_REVIEW_PROMPT,
     PROMPT_VERSION,
@@ -48,7 +49,7 @@ from oj.errors import APIError
 from oj.evaluation import evaluation_summary, private_evaluation
 from oj.judge import judge_code
 from oj.languages import get_language
-from oj.schemas import BasicGeneratedDraft, GeneratedProblem, Problem
+from oj.schemas import BasicDraftReview, BasicGeneratedDraft, GeneratedProblem, Problem
 
 ASSISTANT_HISTORY_TURNS = 4
 ASSISTANT_HISTORY_BYTES = 20_000
@@ -520,6 +521,8 @@ class AIExperience(AIAuthoringManager):
         problem: Problem,
         reference_solution: str,
         source_revision: int | None,
+        *,
+        presentation_warnings_only: bool = False,
     ) -> dict[str, Any]:
         await self._update(task_id, "running", "正在检查题目结构与排版", "basic_structure")
         prose_issues = presentation_issues(problem.model_dump())
@@ -527,7 +530,7 @@ class AIExperience(AIAuthoringManager):
         blocking_issues = [
             issue for issue in prose_issues if "unclosed math delimiter" not in issue
         ]
-        if blocking_issues:
+        if blocking_issues and not presentation_warnings_only:
             raise AuthoringError(
                 "题面公式或文本转义有错误。请在“题面与样例”检查公式括号与分隔符，"
                 "重新输入损坏的数学符号后再检查。"
@@ -559,9 +562,10 @@ class AIExperience(AIAuthoringManager):
             "hint": "提示",
         }
         warnings: list[str] = [
-            "旧题排版提示："
+            ("排版建议：" if presentation_warnings_only else "旧题排版提示：")
             + field_names.get(issue.split(":")[0], "题面")
-            + "含未闭合的美元符号。公式请补全 $...$；普通美元符号请写成 \\$。"
+            + "："
+            + issue
             for issue in prose_issues
         ]
         reference_passed: bool | None = None
@@ -683,6 +687,28 @@ class AIExperience(AIAuthoringManager):
             return seconds
 
         schema = BasicGeneratedDraft.model_json_schema()
+
+        async def persist(candidate: dict[str, Any]) -> None:
+            await self.db.execute(
+                "UPDATE ai_tasks SET result=? WHERE id=?",
+                (compact({**candidate, "kind": "candidate", "result_version": 2}), task_id),
+            )
+
+        async def validate(candidate: dict[str, Any]) -> tuple[BasicGeneratedDraft, dict[str, Any]]:
+            draft = BasicGeneratedDraft.model_validate(candidate)
+            seconds = budget(235)
+            report = await asyncio.wait_for(
+                self._basic_report(
+                    task_id,
+                    draft.problem,
+                    draft.reference_solution,
+                    payload.get("source_revision"),
+                    presentation_warnings_only=True,
+                ),
+                seconds,
+            )
+            return draft, report
+
         text = await invoke(
             "basic_draft",
             BASIC_DRAFT_PROMPT,
@@ -693,31 +719,81 @@ class AIExperience(AIAuthoringManager):
                     k: v for k, v in payload.get("base_problem", {}).items() if k != "testcases"
                 },
             },
-            stage_budget=budget(150 - age),
+            stage_budget=budget(235),
             max_tokens=8192,
         )
-        for attempt in range(2):
-            candidate = _extract_json(text)  # Truncated/malformed JSON is never a paid retry.
-            await self.db.execute(
-                "UPDATE ai_tasks SET result=? WHERE id=?",
-                (compact({**candidate, "kind": "candidate", "result_version": 2}), task_id),
+        candidate = _extract_json(text)
+        await persist(candidate)
+        feedback: dict[str, Any]
+        try:
+            _, feedback = await validate(candidate)
+        except (ValueError, AuthoringError) as exc:
+            feedback = {"error": str(exc)[:3000]}
+        reviewed = _extract_json(
+            await invoke(
+                "basic_review",
+                BASIC_REVIEW_PROMPT,
+                {
+                    "requirement": payload["requirement"],
+                    "candidate": candidate,
+                    "local_feedback": feedback,
+                    "schema": BasicDraftReview.model_json_schema(),
+                },
+                stage_budget=budget(235),
+                max_tokens=8192,
             )
+        )
+
+        def review_parts(value: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+            if set(value) != {"candidate", "blocking_issues", "suggestions"}:
+                raise AuthoringError("轻量复审格式不完整，已保留基础成果")
+            for field, limit in (("blocking_issues", 20), ("suggestions", 30)):
+                values = value[field]
+                if (
+                    not isinstance(values, list)
+                    or len(values) > limit
+                    or any(not isinstance(v, str) for v in values)
+                ):
+                    raise AuthoringError("轻量复审意见格式错误，已保留基础成果")
+            if not isinstance(value["candidate"], dict):
+                raise AuthoringError("轻量复审未返回可用的基础草稿")
+            return value["candidate"], {k: value[k] for k in ("blocking_issues", "suggestions")}
+
+        repair_used = False
+        try:
+            candidate, findings = review_parts(reviewed)
+        except AuthoringError as exc:
+            repair_used = True
+            await self.db.execute(
+                "UPDATE ai_task_context SET repair_used=1 WHERE task_id=?", (task_id,)
+            )
+            fixed = await invoke(
+                "basic_review_repair",
+                BASIC_REVIEW_PROMPT,
+                {
+                    "requirement": payload["requirement"],
+                    "candidate": candidate,
+                    "local_feedback": feedback,
+                    "invalid_review": reviewed,
+                    "validation_error": str(exc),
+                    "schema": BasicDraftReview.model_json_schema(),
+                },
+                stage_budget=budget(235),
+                max_tokens=8192,
+            )
+            candidate, findings = review_parts(_extract_json(fixed))
+        await persist({**candidate, "light_review": findings})
+        if findings["blocking_issues"]:
+            raise AuthoringError(
+                "轻量复审发现未解决的正确性问题：" + "；".join(findings["blocking_issues"])[:3000]
+            )
+        for attempt in range(2):
             try:
-                draft = BasicGeneratedDraft.model_validate(candidate)
-                check_presentation(draft.model_dump())
-                validation_budget = budget(30 if attempt == 0 else 20)
-                report = await asyncio.wait_for(
-                    self._basic_report(
-                        task_id,
-                        draft.problem,
-                        draft.reference_solution,
-                        payload.get("source_revision"),
-                    ),
-                    validation_budget,
-                )
+                draft, report = await validate(candidate)
             except (ValueError, AuthoringError) as exc:
-                if attempt:
+                if attempt or repair_used:
                     raise
+                repair_used = True
                 await self.db.execute(
                     "UPDATE ai_task_context SET repair_used=1 WHERE task_id=?",
                     (task_id,),
@@ -731,20 +807,25 @@ class AIExperience(AIAuthoringManager):
                         "validation_error": str(exc)[:3000],
                         "schema": schema,
                     },
-                    stage_budget=budget(35),
-                    max_tokens=4096,
+                    stage_budget=budget(235),
+                    max_tokens=8192,
                 )
+                candidate = _extract_json(text)
+                await persist({**candidate, "light_review": findings})
                 continue
             report.update(
                 note="基础验证通过，完整验证未执行。可编辑草稿或另行补全验证资产。",
                 quality_gate_passed=False,
+                light_review_passed=True,
             )
+            report["warnings"].extend(findings["suggestions"])
             result = {
                 **draft.model_dump(),
                 "kind": "generated",
                 "result_version": 2,
                 "generation_mode": "basic_draft",
                 "verification": report,
+                "light_review": findings,
                 "review": report["note"],
                 "coverage": {},
                 "wrong_solutions": [],
@@ -811,6 +892,16 @@ class AIExperience(AIAuthoringManager):
                 payload.get("requirement", payload.get("message", "")),
                 compact(payload.get("base_problem", {}))[:2000],
             )
+            if payload.get("generation_mode") == "basic_draft":
+                selected = balanced_phase_config(
+                    config,
+                    {
+                        "basic_draft": "statement",
+                        "basic_review": "critique",
+                        "basic_repair": "repair",
+                        "basic_review_repair": "repair",
+                    }.get(phase, phase),
+                )
             if balanced:
                 selected = balanced_phase_config(config, phase)
                 # One deadline covers queueing, model calls, local checks and persistence.
@@ -844,7 +935,9 @@ class AIExperience(AIAuthoringManager):
             if model_limit:
                 selected["max_output_tokens"] = min(selected["max_output_tokens"], model_limit)
             labels = {
-                "basic_draft": "正在生成基础草稿",
+                "basic_draft": "正在构思题目并生成基础草稿",
+                "basic_review": "正在轻量复审题意、算法与测试输出",
+                "basic_review_repair": "正在修复复审格式（最多一次）",
                 "basic_repair": "正在修复基础草稿（最多一次）",
                 "statement": "正在生成题面与参考解",
                 "assets": "正在设计测试与独立解法",

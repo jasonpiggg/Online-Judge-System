@@ -139,6 +139,8 @@ Do not wrap the outer JSON in a code fence. Escape every backslash inside JSON s
 
 
 BASIC_DRAFT_PROMPT = """Generate a concise programming problem draft in Chinese.
+Prioritize a coherent, feasible problem: reason about the algorithm's complexity under
+the stated limits and independently work out sample and test outputs before answering.
 Return only one JSON object matching the supplied schema: problem and reference_solution.
 Include a complete statement, input/output format, constraints, at least one sample,
 and 5-8 distinct short test inputs with correct expected outputs. Use a standard difficulty.
@@ -152,4 +154,16 @@ BASIC_REPAIR_PROMPT = """Repair the supplied basic programming draft using the c
 validation feedback. Return the complete corrected JSON object with only problem and
 reference_solution, matching the schema. Preserve the requested intent and limit changes
 to the reported defects. Keep 5-8 distinct short tests. Do not add full-verification assets.
+"""
+
+BASIC_REVIEW_PROMPT = """Review a basic programming draft, returning exactly the supplied
+review schema: candidate (the corrected problem and reference_solution), blocking_issues,
+and suggestions. Focus on contradictions in the statement, algorithm feasibility under
+the constraints, and correctness of sample/test outputs. Use the local execution feedback.
+Fix concrete defects in candidate while preserving the requested intent and protected id.
+List only UNRESOLVED correctness defects in blocking_issues; use [] when none remain.
+Wording, formatting style, and additional coverage opportunities belong in suggestions,
+not blocking_issues. Missing brute solutions, generators and wrong solutions are expected:
+never add or require them. Keep at least one sample and five distinct test inputs.
+Do not claim full verification. Return concise JSON without surrounding commentary.
 """

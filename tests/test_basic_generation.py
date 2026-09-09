@@ -29,8 +29,10 @@ async def test_basic_draft_runs_reference_and_saves_verified_revision(
     async def stream(config: Any, prompt: str, usage: Any = None) -> Any:
         calls.append(config)
         value = copy.deepcopy(candidate)
-        if repair and len(calls) == 1:
+        if repair and len(calls) <= 2:
             value["reference_solution"] = "print(-999999)"
+        if "Review a basic programming draft" in config["system_prompt"]:
+            value = {"candidate": value, "blocking_issues": [], "suggestions": ["增加覆盖"]}
         await usage(10, 20, "provider", 0)
         return json.dumps(value), 10, 20, "provider"
 
@@ -49,10 +51,10 @@ async def test_basic_draft_runs_reference_and_saves_verified_revision(
     await finish(manager, tid)
     task = (await client.get(f"/api/ai/problem-tasks/{tid}")).json()["data"]
     assert task["status"] == "completed", task["error"]
-    assert len(calls) == (2 if repair else 1)
+    assert len(calls) == (3 if repair else 2)
     assert calls[0]["max_output_tokens"] == 8192
     if repair:
-        assert calls[1]["max_output_tokens"] == 4096
+        assert calls[2]["max_output_tokens"] == 8192
     report = task["result"]["verification"]
     assert report["level"] == "basic"
     assert report["reference_passed"] is True
@@ -103,6 +105,8 @@ async def test_basic_failures_do_not_claim_success(
         if failure == "truncated":
             return '{"problem":', 10, 2, "provider"
         value["reference_solution"] = "" if failure == "missing_reference" else "print(-999999)"
+        if "Review a basic programming draft" in config["system_prompt"]:
+            value = {"candidate": value, "blocking_issues": [], "suggestions": []}
         return json.dumps(value), 10, 20, "provider"
 
     manager._stream_completion = stream
@@ -117,7 +121,7 @@ async def test_basic_failures_do_not_claim_success(
     await finish(manager, tid)
     task = (await client.get(f"/api/ai/problem-tasks/{tid}")).json()["data"]
     assert task["status"] == "failed"
-    assert calls == (1 if failure in {"truncated", "network"} else 2)
+    assert calls == (1 if failure in {"truncated", "network"} else 3)
     assert not task["draft_id"]
     if failure in {"missing_reference", "wrong_answer"}:
         recovery = await client.post(f"/api/ai/problem-tasks/{tid}/save-draft")
@@ -148,7 +152,7 @@ async def test_basic_stage_cancellation(app: FastAPI, monkeypatch: Any) -> None:
     async def invoke(*args: Any, **kwargs: Any) -> str:
         raise AssertionError("expired queue must not call the provider")
 
-    row = {"id": "expired", "created_at": (datetime.now(UTC) - timedelta(seconds=151)).isoformat()}
+    row = {"id": "expired", "created_at": (datetime.now(UTC) - timedelta(seconds=241)).isoformat()}
     with pytest.raises(TimeoutError):
         await manager._generate_basic(row, {"requirement": "basic test"}, invoke)
 
@@ -313,3 +317,155 @@ async def test_balanced_review_receives_all_local_execution_failures(
     feedback = calls[2][1]["local_feedback"]
     assert "reference_solution" in feedback and "wrong_solutions[0]" in feedback
     assert "RE" in feedback
+
+
+@pytest.mark.parametrize("blocking", [False, True])
+async def test_light_review_corrects_preflight_and_preserves_semantic_blockers(
+    client: AsyncClient,
+    app: FastAPI,
+    problem_payload: dict[str, Any],
+    generated: dict[str, Any],
+    blocking: bool,
+) -> None:
+    manager = await configured(client, app, problem_payload)
+    candidate = {k: copy.deepcopy(generated[k]) for k in ("problem", "reference_solution")}
+    calls = []
+
+    async def stream(config: Any, prompt: str, usage: Any = None) -> Any:
+        data = json.loads(prompt)
+        calls.append(config)
+        if "Review a basic programming draft" in config["system_prompt"]:
+            assert "error" in data["local_feedback"]
+            value = {
+                "candidate": candidate,
+                "blocking_issues": ["题意存在未解决的矛盾"] if blocking else [],
+                "suggestions": ["可增加边界覆盖"],
+            }
+        else:
+            value = {**candidate, "reference_solution": "print(-99999)"}
+        return json.dumps(value), 10, 20, "provider"
+
+    manager._stream_completion = stream
+    response = await client.post(
+        "/api/ai/problem-tasks/",
+        json={
+            "requirement": "加法",
+            "generation_mode": "basic_draft",
+        },
+    )
+    tid = response.json()["data"]["task_id"]
+    await finish(manager, tid)
+    task = (await client.get(f"/api/ai/problem-tasks/{tid}")).json()["data"]
+    assert len(calls) == 2
+    assert task["status"] == ("failed" if blocking else "completed"), task["error"]
+    assert task["result"]["light_review"]["suggestions"] == ["可增加边界覆盖"]
+    if not blocking:
+        assert task["result"]["verification"]["light_review_passed"] is True
+        assert "可增加边界覆盖" in task["result"]["verification"]["warnings"]
+
+
+def test_edit_requests_allow_short_or_default_instructions() -> None:
+    assert (
+        AIProblemTaskCreate(requirement="改", action="revise", problem_id="sum_2").requirement
+        == "改"
+    )
+    assert (
+        AIProblemTaskCreate(requirement="  ", action="revise", problem_id="sum_2").requirement
+        == "检查并改进所选范围，保留原题意"
+    )
+    with pytest.raises(ValueError, match="请输入命题需求"):
+        AIProblemTaskCreate(requirement=" ")
+    with pytest.raises(ValueError):
+        AIProblemTaskCreate(requirement="x" * 20001, problem_id="sum_2")
+
+
+async def test_draft_noop_save_preserves_revision_but_real_edits_use_cas(
+    client: AsyncClient,
+    app: FastAPI,
+    problem_payload: dict[str, Any],
+) -> None:
+    from frontend.forms import draft_payload
+
+    await configured(client, app, problem_payload)
+    draft = (
+        await client.post(
+            "/api/problem-drafts/",
+            json={
+                "problem": {"title": "Draft"},
+                "reference_solution": "print(1)\n",
+            },
+        )
+    ).json()["data"]
+    body = draft_payload(draft)
+    body["problem"]["hint"] = ""
+    saved = (
+        await client.put(
+            f"/api/problem-drafts/{draft['id']}",
+            json={
+                **body,
+                "revision": draft["revision"],
+            },
+        )
+    ).json()["data"]
+    assert saved["revision"] == draft["revision"]
+    body["reference_solution"] = "print(1)\n\n"
+    response = await client.put(
+        f"/api/problem-drafts/{draft['id']}",
+        json={
+            **body,
+            "revision": draft["revision"],
+        },
+    )
+    assert response.json()["data"]["revision"] == draft["revision"] + 1
+    assert (
+        await client.put(
+            f"/api/problem-drafts/{draft['id']}",
+            json={
+                **body,
+                "revision": draft["revision"],
+            },
+        )
+    ).status_code == 409
+
+
+@pytest.mark.parametrize("bad_reference", [False, True])
+async def test_review_format_repair_shares_the_single_repair_allowance(
+    client: AsyncClient,
+    app: FastAPI,
+    problem_payload: dict[str, Any],
+    generated: dict[str, Any],
+    bad_reference: bool,
+) -> None:
+    manager = await configured(client, app, problem_payload)
+    candidate = {k: copy.deepcopy(generated[k]) for k in ("problem", "reference_solution")}
+    calls = []
+
+    async def stream(config: Any, prompt: str, usage: Any = None) -> Any:
+        calls.append(config)
+        if len(calls) == 1:
+            value = candidate
+        elif len(calls) == 2:
+            value = {"candidate": candidate, "suggestions": []}
+        else:
+            repaired = copy.deepcopy(candidate)
+            if bad_reference:
+                repaired["reference_solution"] = "print(-99999)"
+            value = {"candidate": repaired, "blocking_issues": [], "suggestions": []}
+        return json.dumps(value), 10, 20, "provider"
+
+    manager._stream_completion = stream
+    response = await client.post(
+        "/api/ai/problem-tasks/",
+        json={
+            "requirement": "加法",
+            "generation_mode": "basic_draft",
+        },
+    )
+    tid = response.json()["data"]["task_id"]
+    await finish(manager, tid)
+    task = (await client.get(f"/api/ai/problem-tasks/{tid}")).json()["data"]
+    assert len(calls) == 3
+    assert task["status"] == ("failed" if bad_reference else "completed"), task["error"]
+    assert (
+        await manager.db.fetchone("SELECT repair_used FROM ai_task_context WHERE task_id=?", (tid,))
+    )["repair_used"] == 1

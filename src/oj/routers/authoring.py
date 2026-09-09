@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from oj.auth import CurrentUser, get_current_user
+from oj.draft_content import equivalent_draft
 from oj.errors import APIError, response
 from oj.route_security import AuthorizedRoute
 from oj.schemas import Problem, ProblemDraftCreate, ProblemDraftUpdate, ProblemDraftVerify
@@ -210,6 +211,17 @@ async def update_problem_draft(
             raise APIError(404, "problem draft not found")
         if current["revision"] != body.revision:
             raise APIError(409, "problem draft was updated elsewhere; reload before saving")
+        existing = _decode(current)
+        existing_review = dict(existing["review"])
+        existing_review.pop("verification", None)
+        incoming = body.model_dump(exclude={"revision", "change_summary"})
+        incoming["problem"] = problem
+        incoming["review"] = review
+        snapshot = {key: existing.get(key) for key in incoming}
+        snapshot["review"] = existing_review
+        if equivalent_draft(incoming, snapshot):
+            await db.commit()
+            return response(200, "problem draft unchanged", existing)
         new_revision = body.revision + 1
         await db.execute(
             """UPDATE problem_drafts SET base_problem_id=?,status='draft',requirement=?,
