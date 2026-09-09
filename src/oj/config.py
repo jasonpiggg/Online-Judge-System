@@ -53,8 +53,8 @@ class Settings(BaseSettings):
     ai_default_currency: Literal["USD", "CNY"] = "USD"
     ai_default_cached_input_price: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     ai_routing_enabled: bool = False
-    ai_default_reasoning_effort: Literal["high", "max"] | None = None
-    ai_quality_reasoning_effort: Literal["high", "max"] | None = None
+    ai_default_reasoning_effort: Literal["low", "high", "max"] | None = None
+    ai_quality_reasoning_effort: Literal["low", "high", "max"] | None = None
     ai_default_json_mode: bool = True
     ai_quality_json_mode: bool = True
     ai_quality_model: str = Field(default="", max_length=200)

@@ -6,10 +6,9 @@ from typing import Any
 import streamlit as st
 from pydantic import ValidationError
 
-from frontend.admin import language_page
 from frontend.client import ApiClient
 from frontend.editor import clean_problem
-from frontend.navigation import back, go, pagination
+from frontend.navigation import back, bounded_page, go, pagination, panel_query
 from frontend.records import _render_case_details
 from frontend.ui import call, heading, result_summary
 from oj.schemas import DraftProblem
@@ -26,25 +25,42 @@ def read_json_file(upload: Any) -> dict[str, Any]:
 
 
 def resources_page(api: ApiClient) -> None:
+    if st.session_state.user["role"] == "admin":
+        from frontend.admin import admin_page
+
+        aliases = {"题目": "题目管理", "语言": "语言", "公开日志": "公开日志"}
+        if panel_query.get("section", "题目") in aliases:
+            panel_query.section = aliases[panel_query.get("section", "题目")]
+        # Preserve old bookmarked filters at the same URL without navigating.
+        for key in ("q", "id", "page"):
+            target = (
+                "public_log_id" if key == "id" and panel_query.get("section") == "公开日志" else key
+            )
+            scoped = panel_query._key(target)
+            if key in st.query_params and scoped not in st.query_params:
+                panel_query[target] = st.query_params[key]
+        admin_page(api)
+        return
     heading("资源", note="管理题目、评测语言与公开日志。")
     options = ["题目", "语言", "公开日志"]
-    current = st.query_params.get("section", "题目")
+    current = panel_query.get("section", "题目")
     section = st.segmented_control(
         "资源类型", options, default=current if current in options else "题目"
     )
     if section:
-        st.query_params.section = section
+        panel_query.section = section
     if section == "语言":
+        from frontend.admin import language_page
+
         language_page(api)
         return
     if section == "公开日志":
-        sid = st.text_input("公开提交 ID")
-        if st.button("查看日志"):
-            if sid.strip():
-                go("public_log", id=sid.strip())
-            else:
-                st.warning("请输入提交 ID。")
+        public_log_content(api)
         return
+    problem_list_content(api)
+
+
+def problem_list_content(api: ApiClient) -> None:
     if st.button("新建题目", type="primary"):
         result = call(lambda: api.post("/api/problem-drafts/", json={}))
         if result:
@@ -72,14 +88,14 @@ def resources_page(api: ApiClient) -> None:
     result = call(lambda: api.get("/api/problems/", params={"include_metadata": True}))
     if not result:
         return
-    search = st.text_input("搜索题号或标题", value=st.query_params.get("q", ""))
-    if search != st.query_params.get("q", ""):
-        st.query_params.page = "1"
-    st.query_params.q = search
+    search = st.text_input("搜索题号或标题", value=panel_query.get("q", ""))
+    if search != panel_query.get("q", ""):
+        panel_query.page = "1"
+    panel_query.q = search
     filtered = [
         p for p in result["data"] if search.casefold() in f"{p['id']} {p['title']}".casefold()
     ]
-    page = pagination(len(filtered))
+    page = bounded_page(len(filtered))
     if not filtered:
         st.info("没有找到相关题目，请调整搜索条件。")
         return
@@ -90,12 +106,12 @@ def resources_page(api: ApiClient) -> None:
                 title.write(f"**{p['title']}**")
                 title.caption(p["id"])
                 if a.button("查看详情", key=f"resource-view-{p['id']}"):
-                    st.query_params.id = p["id"]
+                    panel_query.id = p["id"]
                 if b.button("编辑题目", key=f"resource-edit-{p['id']}"):
                     draft = call(lambda p=p: api.post(f"/api/problems/{p['id']}/editing-draft"))
                     if draft:
                         go("draft", id=draft["data"]["id"], title=p["title"])
-                if st.query_params.get("id") == p["id"]:
+                if panel_query.get("id") == p["id"]:
                     detail = call(lambda p=p: api.get(f"/api/problems/{p['id']}"))
                     if detail:
                         from frontend.ui import pills
@@ -110,6 +126,10 @@ def resources_page(api: ApiClient) -> None:
                             f"来源：{detail['data'].get('source') or '—'} "
                             f"· 作者：{detail['data'].get('author') or '—'}"
                         )
+                        with st.expander("题面预览"):
+                            from frontend.workspace import statement
+
+                            statement(detail["data"])
                         with st.expander("题目 JSON"):
                             st.json(detail["data"], expanded=False)
                         st.download_button(
@@ -144,9 +164,13 @@ def public_log_page(api: ApiClient) -> None:
     heading("公开评测日志")
     if st.button("返回来源"):
         back()
-    sid = st.text_input("公开提交 ID", value=st.query_params.get("id", ""))
+    public_log_content(api)
+
+
+def public_log_content(api: ApiClient, *, parameter: str = "id") -> None:
+    sid = st.text_input("公开提交 ID", value=panel_query.get(parameter, ""))
     if st.button("查询"):
-        st.query_params.id = sid
+        panel_query[parameter] = sid
         st.rerun()
     if not sid:
         st.info("输入提交编号后查询。")

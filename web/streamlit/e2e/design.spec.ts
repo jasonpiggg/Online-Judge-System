@@ -33,9 +33,9 @@ for (const width of [1440, 1024, 390, 320]) {
     const task = (await (await page.request.post(api+`/api/problem-drafts/${draft.id}/verify`,{data:{mode:'basic'},headers:{'Idempotency-Key':`design-${width}-${Date.now()}`}})).json()).data;
     const surfaces = [
       ['library','/','题库'], ['records','/records','提交记录'],
-      ['authoring','/ai','命题中心'], ['resources','/resources','资源'],
+      ['authoring','/ai','命题中心'], ['resources','/resources','管理中心'],
       ['profile','/profile','个人账户'], ['admin','/admin','管理中心'],
-      ['language','/resources?section='+encodeURIComponent('语言'),'资源'],
+      ['language','/resources?section='+encodeURIComponent('语言'),'管理中心'],
       ['workspace','/workspace?id=sum_2&language=python','两数之和'],
       ['draft',`/draft?id=${draft.id}`,'两数之和'],
       ['editor','/editor','新建题目'],
@@ -100,13 +100,13 @@ test('untouched draft leaves without a false dirty warning, literal edits remain
 test('returning home or to origin deselects tasks and reopening selects the saved detail',async({page})=>{
   await authenticate(page);
   await page.goto('/workspace?id=sum_2&language=python');
-  const active = page.locator('.st-key-task-strip').getByRole('button',{name:'sum_2',exact:true}).and(page.locator('[kind="primary"]'));
+  const active = page.locator('.st-key-task-strip').getByRole('button',{name:'两数之和',exact:true}).and(page.locator('[kind="primary"]'));
   await expect(active).toHaveCount(1);
   await page.getByRole('button',{name:'返回来源',exact:true}).click();
   await expect(page.getByRole('heading',{name:'题库',exact:true})).toBeVisible();
   await expect(active).toHaveCount(0);
   await expect(page.getByRole('button',{name:'关闭当前任务',exact:true})).toBeDisabled();
-  await page.locator('.st-key-task-strip').getByRole('button',{name:'sum_2',exact:true}).click();
+  await page.locator('.st-key-task-strip').getByRole('button',{name:'两数之和',exact:true}).click();
   await expect(page.getByRole('button',{name:'提交评测',exact:true})).toBeVisible();
   await expect(active).toHaveCount(1);
   await page.getByTestId('stTopNavLink').filter({hasText:'题库'}).click();
@@ -182,21 +182,20 @@ test('long library titles and tags wrap and empty search remains actionable',asy
 });
 
 
-test('login chrome, paired pager and clear-all task navigation', async ({page}) => {
+test('login chrome, bottom pager and clear-all task navigation', async ({page}) => {
   await page.goto('/');
   await expect(page.getByRole('button',{name:'进入工作台',exact:true})).toBeVisible();
   await expect(page.getByTestId('stTopNavLink')).toHaveCount(0);
   await expect(page.getByRole('checkbox',{name:'显示密码',exact:true})).toHaveCount(0);
   await authenticate(page);
   await page.goto('/resources');
-  const top = page.locator('.st-key-pager-page-top');
-  const bottom = page.locator('.st-key-pager-page-bottom');
-  await expect(top).toBeVisible();
+  const bottom = page.locator('.st-key-pagination-page-bottom');
+  await expect(page.locator('.st-key-pagination-page-top')).toHaveCount(0);
   await expect(bottom).toBeAttached();
-  await top.getByRole('spinbutton',{name:'跳转至',exact:true}).fill('2');
-  await top.getByRole('button',{name:'跳转',exact:true}).click();
+  await bottom.getByRole('spinbutton',{name:'跳转至',exact:true}).fill('2');
+  await bottom.getByRole('button',{name:'跳转',exact:true}).click();
   await expect(page).toHaveURL(/page=2/);
-  await expect(top.getByText(/第 2 \/ /)).toBeVisible();
+  await expect(bottom.getByText(/第 2 \/ /)).toBeVisible();
   await bottom.getByRole('button',{name:'首页',exact:true}).click();
   await expect(page).toHaveURL(/page=1/);
   await page.goto('/workspace?id=sum_2');
@@ -217,7 +216,7 @@ test('empty histories have no pagers and password feedback is actionable', async
   await page.getByText('本题提交历史',{exact:true}).click();
   await expect(page.getByText('暂无本题提交记录，提交代码后可在这里查看。',{exact:true})).toBeVisible();
   await expect(page.locator('.st-key-pager-page-top')).toHaveCount(0);
-  await expect(page.locator('.st-key-pager-page-bottom')).toHaveCount(0);
+  await expect(page.locator('.st-key-pagination-page-bottom')).toHaveCount(0);
   await page.goto('/profile');
   await page.getByText('修改密码',{exact:true}).click();
   const submit = page.getByRole('button',{name:'更新密码',exact:true});
@@ -240,4 +239,54 @@ test('empty histories have no pagers and password feedback is actionable', async
   }
   expect((await page.request.get(api+'/api/auth/me')).ok()).toBe(true);
   await healthy(page);
+});
+
+
+test('admin panels render in place, retain origins, and reference titles are searchable', async ({page}) => {
+  await authenticate(page);
+  await page.goto('/admin');
+  await expect(page.getByTestId('stTopNavLink').filter({hasText:'资源'})).toHaveCount(0);
+  const panels = [
+    ['用户', '搜索用户名或用户 ID'], ['角色审计', '还没有角色修改记录。'],
+    ['全站提交', '查询'], ['题目管理', '搜索题号或标题'],
+    ['语言', '注册评测语言'], ['公开日志', '公开提交 ID'],
+    ['访问审计', '查询访问审计'], ['系统设置', '实验环境'],
+  ];
+  for (const [section, content] of panels) {
+    await page.getByRole('radio').filter({hasText: new RegExp('^'+section+'$')}).click();
+    await expect(page.getByText(content,{exact:true}).first()).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe('/admin');
+    await healthy(page);
+  }
+  await page.goto('/admin?section='+encodeURIComponent('题目管理'));
+  const search = page.getByRole('textbox',{name:'搜索题号或标题',exact:true});
+  await search.fill('sum_2'); await search.press('Enter');
+  await expect(page.getByRole('button',{name:'编辑题目',exact:true})).toHaveCount(1);
+  await page.getByRole('button',{name:'编辑题目',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'两数之和',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'返回来源',exact:true}).click();
+  await expect(search).toHaveValue('sum_2');
+  expect(new URL(page.url()).pathname).toBe('/admin');
+  await page.goto('/ai');
+  await page.getByRole('tab',{name:'生成整题',exact:true}).click();
+  const reference = page.getByRole('combobox',{name:'参考题目（可选）',exact:true});
+  await reference.click();
+  await expect(page.getByRole('option',{name:'不参考已有题目',exact:true})).toBeVisible();
+  await reference.fill('两数之和');
+  await page.getByRole('option',{name:'sum_2 · 两数之和',exact:true}).click();
+  await expect(reference).toHaveValue('sum_2 · 两数之和');
+});
+
+
+test('ordinary users retain the resource navigation and legacy resource content', async ({page}) => {
+  const username = 'resource_user_'+Date.now();
+  await authenticate(page);
+  expect((await page.request.post(api+'/api/users/',{data:{username,password:'password1'}})).ok()).toBe(true);
+  expect((await page.request.post(api+'/api/auth/login',{data:{username,password:'password1'}})).ok()).toBe(true);
+  await page.goto('/resources');
+  await expect(page.getByRole('heading',{name:'资源',exact:true})).toBeVisible();
+  await expect(page.getByTestId('stTopNavLink').filter({hasText:'资源'})).toBeVisible();
+  await expect(page.getByTestId('stTopNavLink').filter({hasText:'管理中心'})).toHaveCount(0);
+  await expect(page.getByRole('textbox',{name:'搜索题号或标题',exact:true})).toBeVisible();
+  expect((await page.request.get(api+'/api/users/')).status()).toBe(403);
 });

@@ -6,7 +6,7 @@ import streamlit as st
 
 from frontend.client import ApiClient
 from frontend.components import diff
-from frontend.navigation import back, go, page_number, pagination
+from frontend.navigation import back, bounded_page, go, page_number, pagination, panel_query
 from frontend.ui import (
     call,
     data_table,
@@ -164,6 +164,10 @@ def records_page(api: ApiClient) -> None:
         public_id = st.text_input("公开提交 ID", key="public-log-id")
         if st.button("查询公开日志") and public_id:
             go("public_log", id=public_id)
+    records_content(api)
+
+
+def records_content(api: ApiClient) -> None:
     admin = st.session_state.user["role"] == "admin"
     with st.form("record-filters"):
         if admin:
@@ -171,9 +175,9 @@ def records_page(api: ApiClient) -> None:
         else:
             a, c, extra = st.columns([2, 1.5, 2])
             b = a
-        pid = a.text_input("题号", value=st.query_params.get("problem_id", ""))
+        pid = a.text_input("题号", value=panel_query.get("problem_id", ""))
         uid = (
-            b.text_input("用户 ID（留空为全站）", value=st.query_params.get("user_id", ""))
+            b.text_input("用户 ID（留空为全站）", value=panel_query.get("user_id", ""))
             if admin
             else str(st.session_state.user["user_id"])
         )
@@ -183,40 +187,40 @@ def records_page(api: ApiClient) -> None:
             "状态",
             statuses,
             format_func=status_label,
-            index=statuses.index(st.query_params.get("status"))
-            if st.query_params.get("status") in statuses
+            index=statuses.index(panel_query.get("status"))
+            if panel_query.get("status") in statuses
             else 0,
         )
         outcome = extra.selectbox(
             "完成结果",
             outcomes,
-            index=outcomes.index(st.query_params.get("outcome"))
-            if st.query_params.get("outcome") in outcomes
+            index=outcomes.index(panel_query.get("outcome"))
+            if panel_query.get("outcome") in outcomes
             else 0,
         )
         if st.form_submit_button("查询", type="primary"):
-            st.query_params.update(
+            panel_query.update(
                 problem_id=pid, user_id=uid, page="1", status=status, outcome=outcome
             )
             st.rerun()
     params: dict[str, Any] = {"page": page_number(), "page_size": 10, "include_metadata": True}
-    uid = st.query_params.get("user_id", "") if admin else str(st.session_state.user["user_id"])
+    uid = panel_query.get("user_id", "") if admin else str(st.session_state.user["user_id"])
     if uid:
         params["user_id"] = uid
     elif admin:
         params["all_users"] = True
-    if pid := st.query_params.get("problem_id"):
+    if pid := panel_query.get("problem_id"):
         params["problem_id"] = pid
-    status = st.query_params.get("status", "全部")
+    status = panel_query.get("status", "全部")
     if status != "全部":
         params["status"] = status
-    outcome = st.query_params.get("outcome", "全部结果")
+    outcome = panel_query.get("outcome", "全部结果")
     if outcome != "全部结果":
         params["outcome"] = "passed" if outcome == "全部通过" else "not_passed"
     result = call(lambda: api.get("/api/submissions/", params=params))
     if not result:
         return
-    pagination(result["data"]["total"])
+    bounded_page(result["data"]["total"])
     rows = result["data"]["submissions"]
     if not rows:
         st.info("没有符合条件的提交记录。")
@@ -240,7 +244,7 @@ def records_page(api: ApiClient) -> None:
 def submission_page(api: ApiClient) -> None:
     if st.button("返回来源"):
         back()
-    submission_id = st.query_params.get("id", "")
+    submission_id = panel_query.get("id", "")
     if not submission_id.isdigit():
         st.error("请提供有效的提交编号。")
         return

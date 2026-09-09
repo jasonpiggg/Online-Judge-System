@@ -86,3 +86,28 @@ def public_pricing(config: dict[str, Any]) -> dict[str, Any]:
             "currency",
         )
     }
+
+
+def balanced_phase_config(base: dict[str, Any], phase: str) -> dict[str, Any]:
+    """Quality routing is opt-in for whole-problem generation, never personal endpoints."""
+    config = select_phase_config(base, "generation", "generate", "all", "basic")
+    if base["config_source"] == "personal":
+        return config
+    policy = json.loads(base.get("routing_config") or "{}")
+    # Reuse the configured model and its matching price snapshot, never invent a rate.
+    if base.get("model") == "glm-5.3-flash":
+        config.update(
+            model=base["model"],
+            reasoning_effort="high" if phase == "statement" else "low",
+            tier="flash",
+            routing_reason="整题生成：题面 high 推理；验证资产和修复 low，保留独立复审时间",
+        )
+        quality = policy.get("quality", {})
+        if phase == "critique" and quality.get("model") == "glm-5.3":
+            config.update(quality)
+            config.update(
+                reasoning_effort="low",
+                tier="quality",
+                routing_reason="整题生成：GLM-5.3 low 独立复审，限定输出和时间",
+            )
+    return config

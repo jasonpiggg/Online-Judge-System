@@ -103,15 +103,14 @@ def test_component_keys_escape_reserved_event_delimiter(monkeypatch: Any) -> Non
     assert captured[0] != captured[2]
 
 
-def test_pagination_jump_and_paired_controls() -> None:
+def test_bottom_pagination_jump() -> None:
     app = AppTest.from_string("""
 from frontend.navigation import pagination
 pagination(120)
-pagination(120, position="bottom")
 """).run()
     assert not app.exception
     app.number_input[0].set_value(7)
-    app.button(key="pager-page-top-go").click().run()
+    app.button(key="pager-page-bottom-go").click().run()
     assert not app.exception
     assert app.query_params["page"] == ["7"]
     assert any(b.label == "7" for b in app.button)
@@ -169,3 +168,24 @@ def test_password_input_feedback(current: str, new: str, confirm: str, message: 
 
     error = password_change_error(current, new, confirm)
     assert error is None if message is None else message in str(error)
+
+
+def test_admin_panel_filters_are_independent_and_bookmarkable() -> None:
+    app = AppTest.from_string("""
+import streamlit as st
+from frontend.navigation import panel_query
+st.session_state.user = {"role":"admin"}
+st.session_state.current_route = {"page":"admin"}
+st.query_params.section = "题目管理"
+panel_query.q = "sum"
+panel_query.page = "3"
+st.query_params.section = "用户"
+assert panel_query.get("q", "") == ""
+panel_query.q = "admin"
+st.query_params.section = "题目管理"
+assert panel_query.get("q") == "sum"
+assert panel_query.get("page") == "3"
+st.session_state.user = {"role":"user"}
+assert panel_query.get("q", "") == ""
+""").run()
+    assert not app.exception

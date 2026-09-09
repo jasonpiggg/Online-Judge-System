@@ -13,7 +13,7 @@ from frontend.ai import model_settings, money
 from frontend.client import ApiClient, ApiError
 from frontend.components import control, diff, rich_text
 from frontend.forms import draft_payload, problem_form
-from frontend.navigation import back, go, page_number, pagination
+from frontend.navigation import back, bounded_page, go, page_number, pagination
 from frontend.ui import call, data_table, heading, local_time, status_label
 
 
@@ -84,7 +84,17 @@ def authoring_page(api: ApiClient) -> None:
                 requirement = st.text_area(
                     "命题需求", placeholder="知识点、难度、数据范围和预期覆盖的边界场景。"
                 )
-                reference = st.text_input("参考题号（可选）")
+                problems = call(lambda: api.get("/api/problems/"))
+                choices = {
+                    p["id"]: f"{p['id']} · {p['title']}" for p in (problems or {}).get("data", [])
+                }
+                reference = st.selectbox(
+                    "参考题目（可选）",
+                    [None, *choices],
+                    format_func=lambda value: choices.get(value, "不参考已有题目"),
+                    help="展开选择，或输入题号、标题筛选。",
+                )
+                st.caption("生成题面与参考解，补充测试资产并独立审查、完整验证；总处理预算四分钟。")
                 if st.form_submit_button(
                     "生成整题",
                     type="primary",
@@ -96,6 +106,7 @@ def authoring_page(api: ApiClient) -> None:
                             "requirement": requirement,
                             "problem_id": reference or None,
                             "action": "generate",
+                            "generation_mode": "balanced",
                             "target_section": "all",
                         },
                     )
@@ -115,7 +126,7 @@ def authoring_page(api: ApiClient) -> None:
             )
             if drafts:
                 drafts["data"] = list_data(drafts["data"], "drafts")
-                pagination(drafts["data"]["total"], "draft_page")
+                bounded_page(drafts["data"]["total"], "draft_page")
                 if not drafts["data"]["drafts"]:
                     st.info("还没有草稿。可手动新建、导入 JSON 或生成整题。")
                 with st.container(key="draft-list"):
@@ -146,7 +157,7 @@ def authoring_page(api: ApiClient) -> None:
             )
             if tasks:
                 tasks["data"] = list_data(tasks["data"], "tasks")
-                pagination(tasks["data"]["total"], "task_page")
+                bounded_page(tasks["data"]["total"], "task_page")
                 if not tasks["data"]["tasks"]:
                     st.info("还没有任务。")
                 with st.container(key="ai-task-list"):
@@ -379,7 +390,7 @@ def draft_page(api: ApiClient) -> None:
                 "revise": "局部修改",
                 "review": "全面审查",
                 "tests": "设计测试",
-                "generate": "补全整题并验证",
+                "generate": "补全验证资产并完整验证",
             }[x],
         )
         section = st.selectbox(
@@ -397,16 +408,33 @@ def draft_page(api: ApiClient) -> None:
             "revise": "局部修改返回差异建议，审阅采纳后再检查；不会自动发布。",
             "review": "全面审查题面与验证资产，返回最小修正；采纳后仍需验证。",
             "tests": "设计覆盖边界与错误解法的测试点，返回供审阅的修改建议。",
-            "generate": "补全题面、参考解与验证资产，并执行完整质量验证；费用通常较高。",
+            "generate": (
+                "复用已保存题面与参考解，补全验证资产并完整验证；这是一次新的计时和收费任务。"
+            ),
         }
         st.caption(explanations[action])
-        if st.button("保存并发起 AI 修改"):
+        ai_requirement = st.text_area(
+            "本次 AI 修改需求",
+            value=local["requirement"],
+            key=f"draft-ai-requirement-{did}",
+            height=140,
+            placeholder="例如：补充一个负数边界样例，并解释对应输出；保留其他题面内容。",
+            help="只用于本次 AI 请求，不会覆盖上方保存的原始命题需求。至少填写 10 个字符。",
+        )
+        paid = st.checkbox("确认发起新的模型调用，费用单独累计", key="draft-ai-paid")
+        if st.button("保存并发起 AI 修改", disabled=not paid):
+            if len(ai_requirement.strip()) < 10:
+                st.error("请在本次 AI 修改需求中填写至少 10 个字符，说明希望修改的内容。")
+                return
+            if len(ai_requirement) > 20_000:
+                st.error("本次 AI 修改需求不能超过 20,000 个字符，请精简后重试。")
+                return
             if save_draft(api, did, state):
                 start_task(
                     api,
                     {
                         "draft_id": did,
-                        "requirement": local["requirement"],
+                        "requirement": ai_requirement.strip(),
                         "action": action,
                         "target_section": "all" if action in {"review", "generate"} else section,
                     },
@@ -487,7 +515,12 @@ def task_page(api: ApiClient) -> None:
             st.session_state[terminal] = True
             st.rerun()
         st.write(t.get("requirement", ""))
-        st.info(
+        notice = (
+            st.error
+            if t["status"] == "failed"
+            else (st.success if t["status"] == "completed" else st.info)
+        )
+        notice(
             f"{status_label(t['status'])} · {status_label(t.get('stage', ''))} · "
             f"{t.get('progress', '')}"
         )
@@ -626,6 +659,7 @@ def task_page(api: ApiClient) -> None:
                                 "draft_id",
                                 "action",
                                 "target_section",
+                                "generation_mode",
                             ]
                         }
                         | {"resume_task_id": tid},

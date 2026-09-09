@@ -82,7 +82,7 @@ test('Monaco autosaves, refresh restores, source import and submission detail wo
   await page.getByRole('button',{name:'提交评测',exact:true}).click();
   await expect(page.getByRole('heading',{name:'评测结果',exact:true})).toBeVisible();
   await page.getByText('本题提交历史',{exact:true}).click();
-  await page.getByRole('button',{name:/^#\d+ ·/}).first().click();
+  await page.locator('[class*=st-key-history-card-]').getByRole('button',{name:'查看详情',exact:true}).first().click();
   await expect(page.getByRole('heading',{name:/提交 #/})).toBeVisible();
   await expect(page.getByText('本次提交代码',{exact:true})).toBeVisible();
   await noException(page);
@@ -221,6 +221,8 @@ test('scoped AI changes and comprehensive review apply only to their source revi
   await page.getByRole('textbox',{name:'命题需求 / 修改要求',exact:true}).fill('提供一个简单准确的新样例，保留其他内容。');
   await page.locator('summary').filter({hasText:'AI 修改'}).click();
   await select(page,'修改范围','样例');
+  await page.getByRole('textbox',{name:'本次 AI 修改需求',exact:true}).fill('提供一个简单准确的新样例，保留其他内容。');
+  await page.getByText('确认发起新的模型调用，费用单独累计',{exact:true}).click();
   await page.getByRole('button',{name:'保存并发起 AI 修改',exact:true}).click();
   await expect(page.getByRole('button',{name:'采纳到草稿',exact:true})).toBeVisible();
   await expect(page.locator('.diff-view')).toContainText('3 4');
@@ -231,6 +233,8 @@ test('scoped AI changes and comprehensive review apply only to their source revi
   await page.getByRole('textbox',{name:'命题需求 / 修改要求',exact:true}).fill('重点检查约束表达和已有测试资产');
   await page.locator('summary').filter({hasText:'AI 修改'}).click();
   await select(page,'修改方式','全面审查');
+  await page.getByRole('textbox',{name:'本次 AI 修改需求',exact:true}).fill('重点检查约束表达和已有测试资产');
+  await page.getByText('确认发起新的模型调用，费用单独累计',{exact:true}).click();
   await page.getByRole('button',{name:'保存并发起 AI 修改',exact:true}).click();
   await expect(page.getByRole('button',{name:'采纳到草稿',exact:true})).toBeVisible();
   await page.getByText('已审阅修改，确认采纳到草稿',{exact:true}).click();
@@ -420,5 +424,32 @@ test('administrator creates accounts, changes roles, queries audit and cancels r
   await expect(page.getByRole('button',{name:'确认重置',exact:true})).toBeDisabled();
   await page.getByRole('button',{name:'取消',exact:true}).click();
   expect((await page.request.get(api+'/api/problems/sum_2')).status()).toBe(200);
+  await noException(page);
+});
+
+
+test('AI revision validates its own requirement and submission history uses verdict cards', async ({page}) => {
+  await login(page);
+  await importedDraft(page);
+  await page.locator('summary').filter({hasText:'AI 修改'}).click();
+  const requirement = page.getByRole('textbox',{name:'本次 AI 修改需求',exact:true});
+  await requirement.fill('');
+  await page.getByText('确认发起新的模型调用，费用单独累计',{exact:true}).click();
+  await page.getByRole('button',{name:'保存并发起 AI 修改',exact:true}).click();
+  await expect(page.getByText('请在本次 AI 修改需求中填写至少 10 个字符，说明希望修改的内容。',{exact:true})).toBeVisible();
+  const response = await page.request.post(api+'/api/submissions/',{data:{problem_id:'brackets',language:'python',code:'raise RuntimeError()'}});
+  expect(response.ok()).toBe(true);
+  const sid=(await response.json()).data.submission_id;
+  await expect.poll(async()=> (await (await page.request.get(api+'/api/submissions/'+sid)).json()).data.status).not.toBe('pending');
+  await page.goto('/workspace?id=brackets&language=python');
+  await page.getByText('本题提交历史',{exact:true}).click();
+  const card=page.locator('.st-key-history-card-'+sid);
+  await expect(card).toContainText('RE · 运行时错误');
+  await expect(card).toContainText('北京时间');
+  await expect(card).not.toContainText('success');
+  await card.getByRole('button',{name:'查看详情',exact:true}).click();
+  await expect(page.locator('.st-key-task-strip')).toContainText('提交 #'+sid);
+  await page.getByRole('button',{name:'返回来源',exact:true}).click();
+  await expect(page.locator('.st-key-task-strip').getByRole('button',{name:'括号的秩序',exact:true})).toBeVisible();
   await noException(page);
 });

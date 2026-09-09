@@ -6,7 +6,7 @@ from typing import Any
 import streamlit as st
 
 from frontend.client import ApiClient
-from frontend.navigation import go, pagination
+from frontend.navigation import bounded_page, go, pagination
 from frontend.ui import call, heading, navigate, pills
 from frontend.workspace import statement as statement
 from oj.difficulty import DIFFICULTIES
@@ -122,7 +122,7 @@ def library_page(api: ApiClient) -> None:
         and (progress_filter == "全部状态" or progress_label(p) == progress_filter)
     ]
     st.caption(f"共 {len(items)} 道题目")
-    page = pagination(len(items))
+    page = bounded_page(len(items))
     if not items:
         st.info("没有找到匹配的题目。试试其他关键词，或创建第一道题。")
         return

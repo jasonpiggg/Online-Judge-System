@@ -32,7 +32,7 @@ app = create_app(
 async def completion(config: Any, prompt: str, usage: Any = None) -> tuple[str, int, int, str]:
     data = json.loads(prompt)
     if "验收失败恢复" in str(data.get("requirement", "")) and (
-        "candidate_schema" in data or "allowed_patch" in data
+        "candidate_schema" in data or "allowed_patch" in data or "validation_error" in data
     ):
         text = '{"patch":'
     elif "programming tutor" in config["system_prompt"]:
@@ -49,7 +49,11 @@ async def completion(config: Any, prompt: str, usage: Any = None) -> tuple[str, 
             text = "```python\n# " + "long_comment " * 35 + "END\nprint(1)\n```"
         elif data.get("message") == "分析本次评测的单行建议":
             text = "这只是解释用的片段：\n```python\nprint(a + b)\n```"
-    elif "Stage 1:" in config["system_prompt"]:
+    elif (
+        "Stage 1:" in config["system_prompt"]
+        or "basic programming" in config["system_prompt"]
+        or "concise programming" in config["system_prompt"]
+    ):
         text = json.dumps(
             {
                 "problem": {
@@ -60,7 +64,10 @@ async def completion(config: Any, prompt: str, usage: Any = None) -> tuple[str, 
                     "output_description": "输出一个整数。",
                     "constraints": "绝对值不超过 10^9。",
                     "samples": [{"input": "1 2", "output": "3"}],
-                    "testcases": [],
+                    "testcases": [
+                        {"input": f"{a} {b}", "output": str(a + b)}
+                        for a, b in [(1, 2), (0, 0), (-2, 3), (-1, -2), (10, 20)]
+                    ],
                     "difficulty": "入门",
                     "tags": ["基础"],
                 },
@@ -112,6 +119,14 @@ async def completion(config: Any, prompt: str, usage: Any = None) -> tuple[str, 
         )
     else:
         text = json.dumps({"patch": {}, "review": "已经检查题目、独立 oracle 和边界输入。"})
+    if (
+        "验收失败恢复" in str(data.get("requirement", ""))
+        and "schema" in data
+        and "validation_error" not in data
+    ):
+        candidate = json.loads(text)
+        candidate["reference_solution"] = "print(0)"
+        text = json.dumps(candidate, ensure_ascii=False)
     if data.get("message") == "模拟慢速回答":
         await config["_on_content"]("已收到，正在生成…")
         await asyncio.sleep(30)

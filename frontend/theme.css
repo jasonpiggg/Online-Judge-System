@@ -66,12 +66,19 @@
 .stApp .oj-component .markdown li{padding-inline-start:.2em;margin-block:.25em}
 .stApp .oj-component .markdown p{line-height:1.8;margin-block:.65em}
 .stApp .oj-component .markdown h3{margin-block:1.2em .5em}
-.stApp [class*="st-key-pager-"]{gap:8px;padding:12px 0;flex-wrap:wrap}
-.stApp [class*="st-key-pager-"] [data-testid="stCaptionContainer"] p{margin:0;white-space:nowrap}
 
-.stApp [class*="st-key-pager-"] [data-testid="stCaptionContainer"]{display:flex;align-items:center;min-height:40px;margin:0;padding:0}
-.stApp [class*="st-key-pager-"] p{margin-block:0!important}
+.stApp [class*="st-key-pagination-"] [data-testid="stCaptionContainer"]{display:flex;align-items:center;min-height:40px;margin:0;padding:0}
+.stApp [class*="st-key-pagination-"] p{margin-block:0!important}
+.stApp [class*="st-key-pagination-"]:not([class*="st-key-pagination-nav-"]):not([class*="st-key-pagination-jump-"]){width:100%;justify-content:space-between;gap:12px 20px;padding:12px 0;flex-wrap:wrap}
+.stApp [class*="st-key-pagination-nav-"]{justify-content:center;gap:6px;padding:0;flex-wrap:wrap}
+.stApp [class*="st-key-pagination-jump-"]{justify-content:flex-end;gap:8px;padding:0;flex-wrap:wrap}
 
-.stApp [class*="st-key-pager-"]{width:100%;justify-content:space-between;column-gap:20px;row-gap:12px}
-.stApp [class*="st-key-pager-nav-"]{flex-wrap:wrap;justify-content:center;gap:6px;padding:0}
-.stApp [class*="st-key-pager-jump-"]{justify-content:flex-end;gap:8px;padding:0}
+/* Quiet code-workbench details: frame functional modules, preserve reading width. */
+.stApp .oj-header{border-left:3px solid var(--oj-accent);padding:4px 0 4px 14px}
+.stApp .st-key-admin-content-panel{border-color:var(--oj-border);border-top:3px solid var(--oj-accent);border-radius:12px;background:#fff;padding:20px}
+.stApp .st-key-admin-content-panel > h3{margin-top:0}
+.stApp [data-testid="stExpander"] summary{background:var(--oj-soft);border-radius:10px}
+.stApp [data-testid="stForm"]{background:#fcfdff;box-shadow:0 2px 0 var(--oj-soft)}
+.stApp .st-key-brand-bar{background-image:radial-gradient(var(--oj-border) .7px,transparent .7px);background-size:8px 8px}
+.stApp .st-key-brand-bar .oj-brand{background:#fff;padding-right:12px}
+@media(max-width:760px){.stApp .st-key-admin-content-panel{padding:12px}.stApp .oj-header{padding-left:10px}}

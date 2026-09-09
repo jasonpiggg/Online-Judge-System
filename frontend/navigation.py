@@ -28,10 +28,64 @@ PARAMS = {
 }
 
 
+ADMIN_SECTIONS = {
+    "用户": "users",
+    "角色审计": "roles",
+    "全站提交": "records",
+    "题目管理": "problems",
+    "语言": "languages",
+    "公开日志": "logs",
+    "访问审计": "access",
+    "系统设置": "settings",
+}
+ADMIN_PARAMS = {
+    f"admin_{section}_{key}"
+    for section in ADMIN_SECTIONS.values()
+    for key in PARAMS | {"public_log_id"}
+}
+
+
+class PanelQuery:
+    """Keep each embedded admin panel's filters in its own bookmarkable URL keys."""
+
+    def _key(self, key: str) -> str:
+        current = st.session_state.get("current_route", {}).get("page")
+        if (
+            key != "section"
+            and current in {"admin", "resources"}
+            and st.session_state.get("user", {}).get("role") == "admin"
+        ):
+            scope = ADMIN_SECTIONS.get(st.query_params.get("section", "用户"), "users")
+            return f"admin_{scope}_{key}"
+        return key
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return st.query_params.get(self._key(key), default)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        st.query_params[self._key(key)] = value
+
+    def __getattr__(self, key: str) -> Any:
+        return st.query_params[self._key(key)]
+
+    def __setattr__(self, key: str, value: Any) -> None:
+        self[key] = value
+
+    def update(self, **values: Any) -> None:
+        st.query_params.update({self._key(k): v for k, v in values.items()})
+
+
+panel_query = PanelQuery()
+
+
 def route(page: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "page": page,
-        "params": {k: str(v) for k, v in (params or {}).items() if k in PARAMS and v is not None},
+        "params": {
+            k: str(v)
+            for k, v in (params or {}).items()
+            if k in PARAMS | ADMIN_PARAMS and v is not None
+        },
     }
 
 
@@ -40,14 +94,28 @@ def identity(entry: dict[str, Any]) -> tuple[str, str]:
 
 
 def go(page: str, *, title: str = "", **params: Any) -> None:
+    if page == "resources" and st.session_state.get("user", {}).get("role") == "admin":
+        page = "admin"
+        params["section"] = {"题目": "题目管理"}.get(
+            params.get("section", "题目"), params.get("section", "题目管理")
+        )
     target = route(page, params)
-    current = st.session_state.get("current_route", route("library"))
+    target["title"] = title or params.get("id", page)
+    current = route(
+        st.session_state.get("current_route", route("library"))["page"],
+        st.query_params.to_dict(),
+    )
     slots = st.session_state.setdefault("task_slots", [])
+    active_title = next(
+        (s["title"] for s in slots if s["key"] == st.session_state.get("active_slot")), ""
+    )
+    current["title"] = active_title or st.session_state.get("page-title", current["page"])
     if page in DETAILS:
         existing = next((s for s in slots if identity(s["current"]) == identity(target)), None)
         active = next((s for s in slots if s["key"] == st.session_state.get("active_slot")), None)
         if existing:
             existing["current"] = target
+            existing["title"] = target["title"]
             st.session_state.active_slot = existing["key"]
         elif active and current["page"] in DETAILS:
             active["history"].append(current)
@@ -81,6 +149,9 @@ def back() -> None:
         target = active["history"].pop() if active["history"] else active["origin"]
         if target["page"] in DETAILS:
             active["current"] = target
+            active["title"] = target.get("title") or target.get("params", {}).get(
+                "id", target["page"]
+            )
         else:
             # Returning to the origin leaves the task available without selecting it.
             st.session_state.pop("active_slot", None)
@@ -112,7 +183,10 @@ def restore_slots(value: Any) -> list[dict[str, Any]]:
                 "title": str(slot.get("title", "任务"))[:100],
                 "current": route(entries[0]["page"], entries[0]["params"]),
                 "origin": route(entries[1]["page"], entries[1]["params"]),
-                "history": [route(e["page"], e["params"]) for e in entries[2:]],
+                "history": [
+                    {**route(e["page"], e["params"]), "title": str(e.get("title", ""))[:100]}
+                    for e in entries[2:]
+                ],
             }
         )
     return result
@@ -196,7 +270,7 @@ def task_bar() -> None:
 
 def page_number(name: str = "page") -> int:
     try:
-        return min(2**31 - 1, max(1, int(st.query_params.get(name, "1"))))
+        return min(2**31 - 1, max(1, int(panel_query.get(name, "1"))))
     except ValueError:
         return 1
 
@@ -218,27 +292,35 @@ def page_links(page: int, last: int) -> list[int | None]:
     return result
 
 
-def pagination(total: int, name: str = "page", size: int = 10, *, position: str = "top") -> int:
+def bounded_page(total: int, name: str = "page", size: int = 10) -> int:
     page = page_number(name)
     last = max(1, (total + size - 1) // size)
     if page > last:
-        st.query_params[name] = str(last)
+        panel_query[name] = str(last)
         st.rerun()
+    return page
+
+
+def pagination(total: int, name: str = "page", size: int = 10, *, position: str = "bottom") -> int:
+    page = bounded_page(total, name, size)
+    last = max(1, (total + size - 1) // size)
     if total == 0:
         return 1
     prefix = f"pager-{name}-{position}"
 
     def move(value: int) -> None:
-        st.query_params[name] = str(value)
+        panel_query[name] = str(value)
         st.rerun()
 
-    with st.container(horizontal=True, vertical_alignment="center", key=prefix):
+    with st.container(
+        horizontal=True, vertical_alignment="center", key=f"pagination-{name}-{position}"
+    ):
         st.caption(f"第 {page} / {last} 页 · {total} 条", width="content")
         with st.container(
             horizontal=True,
             vertical_alignment="center",
             width="content",
-            key=f"pager-nav-{name}-{position}",
+            key=f"pagination-nav-{name}-{position}",
         ):
             entries = [("首页", 1), ("上一页", page - 1)]
             entries.extend(
@@ -259,7 +341,7 @@ def pagination(total: int, name: str = "page", size: int = 10, *, position: str 
             horizontal=True,
             vertical_alignment="center",
             width="content",
-            key=f"pager-jump-{name}-{position}",
+            key=f"pagination-jump-{name}-{position}",
         ):
             st.caption("跳转至：", width="content")
             target = st.number_input(

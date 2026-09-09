@@ -111,6 +111,7 @@ async def get_problem_task(
         data.update(
             {
                 "kind": context["kind"],
+                "generation_mode": payload.get("generation_mode", "full"),
                 "preview": json.loads(context["preview"]),
                 "version": context["version"],
                 "stage_started_at": context["stage_started_at"],

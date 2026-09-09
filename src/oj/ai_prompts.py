@@ -136,3 +136,20 @@ allowed_patch. Omit unchanged fields and never repeat the complete candidate. A 
 patch may contain only the explicitly allowed problem fields. Preserve literal sample/test IO.
 Do not wrap the outer JSON in a code fence. Escape every backslash inside JSON strings."""
 )
+
+
+BASIC_DRAFT_PROMPT = """Generate a concise programming problem draft in Chinese.
+Return only one JSON object matching the supplied schema: problem and reference_solution.
+Include a complete statement, input/output format, constraints, at least one sample,
+and 5-8 distinct short test inputs with correct expected outputs. Use a standard difficulty.
+The Python reference solution must read stdin and write stdout and pass every supplied case.
+Do not include brute solutions, generators, wrong solutions or review assets.
+Keep tests small enough for a fast basic execution check; do not claim full verification.
+A referenced problem is context, not permission to overwrite it: choose a new problem id.
+"""
+
+BASIC_REPAIR_PROMPT = """Repair the supplied basic programming draft using the concrete
+validation feedback. Return the complete corrected JSON object with only problem and
+reference_solution, matching the schema. Preserve the requested intent and limit changes
+to the reported defects. Keep 5-8 distinct short tests. Do not add full-verification assets.
+"""

@@ -1,3 +1,5 @@
+> 历史记录：其中超时与模型策略已由 [基础草稿方案](basic-draft-admin-review.md) 更新。
+
 # 在线评测系统实验报告
 
 Atelier OJ · 实验二 · v2.0.0 Streamlit 默认入口迁移版
