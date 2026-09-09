@@ -100,6 +100,8 @@ if isinstance(responsive.mobile, bool):
 current = nav.url_path or "library"
 st.session_state.pop("active_slot", None)
 st.session_state.current_route = route(current, st.query_params.to_dict())
+if current not in DETAILS:
+    st.session_state.last_topic_route = st.session_state.current_route
 for slot in st.session_state.get("task_slots", []):
     if (
         current in DETAILS
@@ -118,6 +120,7 @@ if st.session_state.get("user"):
         api=api.base_url,
         payload=st.session_state.get("task_slots"),
         url=current,
+        scrollTo=st.session_state.get("scroll_to_results") if current == "workspace" else None,
         dirty=bool(st.session_state.get("unsaved")),
     )
     if isinstance(bridge.restored, list) and not st.session_state.get("slots_restored"):

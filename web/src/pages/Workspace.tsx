@@ -1,4 +1,3 @@
-import { PublishedAssets } from "../components/PublishedAssets";
 import { useLanguages } from "../languages";
 import { CodeImport } from "../components/CodeImport";
 import { editingDraftPath } from "../problem-actions";
@@ -499,7 +498,6 @@ function Work({ problem: p, user }: { problem: Problem; user: User }) {
       <div className="workspace">
         <section id="section-题目" className="statement-pane surface">
           <Statement problem={p} />
-          <PublishedAssets problemId={p.id} />
         </section>
         <section className="editor-pane">
           <div id="section-代码" className="code-area surface">

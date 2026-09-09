@@ -6,7 +6,7 @@ import { DiffView } from "../src/components/DiffView";
 import "./style.css";
 import { equivalentDraft } from "./draft-state";
 
-type Data = { mode: string; text?: string; code?: string; language?: string; size?: number; owner?: string; storageKey?: string; revision?: number; epoch?: number; before?: Record<string, unknown>; after?: Record<string, unknown>; api?: string; action?: string; username?: string; password?: string; nonce?: string; url?: string; dirty?: boolean; payload?: unknown; saved?: unknown; resolveBackup?: number };
+type Data = { scrollTo?: string; mode: string; text?: string; code?: string; language?: string; size?: number; owner?: string; storageKey?: string; revision?: number; epoch?: number; before?: Record<string, unknown>; after?: Record<string, unknown>; api?: string; action?: string; username?: string; password?: string; nonce?: string; url?: string; dirty?: boolean; payload?: unknown; saved?: unknown; resolveBackup?: number };
 type Bridge = { data: Data; parentElement: HTMLElement | ShadowRoot; setStateValue: (key: string, value: unknown) => void; setTriggerValue: (key: string, value: unknown) => void };
 const authPaths: Record<string,string> = { login: "/api/auth/login", register: "/api/users/", logout: "/api/auth/logout", me: "/api/auth/me" };
 let tabId = crypto.randomUUID();
@@ -113,7 +113,17 @@ function Component({ bridge }: { bridge: Bridge }) {
     try {
       const y = Number(sessionStorage.getItem(scrollKey) || 0);
       let attempts = 0;
-      if (y > 0) restoreTimer = setInterval(() => {
+      const jumpKey = `oj-submission-scroll:${d.owner}`;
+      if (d.scrollTo && sessionStorage.getItem(jumpKey) !== d.scrollTo) {
+        restoreTimer = setInterval(() => {
+          const target = document.getElementById('results');
+          if (target) {
+            target.scrollIntoView({block:'start'});
+            sessionStorage.setItem(jumpKey, d.scrollTo!);
+            clearInterval(restoreTimer);
+          } else if (++attempts >= 30) clearInterval(restoreTimer);
+        }, 100);
+      } else if (y > 0) restoreTimer = setInterval(() => {
         // The native page arrives after the browser-state handshake.
         if (surface.scrollHeight - surface.clientHeight >= y || ++attempts >= 30) {
           surface.scrollTo({top:y}); clearInterval(restoreTimer);
@@ -148,7 +158,7 @@ function Component({ bridge }: { bridge: Bridge }) {
     const interval = setInterval(() => void check(), 4000);
     const focus = () => void check(); window.addEventListener("focus", focus);
     return () => { clearInterval(interval); clearInterval(restoreTimer); window.removeEventListener("focus", focus); surface.removeEventListener("scroll", save); surface.removeEventListener("scroll", updateSection); document.removeEventListener('input', input, true); document.removeEventListener('click', navigate, true); window.removeEventListener("beforeunload", guard); };
-  }, [d.mode, d.owner, d.payload, d.url]);
+  }, [d.mode, d.owner, d.payload, d.url, d.scrollTo]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   if (d.mode === "markdown") return <RichText text={d.text} />;
   if (d.mode === "diff") return <DiffView before={d.before || {}} after={d.after || {}} />;

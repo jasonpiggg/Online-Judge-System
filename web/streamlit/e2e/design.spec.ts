@@ -198,10 +198,11 @@ test('login chrome, bottom pager and clear-all task navigation', async ({page}) 
   await expect(bottom.getByText(/第 2 \/ /)).toBeVisible();
   await bottom.getByRole('button',{name:'首页',exact:true}).click();
   await expect(page).toHaveURL(/page=1/);
-  await page.goto('/workspace?id=sum_2');
+  await page.goto('/ai');
+  await page.getByRole('button',{name:'新建空白草稿',exact:true}).click();
   await expect(page.getByRole('button',{name:'关闭当前任务',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'一键清空任务标签',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'题库',exact:true})).toBeVisible();
+  await expect(page).toHaveURL(/\/ai(?:\?|$)/);
   await page.reload();
   await expect(page.locator('.st-key-task-bar')).toHaveCount(0);
   await healthy(page);

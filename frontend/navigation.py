@@ -235,9 +235,15 @@ def task_bar() -> None:
             st.session_state.pop("active_slot", None)
             st.switch_page(st.session_state.pages[target["page"]], query_params=target["params"])
         if st.button("一键清空任务标签", key="clear-task-tabs"):
+            active = next((s for s in slots if s["key"] == active_key), None)
+            target = st.session_state.get("last_topic_route") or (
+                active["origin"] if active else route("library")
+            )
+            if target["page"] in DETAILS:
+                target = route("library")
             st.session_state.task_slots = []
             st.session_state.pop("active_slot", None)
-            go("library")
+            st.switch_page(st.session_state.pages[target["page"]], query_params=target["params"])
 
 
 def page_number(name: str = "page") -> int:
