@@ -70,6 +70,42 @@ def fake_phases(
     return calls
 
 
+async def test_reference_wa_feedback_repairs_flat_testcase_patch(
+    app: FastAPI, client: AsyncClient, problem_payload: dict[str, Any], generated: dict[str, Any]
+) -> None:
+    manager = await configured(client, app, problem_payload)
+    calls = fake_phases(manager, generated)
+    original = manager._stream_completion
+    expected = full_payload(generated)["problem"]["testcases"]
+
+    async def stream(config: Any, prompt: str, usage: Any = None) -> Any:
+        text, i, o, source = await original(config, prompt, usage)
+        value = json.loads(text)
+        if "Stage 2:" in config["system_prompt"]:
+            value["testcases"][0]["output"] = "deliberately wrong"
+        elif "allowed_patch" in json.loads(prompt):
+            feedback = json.loads(prompt)["local_feedback"]
+            assert '"actual"' in feedback and '"expected"' in feedback and '"input"' in feedback
+            value = {"patch": {"testcases": expected}, "review": "Correct expected outputs"}
+        return json.dumps(value), i, o, source
+
+    manager._stream_completion = stream
+    tid = await manager.create_request(
+        1,
+        {
+            "requirement": "Generate addition problem",
+            "action": "generate",
+            "target_section": "all",
+            "workflow_version": 2,
+            "generation_mode": "full",
+        },
+    )
+    row = await finish(manager, tid)
+    assert row["status"] == "completed", row["error"]
+    assert len(calls) == 4
+    assert json.loads(row["result"])["verification"]["quality_gate_passed"]
+
+
 async def test_web_auth_origin_and_revision(
     client: AsyncClient,
     app: FastAPI,

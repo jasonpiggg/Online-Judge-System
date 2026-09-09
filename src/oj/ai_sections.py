@@ -70,6 +70,29 @@ def _present(value: Any) -> bool:
     return value is not None
 
 
+def draft_review_schema(baseline: DraftReviewCandidate) -> dict[str, Any]:
+    """Describe the actual patch contract, not the full draft with forbidden empty assets."""
+    schema = DraftReviewCandidate.model_json_schema()
+    properties = schema["properties"]
+    data = baseline.model_dump()
+    for field in _REVIEW_ASSET_FIELDS:
+        if not _present(data[field]):
+            properties.pop(field, None)
+    problem = schema["$defs"]["DraftProblem"]
+    problem.pop("required", None)
+    for field in _REVIEW_PROTECTED_PROBLEM_FIELDS:
+        problem["properties"].pop(field, None)
+    schema.pop("required", None)
+    definitions = schema.pop("$defs")
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "$defs": definitions,
+        "required": ["patch", "review"],
+        "properties": {"patch": schema, "review": {"type": "string", "minLength": 1}},
+    }
+
+
 def merge_draft_review(
     baseline: DraftReviewCandidate, patch: dict[str, Any]
 ) -> DraftReviewCandidate:

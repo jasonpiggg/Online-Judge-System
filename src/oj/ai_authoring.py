@@ -779,7 +779,20 @@ class AIAuthoringManager:
             failures = ", ".join(
                 f"#{case.id}:{case.result}" for case in outcome.cases if case.result != "AC"
             )
-            raise AuthoringError(f"参考解未通过（先样例后测试点）：{failures}")
+            details: list[dict[str, Any]] = []
+            for case in outcome.cases:
+                if case.result == "AC" or len(details) >= 3:
+                    continue
+                test = validation_problem.testcases[case.id - 1]
+                details.append({
+                    "case": case.id, "verdict": case.result,
+                    "input": test.input[:1500], "expected": test.output[:1500],
+                    "actual": case.output[:1500], "diagnostic": case.message[:500],
+                })
+            raise AuthoringError(
+                f"参考解未通过（先样例后测试点）：{failures}\n"
+                + json.dumps(details, ensure_ascii=False)
+            )
         wrong_results = []
         for index, wrong in enumerate(generated.wrong_solutions, 1):
             await self._update(
