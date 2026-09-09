@@ -46,7 +46,7 @@ def library_page(api: ApiClient) -> None:
     if not result:
         return
     problems = result["data"]
-    levels = [level["value"] for level in DIFFICULTIES if level["value"]]
+    levels = [level["label"] for level in DIFFICULTIES]
     levels += sorted({p.get("difficulty", "") for p in problems} - set(levels) - {""})
     progress_options = ["全部状态", "未开始", "尝试中", "已通过"]
     progress_value = st.query_params.get("progress", "全部状态")
@@ -118,7 +118,7 @@ def library_page(api: ApiClient) -> None:
         p
         for p in problems
         if query.casefold() in (p["id"] + p["title"] + " ".join(p.get("tags", []))).casefold()
-        and (level == "全部难度" or p.get("difficulty") == level)
+        and (level == "全部难度" or (p.get("difficulty") or "未分级") == level)
         and (progress_filter == "全部状态" or progress_label(p) == progress_filter)
     ]
     st.caption(f"共 {len(items)} 道题目")
