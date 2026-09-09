@@ -181,3 +181,24 @@ def test_review_schema_omits_absent_assets_and_protected_fields(
     assert "id" not in schema["$defs"]["DraftProblem"]["properties"]
     with pytest.raises(ValueError, match="coverage"):
         merge_draft_review(baseline, {"coverage": {"basic": "new"}})
+
+
+async def test_early_v9_upgrade_preserves_assets_and_allows_editing(
+    app: FastAPI, client: AsyncClient, problem_payload: dict[str, Any]
+) -> None:
+    await login_admin(client)
+    original = await publish(app, client, problem_payload)
+    await app.state.db.execute("ALTER TABLE published_problem_assets DROP COLUMN deleted_at")
+    await app.state.db.execute("PRAGMA user_version=9")
+    await app.state.db.initialize()
+    await app.state.db.initialize()
+    assert (await app.state.db.fetchone("PRAGMA user_version"))[0] == 10
+    result = await client.post("/api/problems/sum_2/editing-draft")
+    assert result.status_code == 200, result.text
+    assert result.json()["data"]["reference_solution"] == original["reference_solution"]
+    assert (await client.delete("/api/problems/sum_2")).status_code == 200
+    assert (await client.post("/api/problems/", json=problem_payload)).status_code == 200
+    recreated = await client.post("/api/problems/sum_2/editing-draft")
+    assert recreated.status_code == 200, recreated.text
+    assert recreated.json()["data"]["id"] != result.json()["data"]["id"]
+    assert not recreated.json()["data"]["reference_solution"]
