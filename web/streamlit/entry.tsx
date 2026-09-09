@@ -17,13 +17,27 @@ function browserApi(api: string | undefined) {
   return target.origin;
 }
 const sameCode = (a: unknown, b: unknown) => typeof a === 'string' && typeof b === 'string' && a.replace(/\r\n/g,'\n') === b.replace(/\r\n/g,'\n');
-const dirtyControls = new Map<string, boolean>();
-let pendingFormInput = false;
-const isDirty = () => pendingFormInput || [...dirtyControls.values()].some(Boolean);
+const editScope = () => {
+  const q = new URLSearchParams(location.search);
+  return `${location.pathname}:${q.get('id') || ''}:${q.get('language') || ''}`;
+};
+type DirtyControl = { dirty: boolean; scope: string; element: HTMLElement | ShadowRoot };
+const dirtyControls = new Map<string, DirtyControl>();
+let pendingFormInput: { scope: string; element: HTMLElement } | undefined;
+const isDirty = () => {
+  if (!['/draft', '/workspace'].includes(location.pathname)) return false;
+  const scope = editScope();
+  return Boolean(pendingFormInput?.scope === scope && pendingFormInput.element.isConnected) ||
+    [...dirtyControls.values()].some(v => v.scope === scope && v.element.isConnected && v.dirty);
+};
 const scrollSurface = () => document.querySelector<HTMLElement>('[data-testid="stMain"]') || document.scrollingElement as HTMLElement;
 function Component({ bridge }: { bridge: Bridge }) {
   const d = bridge.data;
   const storageKey = d.storageKey ? `${d.storageKey}:${tabId}` : undefined;
+  const scope = editScope();
+  const markDirty = (dirty: boolean) => {
+    if (storageKey) dirtyControls.set(storageKey, {dirty, scope, element: bridge.parentElement});
+  };
   const callbacks = useRef(bridge); callbacks.current = bridge;
   const [code, setCode] = useState(d.code || "");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -49,8 +63,11 @@ function Component({ bridge }: { bridge: Bridge }) {
   }, [storageKey, d.mode]);
   useEffect(() => {
     if (!storageKey) return;
-    if (d.mode === 'editor') dirtyControls.set(storageKey, !sameCode(code, d.saved));
-    if (d.mode === 'backup') { dirtyControls.set(storageKey, !equivalentDraft(d.payload, d.saved)); pendingFormInput = false; }
+    if (d.mode === 'editor') dirtyControls.set(storageKey, {dirty: !sameCode(code, d.saved), scope, element: bridge.parentElement});
+    if (d.mode === 'backup') {
+      dirtyControls.set(storageKey, {dirty: !equivalentDraft(d.payload, d.saved), scope, element: bridge.parentElement});
+      if (pendingFormInput?.scope === scope) pendingFormInput = undefined;
+    }
     try {
       if (resolution.current !== d.resolveBackup) {
         resolution.current = d.resolveBackup; backupPending.current = false;
@@ -65,7 +82,7 @@ function Component({ bridge }: { bridge: Bridge }) {
         else { const raw = JSON.stringify({payload:d.payload,revision:d.revision}); sessionStorage.setItem(storageKey,raw); localStorage.setItem(storageKey,raw); }
       }
     } catch { /* Never discard server data because storage is unavailable. */ }
-  }, [d.saved, d.payload, d.mode, d.revision, d.resolveBackup, storageKey, code]);
+  }, [d.saved, d.payload, d.mode, d.revision, d.resolveBackup, storageKey, code, scope, bridge.parentElement]);
   useEffect(() => () => { if (storageKey) dirtyControls.delete(storageKey); }, [storageKey]);
   useEffect(() => {
     if (d.mode !== "auth" || !d.nonce || seen.current === d.nonce) return;
@@ -134,7 +151,10 @@ function Component({ bridge }: { bridge: Bridge }) {
     const save = () => { try { sessionStorage.setItem(scrollKey, String(surface.scrollTop)); } catch { /* Optional. */ } };
     const guard = (event: BeforeUnloadEvent) => { save(); if (isDirty()) { event.preventDefault(); event.returnValue = ""; } };
     const input = (event: Event) => {
-      if (location.pathname === '/draft' && event.target instanceof HTMLElement && event.target.closest('[data-testid="stMain"]')) pendingFormInput = true;
+      if (location.pathname === '/draft' && event.target instanceof HTMLElement &&
+        event.target.closest('.st-key-draft-requirement-module, .st-key-draft-content-module, .st-key-draft-reference-module')) {
+        pendingFormInput = {scope: editScope(), element: event.target};
+      }
     };
     const navigate = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target.closest('a,button') : null;
@@ -164,7 +184,7 @@ function Component({ bridge }: { bridge: Bridge }) {
   if (d.mode === "diff") return <DiffView before={d.before || {}} after={d.after || {}} />;
   if (d.mode === "editor") return <CodeEditor value={code} language={d.language} size={d.size} onChange={(value) => {
     setCode(value);
-    if (storageKey) dirtyControls.set(storageKey, !sameCode(value,d.saved));
+    markDirty(!sameCode(value,d.saved));
     if (storageKey) { try { const raw = JSON.stringify({code:value,revision:d.revision}); sessionStorage.setItem(storageKey,raw); localStorage.setItem(storageKey,raw); } catch { /* Python receives edits even without browser storage. */ } }
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => callbacks.current.setStateValue("edit", { code:value,revision:d.revision,epoch:d.epoch }), 400);

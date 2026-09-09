@@ -140,6 +140,11 @@ def verdict_label(data: dict[str, Any]) -> tuple[str, str]:
     if status == "error":
         return "评测异常", "fail"
     verdict = (data.get("evaluation") or {}).get("verdict")
+    score, total = data.get("score"), data.get("counts")
+    if total and score == total:
+        return "全部通过", "pass"
+    if total and score is not None and 0 < score < total:
+        return "部分通过", "fail"
     labels = {
         "CE": "编译失败",
         "WA": "答案错误",
@@ -154,9 +159,6 @@ def verdict_label(data: dict[str, Any]) -> tuple[str, str]:
     }
     if verdict in labels:
         return labels[verdict], "wait" if verdict in {"empty", "unknown"} else "fail"
-    score, total = data.get("score"), data.get("counts")
-    if total and score == total:
-        return "全部通过", "pass"
     if total == 0:
         return "没有测试点", "wait"
     if score is None or total is None:

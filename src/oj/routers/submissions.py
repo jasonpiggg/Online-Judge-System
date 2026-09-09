@@ -133,8 +133,12 @@ async def list_submissions(
             "(status='error' OR (status='success' AND "
             "(score IS NULL OR counts IS NULL OR counts=0 OR score<counts)))"
         )
+    if verdict == "AC":
+        clauses.append("status='success' AND counts>0 AND score=counts")
+    elif verdict == "partial":
+        clauses.append("status='success' AND counts>0 AND score>0 AND score<counts")
     where = " AND ".join(clauses) or "1=1"
-    if verdict is not None:
+    if verdict is not None and verdict not in {"AC", "partial"}:
         # Classify only authorized, visible results before counting or paginating.
         # Bounded batches avoid loading source code for the entire submission history.
         matches: list[dict[str, Any]] = []

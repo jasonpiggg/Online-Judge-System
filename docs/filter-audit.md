@@ -8,4 +8,8 @@
 - Test-case result options are collected from all authorized cases before case pagination. No hidden case details are used to populate options.
 - Presentation: browser icons share a blue code-symbol SVG. User-facing timestamps use Beijing time to minute precision, including profile, audit tables, authoring versions and the alternate Web entry. Raw logs, code and downloads are unchanged.
 
-Validation includes backend verdict/permission/pagination regression tests, desktop/mobile tag selection, counts, refresh, task return, combined search and clearing; favicon and profile timestamp browser checks; frontend builds/lint, Ruff and mypy.
+Full-pass and partial-pass filters use authorized scores for both roles (success with score=counts>0, or 0<score<counts). Detailed failure filters continue to use visible case metadata; private case results are not inferred. Score filters use SQL pagination and counting.
+
+Workflow follow-up: generation and per-draft AI instruction inputs clear only after task acceptance; original draft requirements remain saved. Failed requests retain input and the idempotency key. Navigation guards consider only connected controls in the current editable page/object; read-only submission pages and list/search controls cannot inherit another page's dirty state.
+
+Validation includes backend verdict/permission/pagination regression tests, desktop/mobile tag selection, counts, refresh, task return, combined search and clearing; favicon and profile timestamp browser checks; frontend builds/lint, Ruff and mypy. Role-parity browser regressions cover passed filtering, clean submission navigation, real dirty-draft confirmation, save clearing and account switching; mock generation checks preserve the original requirement while clearing send inputs.

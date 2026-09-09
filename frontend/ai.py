@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import uuid
 from typing import Any
 
 import streamlit as st
@@ -380,6 +382,8 @@ def task_panel(api: ApiClient, task_id: str) -> None:
 
 
 def ai_page(api: ApiClient) -> None:
+    if st.session_state.pop("legacy-generation-clear", False):
+        st.session_state["legacy-generation"] = ""
     heading("命题中心", note="草稿、AI 修改任务、验证证据与费用集中管理")
     result = call(lambda: api.get("/api/ai/model-config"))
     if not result:
@@ -412,6 +416,7 @@ def ai_page(api: ApiClient) -> None:
         with st.form("ai-requirement"):
             requirement = st.text_area(
                 "命题需求",
+                key="legacy-generation",
                 placeholder="说明知识点、难度、数据范围与期望覆盖的边界场景……",
                 height=140,
             )
@@ -421,14 +426,24 @@ def ai_page(api: ApiClient) -> None:
                 format_func=lambda v: "不参考" if v is None else f"{v} · {choices[v]}",
             )
             if st.form_submit_button("生成并验证", type="primary", disabled=not configured):
+                body = {"requirement": requirement, "problem_id": reference}
+                signature = json.dumps(body, sort_keys=True, ensure_ascii=False)
+                pending = st.session_state.get("legacy-generation-request")
+                if not pending or pending["signature"] != signature:
+                    pending = {"signature": signature, "key": uuid.uuid4().hex}
+                    st.session_state["legacy-generation-request"] = pending
                 created = call(
                     lambda: api.post(
                         "/api/ai/problem-tasks/",
-                        json={"requirement": requirement, "problem_id": reference},
+                        json=body,
+                        headers={"Idempotency-Key": pending["key"]},
                     )
                 )
                 if created:
                     st.session_state.ai_task_id = created["data"]["task_id"]
+                    st.session_state["legacy-generation-clear"] = True
+                    st.session_state.pop("legacy-generation-request", None)
+                    st.rerun()
         if task_id := st.session_state.get("ai_task_id"):
             task_panel(api, task_id)
     with history:

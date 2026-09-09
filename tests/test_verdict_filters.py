@@ -70,6 +70,6 @@ async def test_verdict_filter_matches_visible_classification(
         },
     )
     assert response.status_code == 200, response.text
-    assert response.json()["data"]["total"] == 0
+    assert response.json()["data"]["total"] == (2 if verdict in {"AC", "partial"} else 0)
     private = await client.get("/api/submissions/", params={"user_id": uid, "verdict": "private"})
     assert private.json()["data"]["total"] == 2
