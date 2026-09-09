@@ -82,3 +82,10 @@
 .stApp .st-key-brand-bar{background-image:radial-gradient(var(--oj-border) .7px,transparent .7px);background-size:8px 8px}
 .stApp .st-key-brand-bar .oj-brand{background:#fff;padding-right:12px}
 @media(max-width:760px){.stApp .st-key-admin-content-panel{padding:12px}.stApp .oj-header{padding-left:10px}}
+
+/* Match the shared difficulty palette; unrated keeps the neutral status style. */
+.oj-status.difficulty-intro{color:#24643c;background:#edf8ef}
+.oj-status.difficulty-easy{color:#126775;background:#edf9fb}
+.oj-status.difficulty-medium{color:#946014;background:#fff8e9}
+.oj-status.difficulty-hard{color:#ae3942;background:#fff0f1}
+.oj-status.difficulty-expert{color:#7942a8;background:#f7f0ff}

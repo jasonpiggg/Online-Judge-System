@@ -9,7 +9,7 @@ from frontend.client import ApiClient
 from frontend.navigation import bounded_page, go, pagination
 from frontend.ui import call, heading, navigate, pills
 from frontend.workspace import statement as statement
-from oj.difficulty import DIFFICULTIES
+from oj.difficulty import DIFFICULTIES, normalize_difficulty
 
 BREAKPOINT_JS = """export default function(c) {
       const media = window.matchMedia('(max-width: 760px)');
@@ -148,9 +148,10 @@ def library_page(api: ApiClient) -> None:
                     )
                     pills(item.get("tags", []))
                 with difficulty_col:
-                    st.caption("难度")
                     difficulty = escape(item.get("difficulty") or "未分级")
-                    st.html(f'<span class="oj-status">{difficulty}</span>')
+                    value = normalize_difficulty(item.get("difficulty") or "")
+                    tone = next(level["tone"] for level in DIFFICULTIES if level["value"] == value)
+                    st.html(f'<span class="oj-status difficulty-{tone}">{difficulty}</span>')
                 progress = item.get("progress", {})
                 with progress_col:
                     label = progress_label(item)
