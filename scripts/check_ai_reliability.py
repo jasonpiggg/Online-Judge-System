@@ -10,8 +10,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from oj.ai_authoring import AuthoringError
-from oj.ai_prompts import DISPLAY_RULES
+from oj.ai.authoring import AuthoringError
+from oj.ai.prompts import DISPLAY_RULES
 from oj.config import Settings
 from oj.difficulty import DIFFICULTY_RULES
 from oj.main import create_app

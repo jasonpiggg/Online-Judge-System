@@ -1,3 +1,5 @@
+"""Course problem CRUD plus versioned editing-draft extensions."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request

@@ -1,3 +1,5 @@
+"""Submission task lifecycle, persistence, recovery, and response projections."""
+
 from __future__ import annotations
 
 import asyncio
@@ -15,6 +17,8 @@ def now_iso() -> str:
 
 
 class SubmissionManager:
+    """Own all in-process judge tasks and persist their terminal state atomically."""
+
     def __init__(self, db: Database, problems: ProblemStore) -> None:
         self.db = db
         self.problems = problems
@@ -33,6 +37,8 @@ class SubmissionManager:
         return submission_id
 
     def schedule(self, submission_id: int) -> None:
+        """Schedule exactly one live task per persisted submission identifier."""
+
         previous = self.tasks.get(submission_id)
         if previous and not previous.done():
             previous.cancel()

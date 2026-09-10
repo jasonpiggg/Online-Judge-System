@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from oj.ai_authoring import (
+from oj.ai.authoring import (
     AIAuthoringManager,
     AuthoringError,
     UsageCallback,
@@ -22,9 +22,9 @@ from oj.ai_authoring import (
     calculate_cost,
     utcnow,
 )
-from oj.ai_policy import balanced_phase_config, select_phase_config
-from oj.ai_presentation import check_presentation, presentation_issues
-from oj.ai_prompts import (
+from oj.ai.policy import balanced_phase_config, select_phase_config
+from oj.ai.presentation import check_presentation, presentation_issues
+from oj.ai.prompts import (
     ASSETS_PROMPT,
     ASSISTANT_PROMPT,
     BASIC_DRAFT_PROMPT,
@@ -37,7 +37,7 @@ from oj.ai_prompts import (
     STATEMENT_PROMPT,
     TARGETED_REPAIR_PROMPT,
 )
-from oj.ai_sections import (
+from oj.ai.sections import (
     SECTION_FIELDS,
     DraftReviewCandidate,
     draft_review_schema,

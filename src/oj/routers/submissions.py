@@ -1,3 +1,5 @@
+"""Submission intake, scoped list/detail queries, and administrator rejudging."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -103,7 +105,8 @@ async def list_submissions(
     user: CurrentUser = Depends(submission_reader),
 ) -> JSONResponse:
     if verdict is not None and verdict not in VERDICT_LABELS:
-        raise APIError(422, "invalid verdict")
+        # Course API contract normalizes every parameter-validation failure to 400.
+        raise APIError(400, "invalid verdict")
     if all_users and user.role != "admin":
         raise APIError(403, "permission denied")
     if user_id is None and problem_id is None and not all_users:

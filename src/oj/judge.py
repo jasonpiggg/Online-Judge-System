@@ -1,3 +1,9 @@
+"""Bounded asynchronous compiler and runner used by submissions and AI verification.
+
+This is a course-grade local runner. Process groups, resource limits, and bounded pipes
+prevent common accidents, but they are not a production security sandbox.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -102,6 +108,8 @@ async def _kill_process(proc: asyncio.subprocess.Process) -> None:
 async def _communicate_bounded(
     proc: asyncio.subprocess.Process, input_data: bytes = b""
 ) -> tuple[bytes, bytes, bool]:
+    """Drain all pipes concurrently while capping retained output and child lifetime."""
+
     exceeded = False
 
     async def read(stream: asyncio.StreamReader | None) -> bytes:
@@ -252,6 +260,8 @@ async def _run_case(
 
 
 async def judge_code(problem: Problem, language: Language, code: str) -> JudgeOutcome:
+    """Compile once, run isolated test cases sequentially, and aggregate point scores."""
+
     with tempfile.TemporaryDirectory(prefix="atelier-oj-") as temp:
         directory = Path(temp)
         source = directory / f"main{language.file_ext}"

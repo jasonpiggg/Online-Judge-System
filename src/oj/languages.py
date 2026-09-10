@@ -1,3 +1,5 @@
+"""Persisted language registry with shell-free, allowlisted command templates."""
+
 from __future__ import annotations
 
 import shlex
@@ -43,6 +45,8 @@ def command_argv(template: str, *, src: str, exe: str) -> list[str]:
 
 
 def validate_language(language: Language) -> None:
+    """Validate placeholders before an administrator-visible command is persisted."""
+
     source = "/workspace/main" + language.file_ext
     executable = "/workspace/program"
     try:

@@ -1,3 +1,5 @@
+"""FastAPI application composition and lifecycle ownership."""
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -5,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from oj.ai_experience import AIExperience
+from oj.ai.experience import AIExperience
 from oj.config import Settings
 from oj.database import Database
 from oj.errors import install_error_handlers
@@ -26,6 +28,8 @@ from oj.web import install_web
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
+    """Build an isolated app instance so tests never share database or task state."""
+
     app_settings = settings or Settings()
     db = Database(app_settings.database_path)
     problems = ProblemStore(app_settings.problem_dir, app_settings.seed_problem_dir)

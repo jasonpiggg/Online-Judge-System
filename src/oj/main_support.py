@@ -1,3 +1,5 @@
+"""Idempotent bootstrap operations shared by startup and the test reset endpoint."""
+
 from __future__ import annotations
 
 from datetime import datetime

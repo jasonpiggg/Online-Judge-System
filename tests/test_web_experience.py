@@ -11,8 +11,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 
-from oj.ai_authoring import AuthoringError
-from oj.ai_experience import complete_fields, merge_patch
+from oj.ai.authoring import AuthoringError
+from oj.ai.experience import complete_fields, merge_patch
 from oj.schemas import Problem
 from oj.web import install_web
 from tests.conftest import login_admin

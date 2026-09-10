@@ -3,7 +3,7 @@
 > 程序设计训练（Python）实验二 · Online Judge System
 
 Atelier OJ 是一个功能完整的小型在线评测系统：FastAPI 提供全异步 REST API，
-React + TypeScript 提供默认浏览器工作台，Streamlit 保留为兼容入口，Linux runner 执行 Python 与 C++14，并包含用户权限、
+Streamlit 提供课程默认浏览器工作台，React + TypeScript 保留为可选增强入口，Linux runner 执行 Python 与 C++14，并包含用户权限、
 访问审计及可中断的 AI 智能命题。实现对应课程 Step 1–6 与 Advance R1–R4。
 
 ## 功能矩阵
@@ -37,11 +37,16 @@ React UI / Streamlit ── HttpOnly Session Cookie ── FastAPI
 ```
 
 - `src/oj/routers/`：课程 API 路由、依赖鉴权与统一错误处理。
-- `src/oj/*.py`：认证、数据库、题目存储、评测、提交和 AI 工作流。
+- `src/oj/*.py`：认证、数据库、题目存储、评测和提交等 OJ 核心。
+- `src/oj/ai/`：模型调用、策略、提示词、局部编辑、流式传输与持久化 AI 工作流。
 - `web/`：默认 React 前端；构建到 `web/dist/`，由 FastAPI 同源提供。
 - `frontend/`：保留的 Streamlit 兼容客户端。
 - `data/problem_seeds/`：版本化的初始题目；运行数据保存在已忽略的 `var/`。
 - `tests/`：模型、API、权限矩阵、runner、AI mock 与界面 smoke tests。
+
+完整目录边界、依赖方向、异步任务所有权和数据安全边界见
+[架构说明](docs/architecture.md)；课程每个评分细节与代码/测试证据见
+[逐项验收矩阵](docs/requirements-audit.md)。
 
 ## 快速开始
 
@@ -260,15 +265,16 @@ uv run pip-audit --local --skip-editable
 ```
 
 GitHub Actions 在 Ubuntu、Python 3.12 和系统 `g++` 下执行上述检查，并额外覆盖
-Python/C++ 的完整 verdict 矩阵、异步状态、权限与 AI 流式 mock。当前基线为
-98 个测试通过，后端行覆盖率 97.67%、分支覆盖率 93.07%；门槛分别为 90% 和 85%。
+Python/C++ 的完整 verdict 矩阵、异步状态、权限与 AI 流式 mock。2026-09-10 本地基线为
+357 个测试通过、10 个 Linux-only 测试按环境跳过；后端行、分支覆盖率均超过
+90% / 85% 门槛，最终数字以对应提交的 Ubuntu CI 为准。
 
 ## API 与报告
 
 - [API 参考](docs/API.md)
 - [实验报告（Markdown）](docs/experiment-report.md)
 - [实验报告（PDF）](output/pdf/atelier-oj-experiment-report.pdf)
-- [评分点核对表](docs/scoring-checklist.md)
+- [课程要求逐项验收矩阵](docs/requirements-audit.md)
 - [v1.1 测试记录](docs/test-record.md)
 - [OpenAPI 交互文档](http://127.0.0.1:8000/docs)
 

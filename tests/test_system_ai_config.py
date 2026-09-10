@@ -11,7 +11,7 @@ from pydantic import SecretStr
 from streamlit.testing.v1 import AppTest
 
 from frontend.client import ApiClient
-from oj.ai_authoring import AIAuthoringManager
+from oj.ai.authoring import AIAuthoringManager
 from oj.config import Settings
 from oj.main import create_app
 from oj.schemas import AIModelConfig

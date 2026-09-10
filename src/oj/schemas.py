@@ -1,3 +1,5 @@
+"""Strict request and persisted-content schemas at the system trust boundary."""
+
 from __future__ import annotations
 
 from typing import Annotated, Any, Literal

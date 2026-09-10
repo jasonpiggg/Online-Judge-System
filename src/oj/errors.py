@@ -1,3 +1,5 @@
+"""Course-compatible JSON envelopes and centralized FastAPI exception mapping."""
+
 from __future__ import annotations
 
 from typing import Any

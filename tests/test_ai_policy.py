@@ -13,8 +13,8 @@ from streamlit.testing.v1 import AppTest
 
 from frontend.ai import money
 from frontend.client import ApiClient
-from oj.ai_authoring import calculate_cost
-from oj.ai_policy import environment_policy, select_phase_config
+from oj.ai.authoring import calculate_cost
+from oj.ai.policy import environment_policy, select_phase_config
 from oj.config import Settings
 from oj.database import Database
 from oj.judge import CaseResult, JudgeOutcome
@@ -319,7 +319,7 @@ async def test_generator_has_separate_bounded_budget(
             cases = [CaseResult(i, "AC", 0, 0, output="0") for i in range(20)]
         return JudgeOutcome(cases, len(cases), len(cases), None, {}, "")
 
-    monkeypatch.setattr("oj.ai_authoring.judge_code", judge)
+    monkeypatch.setattr("oj.ai.authoring.judge_code", judge)
     result = await app.state.ai_authoring._verify_differential(problem, None, "test")
     assert result["status"] == "passed"
     assert len(calls) == 3

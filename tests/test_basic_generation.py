@@ -196,7 +196,7 @@ async def test_balanced_generation_retains_full_validation_with_bounded_outputs(
 
 
 def test_balanced_routing_preserves_personal_config_and_matching_quality_prices() -> None:
-    from oj.ai_policy import balanced_phase_config, select_phase_config
+    from oj.ai.policy import balanced_phase_config, select_phase_config
 
     base = {
         "config_source": "system",
@@ -270,7 +270,7 @@ async def test_balanced_truncation_stops_without_paid_repair(
 
 
 def test_complete_json_survives_explanatory_wrapper_without_inventing_missing_content() -> None:
-    from oj.ai_authoring import _extract_json
+    from oj.ai.authoring import _extract_json
 
     assert _extract_json('说明：\n```json\n{"patch":{},"review":"ok"}\n```\n以上为成果。') == {
         "patch": {},
@@ -283,13 +283,13 @@ def test_complete_json_survives_explanatory_wrapper_without_inventing_missing_co
 
 
 def test_flat_review_patch_preserves_fields_for_scope_validation() -> None:
-    from oj.ai_experience import review_patch
+    from oj.ai.experience import review_patch
 
     assert review_patch({"reference_solution": "print(1)", "review": "fix"}) == {
         "patch": {"reference_solution": "print(1)"},
         "review": "fix",
     }
-    from oj.ai_authoring import AuthoringError
+    from oj.ai.authoring import AuthoringError
 
     with pytest.raises(AuthoringError):
         review_patch({"patch": None, "review": "fix"})
