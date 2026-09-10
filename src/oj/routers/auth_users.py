@@ -1,3 +1,5 @@
+"""Registration, Session login, profile, role, and password-management routes."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

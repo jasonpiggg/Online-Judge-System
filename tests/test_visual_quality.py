@@ -7,7 +7,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 
-from oj.ai_presentation import check_presentation, presentation_issues
+from oj.ai.presentation import check_presentation, presentation_issues
 from oj.evaluation import evaluation_batch, evaluation_summary
 from oj.schemas import AIModelConfig
 from tests.test_ai_http import finish

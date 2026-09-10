@@ -152,7 +152,8 @@ test("record states, empty results and errors stay readable at 320px", async ({
   });
   await page.goto("/submissions");
   for (const text of ["全部通过", "答案错误", "编译失败", "正在评测"]) {
-    await expect(page.getByText(text, { exact: true })).toBeVisible();
+    // Scope the assertion to result links; filter <option> labels intentionally repeat.
+    await expect(page.getByRole("link", { name: text, exact: true })).toBeVisible();
   }
   expect(
     await page.evaluate(

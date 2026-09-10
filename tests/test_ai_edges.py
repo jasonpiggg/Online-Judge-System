@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI
 from pydantic import ValidationError
 
-from oj.ai_authoring import _is_private_host, validate_provider_url
+from oj.ai.authoring import _is_private_host, validate_provider_url
 from oj.schemas import GeneratedProblem, Problem
 from tests.test_ai_http import configure, finish, generated  # noqa: F401 - shared fixture
 
@@ -19,19 +19,19 @@ async def test_provider_validation_errors(monkeypatch: Any) -> None:
         with pytest.raises(ValueError):
             await validate_provider_url(url, True)
     monkeypatch.setattr(
-        "oj.ai_authoring.socket.getaddrinfo", lambda *_: [(2, 1, 6, "", ("127.0.0.1", 0))]
+        "oj.ai.authoring.socket.getaddrinfo", lambda *_: [(2, 1, 6, "", ("127.0.0.1", 0))]
     )
     with pytest.raises(ValueError, match="private"):
         await validate_provider_url("https://a.example", False)
     monkeypatch.setattr(
-        "oj.ai_authoring.socket.getaddrinfo", lambda *_: [(2, 1, 6, "", ("93.184.216.34", 0))]
+        "oj.ai.authoring.socket.getaddrinfo", lambda *_: [(2, 1, 6, "", ("93.184.216.34", 0))]
     )
     assert await validate_provider_url("https://a.example/", False) == "https://a.example"
 
     def failed(*_: Any) -> Any:
         raise socket.gaierror()
 
-    monkeypatch.setattr("oj.ai_authoring.socket.getaddrinfo", failed)
+    monkeypatch.setattr("oj.ai.authoring.socket.getaddrinfo", failed)
     assert _is_private_host("no.example")
 
 

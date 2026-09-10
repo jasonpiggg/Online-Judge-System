@@ -3,7 +3,7 @@ from typing import Any
 import httpx
 import pytest
 
-from oj.ai_transport import PinnedTransport, bounded_sse_lines, public_address
+from oj.ai.transport import PinnedTransport, bounded_sse_lines, public_address
 
 
 @pytest.mark.parametrize(
@@ -33,7 +33,7 @@ async def test_transport_pins_address_and_tls_identity(monkeypatch: Any) -> None
         assert request.extensions["sni_hostname"] == "provider.example"
         return httpx.Response(200)
 
-    monkeypatch.setattr("oj.ai_transport.socket.getaddrinfo", dns)
+    monkeypatch.setattr("oj.ai.transport.socket.getaddrinfo", dns)
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", send)
     async with PinnedTransport() as transport:
         await transport.handle_async_request(httpx.Request("GET", "https://provider.example/v1"))
@@ -41,7 +41,7 @@ async def test_transport_pins_address_and_tls_identity(monkeypatch: Any) -> None
 
 async def test_transport_blocks_rebinding_and_http(monkeypatch: Any) -> None:
     monkeypatch.setattr(
-        "oj.ai_transport.socket.getaddrinfo", lambda *_: [(2, 1, 6, "", ("127.0.0.1", 443))]
+        "oj.ai.transport.socket.getaddrinfo", lambda *_: [(2, 1, 6, "", ("127.0.0.1", 443))]
     )
     async with PinnedTransport() as transport:
         with pytest.raises(ValueError, match="non-public"):

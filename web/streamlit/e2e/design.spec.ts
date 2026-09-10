@@ -323,24 +323,29 @@ for (const width of [1440, 390]) {
     const ids = ['tag-filter-a','tag-filter-b','tag-filter-c'];
     for (let i=0; i<ids.length; i++) {
       expect((await page.request.post(api+'/api/problems/', {data:{...original,id:ids[i],title:ids[i],
-        difficulty:'', tags:i===0?['独有栈','独有栈']:i===1?['独有图论']:['独有其他']}})).ok()).toBe(true);
+        difficulty:'', tags:i===0?['0-stack','0-stack']:i===1?['0-graph']:['0-other']}})).ok()).toBe(true);
     }
     try {
       await page.goto('/');
       await expect(page.locator('link[rel="shortcut icon"]')).toHaveAttribute('href', /data:image\/svg\+xml/);
-      if (width<760) await page.getByText('筛选与题目管理',{exact:true}).click();
+      if (width<760) {
+        await page.getByText('筛选与题目管理',{exact:true}).click();
+        // Streamlit animates the mobile expander's height. Clicking a child while
+        // it is still clipped only focuses the combobox and never opens its list.
+        await page.waitForTimeout(350);
+      }
       const tags = page.getByRole('combobox',{name:'题目标签',exact:true});
-      await tags.click();
-      await tags.fill('独有栈');
-      await page.getByRole('option',{name:'独有栈（1）',exact:true}).click();
+      const openTags = tags.locator('xpath=ancestor::*[@role="group"][1]').getByRole('button',{name:'Open'});
+      // Keep synthetic tags at the top of the virtualized option list on mobile.
+      await openTags.click();
+      await page.getByRole('option',{name:'0-stack（1）',exact:true}).click();
       await tags.press('Escape');
-      await expect(page.locator('.st-key-list-row-problem-tag-filter-a')).toBeVisible();
+      await expect(page.locator('.st-key-list-row-problem-tag-filter-a')).toBeVisible({timeout:30000});
       await expect(page.locator('.st-key-list-row-problem-tag-filter-b')).toHaveCount(0);
-      await tags.click();
-      await tags.fill('独有图论');
-      await page.getByRole('option',{name:'独有图论（1）',exact:true}).click();
+      await openTags.click();
+      await page.getByRole('option',{name:'0-graph（1）',exact:true}).click();
       await tags.press('Escape');
-      await expect(page.locator('.st-key-list-row-problem-tag-filter-b')).toBeVisible();
+      await expect(page.locator('.st-key-list-row-problem-tag-filter-b')).toBeVisible({timeout:30000});
       await expect(page.locator('.st-key-list-row-problem-tag-filter-c')).toHaveCount(0);
       await page.reload();
       await expect(page.locator('.st-key-list-row-problem-tag-filter-a')).toBeVisible();

@@ -1,3 +1,5 @@
+"""Atomic JSON problem repository with validation at every read and write boundary."""
+
 from __future__ import annotations
 
 import asyncio
@@ -12,6 +14,8 @@ from oj.schemas import Problem
 
 
 class ProblemStore:
+    """Keep one validated problem per file without blocking the event loop."""
+
     def __init__(self, directory: Path, seed_directory: Path) -> None:
         self.directory = directory
         self.seed_directory = seed_directory

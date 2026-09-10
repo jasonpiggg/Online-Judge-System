@@ -1,3 +1,5 @@
+"""Visibility-aware testcase logs and administrator access-audit queries."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -11,6 +13,7 @@ from oj.pagination import page_window
 from oj.route_security import AuthorizedRoute
 
 router = APIRouter(route_class=AuthorizedRoute, prefix="/api")
+
 
 @router.get("/logs/roles/")
 async def role_logs(

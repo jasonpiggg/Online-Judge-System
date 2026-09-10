@@ -6,7 +6,7 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from oj.ai_authoring import AIAuthoringManager
+from oj.ai.authoring import AIAuthoringManager
 from oj.config import Settings
 from oj.database import Database
 from oj.problem_store import ProblemStore

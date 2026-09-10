@@ -1,3 +1,5 @@
+"""Async SQLite schema, migrations, and short-lived connection helpers."""
+
 from __future__ import annotations
 
 import asyncio

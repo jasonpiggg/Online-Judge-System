@@ -1,3 +1,5 @@
+"""CPU-bound password primitives exposed as non-blocking async helpers."""
+
 from __future__ import annotations
 
 import asyncio

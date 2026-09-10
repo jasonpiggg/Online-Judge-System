@@ -7,7 +7,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 
-from oj.ai_authoring import AuthoringError
+from oj.ai.authoring import AuthoringError
 from tests.conftest import login_admin
 
 

@@ -1,3 +1,5 @@
+"""Database-backed Session authentication shared by protected API routes."""
+
 from __future__ import annotations
 
 import secrets
@@ -32,6 +34,8 @@ async def create_session(db: Database, user_id: int, ttl_seconds: int) -> str:
 
 
 async def get_current_user(request: Request) -> CurrentUser:
+    """Resolve every request from server state so bans invalidate live sessions."""
+
     settings = request.app.state.settings
     session_id = request.cookies.get(settings.session_cookie)
     if not session_id:

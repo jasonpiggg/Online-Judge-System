@@ -1,12 +1,42 @@
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 import pytest
+from fastapi.routing import APIRoute
 from httpx import AsyncClient
 
 from scripts.reset_password import reset_password
 from tests.conftest import login_admin
+
+
+def test_every_course_api_endpoint_is_async(app: Any) -> None:
+    """A synchronous course route would invalidate the entire functional score."""
+
+    # FastAPI 0.116+ keeps included routers deferred, so inspect both direct routes
+    # and the source routers rather than depending on one framework representation.
+    routes = []
+    for route in app.routes:
+        included = getattr(route, "original_router", None)
+        routes.extend(included.routes if included is not None else [route])
+    course_routes = [
+        route
+        for route in routes
+        if isinstance(route, APIRoute) and route.path.startswith("/api/")
+    ]
+    assert course_routes
+    assert all(inspect.iscoroutinefunction(route.endpoint) for route in course_routes)
+
+
+async def test_extension_parameter_errors_follow_course_http_400_contract(
+    client: AsyncClient,
+) -> None:
+    await login_admin(client)
+    result = await client.get(
+        "/api/submissions/", params={"user_id": 1, "verdict": "not-a-verdict"}
+    )
+    assert result.status_code == result.json()["code"] == 400
 
 
 async def test_authentication_precedes_malformed_json(client: AsyncClient, app: Any) -> None:

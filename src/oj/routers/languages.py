@@ -1,3 +1,5 @@
+"""Authenticated language discovery and safe dynamic registration routes."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request

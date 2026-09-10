@@ -9,8 +9,8 @@ from pydantic import ValidationError
 from streamlit.testing.v1 import AppTest
 
 from frontend.client import ApiClient
-from oj.ai_authoring import AIAuthoringManager
-from oj.ai_sections import DraftReviewCandidate, merge_draft_review, merge_section
+from oj.ai.authoring import AIAuthoringManager
+from oj.ai.sections import DraftReviewCandidate, merge_draft_review, merge_section
 from oj.config import Settings
 from oj.schemas import GeneratedProblem, Problem
 from tests.test_ai_http import configure, finish, provider

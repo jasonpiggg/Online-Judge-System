@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from oj.ai_authoring import utcnow
+from oj.ai.authoring import utcnow
 from oj.auth import CurrentUser, get_current_user
 from oj.errors import APIError, response
 from oj.route_security import AuthorizedRoute

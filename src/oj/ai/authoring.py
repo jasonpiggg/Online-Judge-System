@@ -1,3 +1,5 @@
+"""Provider configuration, streamed generation, cancellation, usage, and quality gates."""
+
 from __future__ import annotations
 
 import ast
@@ -21,11 +23,11 @@ import httpx
 from cryptography.fernet import Fernet, InvalidToken
 from pydantic import ValidationError
 
-from oj.ai_policy import environment_policy, public_pricing, select_phase_config
-from oj.ai_presentation import check_presentation
-from oj.ai_prompts import DISPLAY_RULES
-from oj.ai_sections import SECTION_FIELDS, merge_section, section_prompt
-from oj.ai_transport import PinnedTransport, bounded_sse_lines
+from oj.ai.policy import environment_policy, public_pricing, select_phase_config
+from oj.ai.presentation import check_presentation
+from oj.ai.prompts import DISPLAY_RULES
+from oj.ai.sections import SECTION_FIELDS, merge_section, section_prompt
+from oj.ai.transport import PinnedTransport, bounded_sse_lines
 from oj.config import Settings
 from oj.database import Database
 from oj.difficulty import DIFFICULTY_RULES

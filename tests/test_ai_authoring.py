@@ -9,9 +9,9 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 
-import oj.ai_authoring as ai_module
-from oj.ai_authoring import calculate_cost, validate_provider_url
-from oj.ai_experience import repair_scope
+import oj.ai.authoring as ai_module
+from oj.ai.authoring import calculate_cost, validate_provider_url
+from oj.ai.experience import repair_scope
 from oj.config import Settings
 from tests.conftest import login_admin
 

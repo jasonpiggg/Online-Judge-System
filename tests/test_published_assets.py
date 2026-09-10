@@ -171,7 +171,7 @@ async def test_failed_publish_does_not_replace_assets(
 def test_review_schema_omits_absent_assets_and_protected_fields(
     problem_payload: dict[str, Any],
 ) -> None:
-    from oj.ai_sections import DraftReviewCandidate, draft_review_schema, merge_draft_review
+    from oj.ai.sections import DraftReviewCandidate, draft_review_schema, merge_draft_review
 
     baseline = DraftReviewCandidate.model_validate(
         {"problem": problem_payload, "reference_solution": "x"}

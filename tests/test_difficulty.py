@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 
-from oj.ai_prompts import QUALITY_RULES
+from oj.ai.prompts import QUALITY_RULES
 from oj.difficulty import DIFFICULTIES, normalize_difficulty
 from oj.problem_store import ProblemStore
 from oj.schemas import Problem
