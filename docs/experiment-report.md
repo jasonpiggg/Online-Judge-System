@@ -4,22 +4,14 @@ Atelier OJ · 程序设计训练（Python）实验二 · 2026-09-10
 
 | 项目 | 内容 |
 | --- | --- |
-| 姓名 | ____________________ |
-| 学号 | ____________________ |
-| 班级 | ____________________ |
+| 姓名 | 张泽恒 |
+| 学号 | 2025010519 |
+| 班级 | 计55 |
 | 仓库 | `jasonpiggg/Online-Judge-System` |
 | 后端 | Python 3.12、FastAPI、Pydantic、aiosqlite |
 | 默认前端 | Streamlit 1.63 |
 | 可选前端 | React 19、TypeScript 6、Vite 8 |
 | 完整评测环境 | Ubuntu / WSL2、Python 3.12、GCC 9+、C++14 |
-
-本报告从当前最新版代码重新编写，描述实际实现和已执行的验收，不沿用旧版本结论。
-课程要求以官方的 [实验内容](https://dbg-course.github.io/python-docs/oj/)、
-[API 文档](https://dbg-course.github.io/python-docs/oj/api/)和
-[评分标准](https://dbg-course.github.io/python-docs/oj/requirements/)为准。
-
-最终 PDF 固定放置在：`output/pdf/atelier-oj-experiment-report.pdf`。
-提交前应补全个人信息，并由 `scripts/build_report.py` 从本 Markdown 生成 PDF。
 
 ## 1. 系统目标与功能概览
 
@@ -229,20 +221,39 @@ Python/C++ 编译或运行错误、超时、超内存、输出洪泛、子进程
 取消、密钥隐藏、私网 provider 拒绝、Token 估算及草稿版本冲突。
 
 当前明确边界：Windows 原生运行不等价于 Linux `rlimit`；课程 runner 不是生产级恶意代码
-沙箱；真实模型的题目质量依赖所选 provider，自动门禁降低风险但不能替代教师审阅；未获得
-用户对付费模型调用的授权时，本轮不重复消耗真实 Token。
+沙箱；真实模型的题目质量依赖所选 provider，自动门禁降低风险但不能替代教师审阅；未获得用户对付费模型调用的授权时，本轮不重复消耗真实 Token。
 
 ## 7. 成果展示
 
-![Streamlit 默认入口：1440px 题库](screenshots/streamlit-final/library-desktop.png)
+![登录入口与账户认证](screenshots/report/01-login.png)
 
-![Streamlit 默认入口：390px 手机题库](screenshots/streamlit-final/library-mobile.png)
+![Streamlit 默认入口：1440px 桌面题库](screenshots/report/02-library-desktop.png)
 
-![Streamlit 题目编辑器](screenshots/streamlit-final/editor-desktop.png)
+![Streamlit 默认入口：390px 移动端题库](screenshots/report/03-library-mobile.png)
 
-![做题工作区与评测结果](screenshots/desktop-workspace.png)
+![题目详情与做题工作区](screenshots/report/04-problem-workspace.png)
 
-![AI 命题中心](screenshots/ai-workbench.png)
+![代码编辑器、语言选择与提交入口](screenshots/report/05-code-editor.png)
+
+![提交结果、得分和测试点明细](screenshots/report/06-submission-result.png)
+
+![公开评测日志与测试点状态](screenshots/report/07-public-log.png)
+
+![提交记录查询与状态筛选](screenshots/report/08-submission-records.png)
+
+![AI 命题中心与任务历史](screenshots/report/09-ai-authoring.png)
+
+![AI 成功生成题目并展示 Token、费用与阶段信息](screenshots/report/10-ai-generation-success.png)
+
+![AI 生成后的可编辑题目草稿](screenshots/report/11-ai-generated-draft.png)
+
+![AI 做题助手成功回答并给出代码建议](screenshots/report/12-ai-assistant-success.png)
+
+![个人账户与模型配置入口](screenshots/report/13-profile-model-config.png)
+
+![评测语言注册与管理](screenshots/report/14-language-management.png)
+
+![管理员用户与权限管理](screenshots/report/15-admin-console.png)
 
 ## 8. 代码规范与 Git 实践
 
@@ -257,22 +268,14 @@ Conventional Commits，经 PR、自动代码审查、CI 和普通 merge commit �
 
 ## 9. AI 使用说明
 
-本项目允许 Vibe Coding。用户负责确定需求、交互方向、验收优先级和最终提交；Codex 用于课程
-文档检索、代码与测试实现、静态检查、浏览器验收、GitHub 流程和报告整理。AI 辅助比例较高，
-但项目没有可靠的逐行作者标注，因此不虚构精确百分比。所有建议都通过测试、差异审查与实际
-界面检查验证；付费模型检查不会在未获明确授权时执行。
+本项目中，用户负责确定需求、交互方向、验收优先级和最终提交；Codex 用于课程文档检索、代码与测试实现、静态检查、浏览器验收、GitHub 流程和报告整理。AI 辅助比例较高。所有建议都通过测试、差异审查与实际界面检查验证；付费模型检查不会在未获明确授权时执行。
 
 采用的工作流为：读取最新课程原文 → 建立逐条验收矩阵 → 检查实现与权限边界 → 增加失败回归
-→ 修正代码 → 静态/单元/集成/浏览器测试 → 自动代码审查与 CI → 更新报告。使用 AI 不替代对
-异步任务、权限、资源限制、密钥保护和测试边界的理解。
+→ 修正代码 → 静态/单元/集成/浏览器测试 → 自动代码审查与 CI → 更新报告。使用 AI 不替代对异步任务、权限、资源限制、密钥保护和测试边界的理解。
 
 ## 10. 总结与改进建议
 
-本实验把单一 CRUD 服务扩展为包含异步任务、受限子进程、权限审计、前端状态和大模型工作流的
-完整系统。最重要的收获是：异步并不只是把路由写成 `async def`，还必须识别阻塞边界、明确
-Task 所有权、传播取消并处理持久化一致性；安全也不能只靠前端隐藏入口，而要落实到每个后端
-查询和输出字段。
+最重要的收获是：异步并不只是把路由写成 `async def`，还必须识别阻塞边界、明确
+Task 所有权、传播取消并处理持久化一致性；安全也不能只靠前端隐藏入口，而要落实到每个后端查询和输出字段。
 
-后续若面向非可信公网用户，优先引入独立 worker、容器/VM、cgroup、seccomp、网络隔离、队列
-与配额，而不是继续堆叠界面功能。AI 命题应建立固定课程知识点数据集、真实模型盲测和教师评分
-样本，用可重复质量数据替代单次展示印象。
+后续若面向非可信公网用户，优先引入独立 worker、容器/VM、cgroup、seccomp、网络隔离、队列与配额，而不是继续堆叠界面功能。AI 命题应建立固定课程知识点数据集、真实模型盲测和教师评分样本，用可重复质量数据替代单次展示印象。
